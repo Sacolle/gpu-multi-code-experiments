@@ -1,0 +1,289 @@
+* Plano do Projeto Experimental
+
+** Versões
+
+Temos três versões do Fletcher para comparar com:
+- fletcher-base
+  - Single Node
+- fletcher-riggon
+  - Single Node
+  - Multi GPU
+- fletcher-spadotto
+  - Multi nodo
+  - Usa MPI
+
+As análises precisam ser comparativas com essas 3 implementações.
+Mesmo a versão base e a do Riggon serem similares em relação a máquinas com uma GPU,
+é necessário testar nas duas as implementações.
+
+** Máquinas
+
+| Máquina | Nº GPUS | Local         |
+|---------|---------|---------------|
+| grace   |       1 | PCAD          |
+| cidia   |       2 | PCAD          |
+| tupi    |       1 | PCAD          |
+| poti    |       1 | PCAD          |
+| saude   |       3 | PCAD          |
+| xh3000  |       4 | Santos Dumond |
+| H100_dx |       4 | Santos Dumond |
+
+O plano é executar experimentos em todas essas máquinas.
+
+
+** Parâmetros
+
+Precisamos fixar o maior tamanho possível de meio para as execuções.
+Se não me engano, o /fletcher-base/ tem uma limitação de tamanho de 600 x 600 x 600,
+mas precisamos de um experimento que demonstre isso.
+(ou não, talvez só tentar execuções incrementais até o crash seria suficiente).
+Cada máquina tem uma configuração ideal de segmentação.
+Precisamos montar um projeto experimental para determinar isso. Nele temos:
+- Um tamanho de meio fixo
+- Um número de iterações fixa (10)
+- Uso de IO (com ou sem)
+- O número de passos para salvar o meio (fixar em algum valor arbitrário igual para todos)
+- O número de replicações
+- Tamanho da segmentação
+- Tipo do escalonador
+
+
+
+** Experimento para determinar tamanho do bloco
+
+TODO: Ler sobre os escalonadores e adicioná-los no projeto experimental,
+que com GPU eles fazem a diferença.
+
+
+#+BEGIN_SRC R :session *R*
+  library(DoE.base)
+  library(glue)
+  library(tidyverse)
+  library(numbers)
+
+  #no scientific notation
+  options(scipen = 999)
+
+
+  total_width = 576
+  border_size = 4
+  absorb_size = 8
+  width = total_width - 2 * (border_size + absorb_size)
+  seed = 0
+  time_step = 0.00001
+  iterations = 10
+  output = 5 # output every 5 steps
+  replications = 5
+
+  generate_experiment <- function(factors, replications, seed) {
+    DoE.base::fac.design(
+      nfactors = length(factors),
+      replications = replications,
+      repeat.only = FALSE,
+      randomize = TRUE,
+      seed = seed,
+      nlevels = sapply(factors, length),
+      factor.names = factors
+    )
+  }
+
+  segmentations = divisors(total_width)
+
+  cpu_factors <- list(
+    WithIO =  c(0, 1),
+    BlockSeg = segmentations[segmentations > 2 & segmentations < 100]
+  )
+
+  ex <- generate_experiment(cpu_factors, replications, seed) |>
+    as_tibble() |>
+    mutate(
+  	Width = width,
+  	AbsorbSize = absorb_size,
+  	BorderSize = border_size,
+  	TotalTime = format(time_step * iterations, scientific = FALSE),
+  	TimeStep = format(time_step, scientific = FALSE),
+  	OutputTime = format(time_step * output, scientific = FALSE)
+    )
+
+
+  print(dim(ex))
+
+  ex |> readr::write_csv(glue("./ideal-block-segment.csv"))
+
+#+END_SRC
+
+#+RESULTS:
+| 1 | 16 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 64 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  4 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  8 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  3 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  3 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 48 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 12 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 96 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 24 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 32 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 64 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  9 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 36 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 36 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 72 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  9 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  6 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 16 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 24 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 48 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 12 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 18 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 96 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 18 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 32 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 72 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  4 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  8 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  6 | 0.1 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  4 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  6 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  9 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 72 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 96 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 18 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 32 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 48 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 12 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 64 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  8 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 36 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 36 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  8 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 96 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 72 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 24 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 48 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  3 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 32 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 16 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 64 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  3 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 18 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 24 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  4 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 12 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  9 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 16 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  6 | 0.2 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  4 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 16 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  8 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 64 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 18 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 72 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 48 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 16 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 32 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  8 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 96 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 12 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 64 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  3 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 36 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  6 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  6 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 24 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  9 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 36 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 12 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  4 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 48 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  3 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  9 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 32 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 96 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 72 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 18 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 24 | 0.3 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  8 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 72 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 32 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  3 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  9 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  3 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 12 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 18 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 64 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 18 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 12 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 96 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  8 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 64 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  4 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 36 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 36 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 48 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 24 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  6 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 16 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  4 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 32 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  6 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 96 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 24 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 16 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 72 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 48 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  9 | 0.4 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 16 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  4 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 32 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 12 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 24 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  9 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 24 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 36 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 64 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 48 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 18 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  8 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 32 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 18 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 96 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  4 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  3 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  3 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 72 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 72 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 64 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 | 96 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  9 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 48 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 16 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  8 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 12 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 | 36 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 1 |  6 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+| 0 |  6 | 0.5 | 552 | 8 | 4 | 0.0001 | 1e-05 | 5e-05 |
+
+
+** Pendências
+
+Atualmente o Star-Fletcher está quase correto quanto a compilação em CUDA.
+Porém ainda estou tendo alguns erros com o hwloc, que é importante de corrigir
+para que não haja erros na distribuição do problema.
+
+Gepeto fix. É uma configuração correta dada a página do hwloc.
+https://hwloc.readthedocs.io/en/master/doxygen/html/faq.html#faq_cuda_build
+
+there is also the /--enable-cuda/ flag, which fails the build if CUDA is not present.
+
+#+BEGIN_SRC nix
+fixedCudaHwloc = cudaHwloc.overrideAttrs (oldAttrs: {
+    configureFlags = (oldAttrs.configureFlags or []) ++ [
+	"--with-cuda=${cudaPackages.cuda_cudart}"
+    ];
+});
+#+END_SRC
+
+Além disso tenho que ver quais são os escalonadores disponíveis e quais seriam interessantes
+de adicionar no projeto experimental.
+
