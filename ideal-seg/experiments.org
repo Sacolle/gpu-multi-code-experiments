@@ -102,7 +102,7 @@ que com GPU eles fazem a diferença.
 
   cpu_factors <- list(
     WithIO =  c(0, 1),
-    BlockSeg = segmentations[segmentations > 2 & segmentations < 100],
+    BlockSeg = segmentations[segmentations > 2 & segmentations <= 64],
     Schedulers = c("eager", "random", "ws", "lws", "dm", "dmda", "dmdar")
   )
 
