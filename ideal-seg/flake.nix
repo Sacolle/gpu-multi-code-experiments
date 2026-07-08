@@ -5,11 +5,19 @@
         nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
         experiments.url = "github:Sacolle/experiments-nix"; 
 
-        star-fletcher.url = "github:Sacolle/Star-Fletcher?ref=CUDA";
+        star-fletcher = {
+            url = "github:Sacolle/Star-Fletcher?ref=CUDA";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
+
+        nix-gl-host = {
+            url = "github:numtide/nix-gl-host";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, star-fletcher, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, star-fletcher, nix-gl-host, nixpkgs24 }: 
     let
         system = "x86_64-linux"; 
         pkgs = import nixpkgs { inherit system; };
@@ -28,8 +36,10 @@
             stdenv = pkgs24.gcc12Stdenv;
             enableCUDA = true;
             enableTrace = false;
-            compileAsRelease = true;
+            compileAsRelease = false;
         };
+
+        nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
 
         program = "${my-star-fletcher}/bin/star-fletcher";
 
@@ -62,12 +72,12 @@
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
             in
+# STARPU_SCHED=${Schedulers} \
             ''
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
                 ENABLE_IO=${WithIO} \
-                STARPU_SCHED=${Schedulers} \
-                ${program} TTI ${Width} ${Width} ${Width} \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
                 ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
 
