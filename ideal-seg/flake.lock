@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782739254,
-        "narHash": "sha256-sXCl2sY0a/dmndbfIRgAW7MnJtEocc/9bO2bg4Twlvo=",
+        "lastModified": 1783436703,
+        "narHash": "sha256-fbp54xb/8gOjjgv4Q7TZM36x36bEzlxNTQpNlU35Yko=",
         "owner": "Sacolle",
         "repo": "nix-starpu",
-        "rev": "a35cb014d52cc3cb8af6850dd85efbbeed0d375e",
+        "rev": "6bdb16c65866f3d58db535d9648ea8fa969b1b8d",
         "type": "github"
       },
       "original": {
@@ -234,11 +234,11 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1782826144,
-        "narHash": "sha256-/j8c4M55Q8K6s20rGXte6I/NSz2ZDmpbfq7qQB/Lfw8=",
+        "lastModified": 1783540984,
+        "narHash": "sha256-XQ8dtfxWH6S2hSKBnSO2ilhic5K2wnKla4ds6Uly1Oc=",
         "owner": "Sacolle",
         "repo": "Star-Fletcher",
-        "rev": "dbbf0e21cc83a058eab7ea332280c2cdbc688eb5",
+        "rev": "3b3c408bdc1fb3e19fe761f25929eb8b0f2135d3",
         "type": "github"
       },
       "original": {
