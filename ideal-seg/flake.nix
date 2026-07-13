@@ -10,6 +10,11 @@
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        fletcher-base = {
+          url = "github:Sacolle/fletcher-base";
+          inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         nix-gl-host = {
             url = "github:numtide/nix-gl-host";
             inputs.nixpkgs.follows = "nixpkgs";
@@ -17,7 +22,7 @@
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, star-fletcher, nix-gl-host, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, star-fletcher, fletcher-base, nix-gl-host, nixpkgs24 }: 
     let
         system = "x86_64-linux"; 
         pkgs = import nixpkgs { inherit system; };
@@ -31,13 +36,14 @@
 
         # TODO:
         # 1. add the fletcher-code
-        #    - insturment the initialization time
-        #    - check if it runs on cidia
-        #    - get which parameters are used to set name, io and output time
+        #    - [ ] insturment the ENABLE_IO
+        #    - [ ] check if it runs on cidia
+        #    - [ ] get which parameters are used to set name, io and output time
 
         fletcher-base-experiment =
           let
-            program = "";
+            my-fletcher-base = fletcher-base.packages.${system}.default;
+            program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-max-size";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
@@ -75,7 +81,7 @@
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
                 ENABLE_IO=${WithIO} \
-                ${program} TTI ${Width} ${Width} ${Width} \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
                 ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
 
