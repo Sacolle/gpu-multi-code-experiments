@@ -20,6 +20,7 @@
                 FrF2
                 tidyverse
                 janitor
+                patchwork
                 #starvz.packages.${system}.starvz
             ];
         };

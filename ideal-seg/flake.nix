@@ -21,29 +21,89 @@
     let
         system = "x86_64-linux"; 
         pkgs = import nixpkgs { inherit system; };
-
         pkgs24 = import nixpkgs24 { inherit system; config.allowUnfree = true; };
-        cudaPackages24 = pkgs24.cudaPackages_12_2;
-        
-        experiment-name = "ideal-block-size-machine";
-        scratch-folder = "$SCRATCH/${experiment-name}/$HOSTNAME";
-        home-folder = "~/experimental-results/${experiment-name}/$HOSTNAME";
-        str = toString;
-        asNum = builtins.fromJSON;
-    
-        my-star-fletcher = star-fletcher.packages.${system}.default.override {
-            cudaPackages = cudaPackages24;
-            stdenv = pkgs24.gcc12Stdenv;
-            enableCUDA = true;
-            enableTrace = false;
-            compileAsRelease = false;
-        };
+
+        mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
+        mk-home-folder = name: "~/experimental-results/${name}/$HOSTNAME";
+        tail1 = s: builtins.substring 1 (-1) s;
 
         nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
 
-        program = "${my-star-fletcher}/bin/star-fletcher";
+        # TODO:
+        # 1. add the fletcher-code
+        #    - insturment the initialization time
+        #    - check if it runs on cidia
+        #    - get which parameters are used to set name, io and output time
 
-        experimentScript = experiments.lib.mkExperiment {
+        fletcher-base-experiment =
+          let
+            program = "";
+            experiment-name = "fletcher-base-max-size";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+            experiments.lib.mkExperiment {
+              inherit pkgs;
+
+            
+              csvFile = ./base-test.csv;
+
+
+              preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+                '';
+
+              bashRunFn = { 
+                WithIO,
+                Blocks,
+                Width,
+                AbsorbSize,
+                BorderSize,
+                TotalTime,
+                TimeStep,
+                OutputTime,
+                  ...
+              }: 
+              let
+                filename = "${WithIO}-${tail1 Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+            ''
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
+        
+        experimentScriptBase = options:
+          let
+            my-star-fletcher = star-fletcher.packages.${system}.default.override ({
+                cudaPackages = pkgs24.cudaPackages_12_2;
+                stdenv = pkgs24.gcc12Stdenv;
+                enableCUDA = true;
+                enableTrace = false;
+                compileAsRelease = true;
+            } // options);
+            program = "${my-star-fletcher}/bin/star-fletcher";
+
+            experiment-name = "ideal-block-size-machine";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
             inherit pkgs; 
             
             csvFile = ./ideal-block-segment.csv;
@@ -67,7 +127,7 @@
                 ...
             }: 
               let
-                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${builtins.substring 1 (-1) Blocks}";
+                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${tail1 Blocks}";
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
@@ -87,9 +147,15 @@
 
                 cp ${stdout-file} ${home-folder}
             '';
+          };
+        experiment-using-cuda-12-2 = experimentScriptBase {};
+        experiment-using-cuda-12-4 = experimentScriptBase {
+          cudaPackages = pkgs24.cudaPackages_12_4;
+          stdenv = pkgs24.gcc13Stdenv;
         };
     in
     {
-        packages.${system}.default = experimentScript;
+      packages.${system}.default = experiment-using-cuda-12-2;
+      inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4;
     };
 }

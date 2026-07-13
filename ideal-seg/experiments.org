@@ -118,9 +118,9 @@ que com GPU eles fazem a diferença.
     )
 
 
-  print(dim(ex))
+  #print(dim(ex))
 
-  ex |> readr::write_csv(glue("./ideal-seg/ideal-block-segment.csv"))
+  #ex |> readr::write_csv(glue("./ideal-seg/ideal-block-segment.csv"))
 
 #+END_SRC
 
@@ -561,6 +561,7 @@ de adicionar no projeto experimental.
   library(tidyverse)
   library(ggplot2)
   library(dplyr)
+  library(patchwork)
 
   base_dir = "./ideal-seg/results"
 
@@ -591,20 +592,14 @@ de adicionar no projeto experimental.
 
     plot_msamples <- function(io_state){
       x_breaks <- sort(unique(msamples_table$Order))
+
+      max_samples <- (msamples_table |> filter(WithIO == io_state))$Msamples |> max()
       
       ggplot(msamples_table |> filter(WithIO == io_state) |> filter(Msamples > 0), aes(x = Order, y = Msamples)) +
-      #geom_boxplot(aes(group = Order), fill = "steelblue", alpha = 0.7) +
-      geom_point(size = 3, alpha = 0.3) +
+      geom_jitter(fill = "blue", width = 2, alpha = 0.3) +
+      geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
       scale_x_continuous(breaks = x_breaks) +
-        ylim(0,NA)+
-      # scale_y_continuous(trans = "log10") +
-      # lines of the other execution
-      #geom_hline(aes(yintercept = Mean), linetype = "dashed", color = "red", linewidth = 1) +
-      #geom_hline(aes(yintercept = Min), linetype = "dashed", color = "pink", linewidth = 1) +
-      #geom_hline(aes(yintercept = Max), linetype = "dashed", color = "pink", linewidth = 1) +
-      #geom_boxplot(aes(group = BlockSize), outlier.shape = NA, fill = "steelblue", alpha = 0.4) +
-      #stat_summary(fun = mean, geom = "line", aes(group = 1), color = "blue", linewidth = 1.2) +
-      #geom_line(aes(group = Msamples), linewidth = 1) + 
+      ylim(0,NA)+
       facet_grid(~ Schedulers) + 
       labs(
   	title = paste0("Msamples vs. Block Order when WithIO = ", io_state),
@@ -616,7 +611,7 @@ de adicionar no projeto experimental.
       theme(legend.position = "bottom")
   }
 
-    plot_msamples(0)
+    plot_msamples(0) / plot_msamples(1)
       
 #+END_SRC
 
