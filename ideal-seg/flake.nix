@@ -11,7 +11,7 @@
         };
 
         fletcher-base = {
-          url = "github:Sacolle/fletcher-base";
+          url = "github:Sacolle/fletcher-base?dir=original";
           inputs.nixpkgs.follows = "nixpkgs";
         };
 
@@ -164,6 +164,6 @@
     in
     {
       packages.${system}.default = experiment-using-cuda-12-2;
-      inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4;
+      inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment;
     };
 }

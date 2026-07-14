@@ -100,6 +100,30 @@
         "type": "github"
       }
     },
+    "fletcher-base": {
+      "inputs": {
+        "nix-gl-host": "nix-gl-host",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "old-nixpkgs": "old-nixpkgs"
+      },
+      "locked": {
+        "dir": "original",
+        "lastModified": 1783969905,
+        "narHash": "sha256-c9Bq7MnmOeKjf8cr/6AkEmeJAlxf5VU5kENFbSr7TyE=",
+        "owner": "Sacolle",
+        "repo": "fletcher-base",
+        "rev": "bcd5e74100a97d3a61fd1afc4c16bd8c12b723ea",
+        "type": "github"
+      },
+      "original": {
+        "dir": "original",
+        "owner": "Sacolle",
+        "repo": "fletcher-base",
+        "type": "github"
+      }
+    },
     "madagascar": {
       "inputs": {
         "nixpkgs": "nixpkgs_3"
@@ -121,6 +145,7 @@
     "nix-gl-host": {
       "inputs": {
         "nixpkgs": [
+          "fletcher-base",
           "nixpkgs"
         ]
       },
@@ -139,6 +164,26 @@
       }
     },
     "nix-gl-host_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1732211616,
+        "narHash": "sha256-QZCKJoypcwgS3tDNSWMjlxEBZtOYPW3eXV24rMzKsac=",
+        "owner": "numtide",
+        "repo": "nix-gl-host",
+        "rev": "5269b233f83880a0b433eafe026f0bc0d8f1a4a9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "nix-gl-host",
+        "type": "github"
+      }
+    },
+    "nix-gl-host_3": {
       "inputs": {
         "nixpkgs": [
           "star-fletcher",
@@ -162,10 +207,10 @@
     "nixpkgs": {
       "locked": {
         "lastModified": 315532800,
-        "narHash": "sha256-2l8yOB5aYd+05Q9V9Y1YhgbSa1j1o5QX+nvYs5FL80A=",
-        "rev": "f205b5574fd0cb7da5b702a2da51507b7f4fdd1b",
+        "narHash": "sha256-w9ktuEgDIWGsX58tR3nI5HBGNy1idO8KY4urO3msko0=",
+        "rev": "6cdc7fc76e8bf7fde9fa43a849fcaaa70e230dee",
         "type": "tarball",
-        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1028110.f205b5574fd0/nixexprs.tar.xz?lastModified=1783279667"
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1033616.6cdc7fc76e8b/nixexprs.tar.xz?lastModified=1783915482"
       },
       "original": {
         "id": "nixpkgs",
@@ -190,11 +235,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1783148766,
-        "narHash": "sha256-uslt2pqShTIXDdAHRHv2QkYLsVdY8Oqwz0EA48/RSM8=",
+        "lastModified": 1783856661,
+        "narHash": "sha256-ZGP04e+Q6WyQJGA9ZvI5CL6+heGQldbAG9U1T9NGvmU=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "a50de1b7d8a586adc18d2395c19de7d6058e6030",
+        "rev": "569d578509928497eddc3fdbf94a799027050be4",
         "type": "github"
       },
       "original": {
@@ -220,10 +265,27 @@
         "type": "github"
       }
     },
+    "old-nixpkgs": {
+      "locked": {
+        "lastModified": 1751274312,
+        "narHash": "sha256-/bVBlRpECLVzjV19t5KMdMFWSwKLtb5RyXdjz3LJT+g=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "50ab793786d9de88ee30ec4e4c24fb4236fc2674",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-24.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "experiments": "experiments",
-        "nix-gl-host": "nix-gl-host",
+        "fletcher-base": "fletcher-base",
+        "nix-gl-host": "nix-gl-host_2",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs24": "nixpkgs24",
         "star-fletcher": "star-fletcher"
@@ -235,17 +297,17 @@
         "cudaNixpkgs": "cudaNixpkgs",
         "eztrace": "eztrace",
         "madagascar": "madagascar",
-        "nix-gl-host": "nix-gl-host_2",
+        "nix-gl-host": "nix-gl-host_3",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1783437552,
-        "narHash": "sha256-moABaozaiFjGiK+hjRMU6Vovlprgg+DCvjMCDVcCUCw=",
+        "lastModified": 1783540984,
+        "narHash": "sha256-XQ8dtfxWH6S2hSKBnSO2ilhic5K2wnKla4ds6Uly1Oc=",
         "owner": "Sacolle",
         "repo": "Star-Fletcher",
-        "rev": "68937e0da532499484dd563c0e568a36c93fcc47",
+        "rev": "3b3c408bdc1fb3e19fe761f25929eb8b0f2135d3",
         "type": "github"
       },
       "original": {
