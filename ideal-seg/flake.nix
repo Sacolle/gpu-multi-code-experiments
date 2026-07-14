@@ -36,13 +36,15 @@
 
         # TODO:
         # 1. add the fletcher-code
-        #    - [ ] insturment the ENABLE_IO
+        #    - [x] insturment the ENABLE_IO
+        #    - [x] get which parameters are used to set name, io and output time
         #    - [ ] check if it runs on cidia
-        #    - [ ] get which parameters are used to set name, io and output time
 
         fletcher-base-experiment =
           let
-            my-fletcher-base = fletcher-base.packages.${system}.default;
+            my-fletcher-base = fletcher-base.packages.${system}.default.override {
+              
+            };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-max-size";
             scratch-folder = mk-scratch-folder experiment-name;
@@ -74,7 +76,7 @@
               let
                 filename = "${WithIO}-${tail1 Blocks}";
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
-                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-file = "${scratch-folder}/${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
             in
             ''
