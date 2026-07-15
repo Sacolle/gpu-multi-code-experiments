@@ -1,5 +1,6 @@
 * Plano do Projeto Experimental
 
+
 ** Versões
 
 Temos três versões do Fletcher para comparar com:
@@ -550,55 +551,96 @@ Além disso tenho que ver quais são os escalonadores disponíveis e quais seria
 de adicionar no projeto experimental.
 
  - Resolvido: tem que passar o hwloc com gpu para o star-fletcher também.
-
+   
 * Análise de Dados
 
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
-  options(crayon.enabled = FALSE)
-  #library(starvz)
-  library(tidyverse)
-  library(ggplot2)
-  library(dplyr)
-  library(patchwork)
+   options(crayon.enabled = FALSE)
+   #library(starvz)
+   library(tidyverse)
+   library(ggplot2)
+   library(dplyr)
+   library(patchwork)
 
-  base_dir = "./ideal-seg/results"
+   base_dir = "./ideal-seg/results"
 
-  machines <- tribble(
-    ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, ~GPU, ~GPU_count, ~GPU_gb_mem,
-    "cidia", "2 x Intel(R) Xeon(R) Silver 4208", 2.1, 32, 16, "NVIDIA GeForce RTX 2080 Ti", 2, 11
-  )
+   machines <- tribble(
+     ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, ~GPU, ~GPU_count, ~GPU_gb_mem,
+     "cidia", "2 x Intel(R) Xeon(R) Silver 4208", 2.1, 32, 16, "NVIDIA GeForce RTX 2080 Ti", 2, 11,
+     "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
+     "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
+     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20, "NVIDIA GeForce RTX 4070", 1, 12,
+     "saude", "Intel(R) Xeon(R) E5-2620 v4", 2.1, 16, 8, "NVIDIA GeForce GTX 1080 Ti", 3, 11,
+     "grace", "2 x Grace A02", 3.4, 144, 144, "NVIDIA L40S", 1,  46
+   )
 
-  experiments <- read_csv('./ideal-seg/ideal-block-segment.csv')
+   ex_star_fletcher <- read_csv('./ideal-seg/ideal-block-segment.csv')
+   ex_fletcher_base <- read_csv('./ideal-seg/base-test.csv')
 
-  all <- machines |> cross_join(experiments)
+   sf <- machines |> cross_join(ex_star_fletcher)
+   fb <- machines |> cross_join(ex_fletcher_base)
 
-  msamples_table <- all |>
-    mutate(FILE = paste0(base_dir,"/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+   sf_res <- sf |>
+     mutate(FILE = paste0(base_dir,"/ideal-block-size-machine/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+     mutate(Msamples = map_dbl(FILE, function(file) {
+       #print(file)
+       lines <- tryCatch({
+   	read_lines(file)
+       }, error = function(e){
+   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+   	return(NA_real_) # Returns NULL instead of breaking the script
+       })
+        lines |>
+         tail(1) |>
+         str_remove("Msamples/s: ") |>
+         as.numeric()
+     })) |>
+     filter(!is.na(Msamples)) |>
+     mutate(Order = (Width + 2 * (AbsorbSize + BorderSize)) / BlockSeg) 
+
+
+  fb_res <- fb |>
+    mutate(FILE = paste0(base_dir,"/fletcher-base-max-size/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Msamples = map_dbl(FILE, function(file) {
-      #print(file)
-      read_lines(file) |>
-        tail(1) |>
-        str_remove("Msamples/s: ") |>
+       lines <- tryCatch({
+   	read_lines(file)
+       }, error = function(e){
+   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+   	return(NA_real_) # Returns NULL instead of breaking the script
+       })
+      res <- lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("[\\d.]+") |> 
         as.numeric()
+      res[1]
     })) |>
-    mutate(Order = (Width + 2 * (AbsorbSize + BorderSize)) / BlockSeg) 
-
+    filter(!is.na(Msamples)) 
+  #|>
+   # group_by(across(-c(replication, Msamples, FILE))) |>
+    #summarize(Mean = mean(Msamples), Min = min(Msamples), Max = max(Msamples)) |> print()
 
 #+END_SRC
 
 #+BEGIN_SRC R :session *R* :async yes
 
     plot_msamples <- function(io_state){
-      x_breaks <- sort(unique(msamples_table$Order))
+      x_breaks <- sort(unique(sf_res$Order))
 
-      max_samples <- (msamples_table |> filter(WithIO == io_state))$Msamples |> max()
+      max_fb <- fb_res |>
+  	filter(WithIO == io_state) |>
+  	group_by(Processor) |>
+  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
+  	# Join back to machines so the hline can inherit the exact Machine color
+  	#left_join(machines |> select(Machine, Processor), by = "Processor")
       
-      ggplot(msamples_table |> filter(WithIO == io_state) |> filter(Msamples > 0), aes(x = Order, y = Msamples)) +
-      geom_jitter(fill = "blue", width = 2, alpha = 0.3) +
-      geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
+      ggplot(sf_res |> filter(WithIO == io_state), aes(x = Order, y = Msamples, color = Processor)) +
+      geom_jitter(width = 2, alpha = 0.3) +
+      geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Processor), linetype = "dashed", linewidth = 0.8) +
+      #geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
       scale_x_continuous(breaks = x_breaks) +
+      #scale_y_continuous(trans='log2') +
       ylim(0,NA)+
       facet_grid(~ Schedulers) + 
       labs(
@@ -611,7 +653,8 @@ de adicionar no projeto experimental.
       theme(legend.position = "bottom")
   }
 
-    plot_msamples(0) / plot_msamples(1)
+    #plot_msamples(0) / plot_msamples(1)
+  plot_msamples(0)
       
 #+END_SRC
 
