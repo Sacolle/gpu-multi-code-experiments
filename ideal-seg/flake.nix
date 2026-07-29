@@ -177,13 +177,14 @@
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
-                prof-file = "prof_file_${filename}";
+                prof-name = "prof_file_${filename}";
+		prof-file = "${scratch-folder}/${prof-name}_0";
             in
             ''
-                STARPU_TRACE_BUFFER_SIZE=2048 \
+                STARPU_TRACE_BUFFER_SIZE=4096 \
                 STARPU_FXT_TRACE=1 \
                 STARPU_FXT_PREFIX=${scratch-folder} \
-                STARPU_FXT_SUFFIX=${prof-file} \
+                STARPU_FXT_SUFFIX=${prof-name} \
                 STARPU_SCHED=${Schedulers} \
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
@@ -197,7 +198,7 @@
                 rm ${rsf-file} ${rsf-at-file}
 
                 cp ${stdout-file} ${home-folder}
-                cp ${scratch-folder}/${prof-file} ${home-folder}
+                cp ${prof-file} ${home-folder}
             '';
           };
 
