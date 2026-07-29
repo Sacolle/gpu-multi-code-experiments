@@ -95,6 +95,61 @@
             '';
           };
 
+        trace-no-cpu = 
+          let
+            my-star-fletcher = star-fletcher.packages.${system}.default.override {
+                cudaPackages = pkgs24.cudaPackages_12_2;
+                stdenv = pkgs24.gcc12Stdenv;
+                enableCUDA = true;
+                enableTrace = true;
+                disableCPUKernel = true;
+                compileAsRelease = true;
+            };
+            program = "${my-star-fletcher}/bin/star-fletcher";
+            experiment-name = "ideal-block-size-machine-no-cpu";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./ideal-block-segment-no-cpu-trace.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { BlockSeg, Schedulers, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, ... }: 
+              let
+
+                filename = "${Schedulers}-${BlockSeg}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+                prof-file = "prof_file_${filename}";
+            in
+            ''
+                STARPU_TRACE_BUFFER_SIZE=2048 \
+                STARPU_FXT_TRACE=1 \
+                STARPU_FXT_PREFIX=${scratch-folder} \
+                STARPU_FXT_SUFFIX=${prof-file} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=0 \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
         
         experimentScriptBase = name: options: 
           let
@@ -140,8 +195,8 @@
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
             in
-# STARPU_SCHED=${Schedulers} \
             ''
+                STARPU_SCHED=${Schedulers} \
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
                 ENABLE_IO=${WithIO} \
@@ -161,14 +216,11 @@
             cudaPackages = pkgs24.cudaPackages_12_4;
             stdenv = pkgs24.gcc13Stdenv;
         };
-        experiment-using-cuda-12-2-no-cpu-kernel = experimentScriptBase "ideal-block-size-machine-no-cpu" {
-	    disableCPUKernel = true;
-	};
     in
     {
         packages.${system} = {
- 	    default = experiment-using-cuda-12-2;
-            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment experiment-using-cuda-12-2-no-cpu-kernel;
+            default = experiment-using-cuda-12-2;
+            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment trace-no-cpu;
         };
     };
 }
