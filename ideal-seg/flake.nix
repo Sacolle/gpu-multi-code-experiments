@@ -197,6 +197,7 @@
                 rm ${rsf-file} ${rsf-at-file}
 
                 cp ${stdout-file} ${home-folder}
+                cp ${scratch-folder}/${prof-file} ${home-folder}
             '';
           };
 
