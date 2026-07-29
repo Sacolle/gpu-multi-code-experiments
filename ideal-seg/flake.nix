@@ -95,6 +95,56 @@
             '';
           };
 
+        no-cpu-msamples = 
+          let
+            my-star-fletcher = star-fletcher.packages.${system}.default.override {
+                cudaPackages = pkgs24.cudaPackages_12_2;
+                stdenv = pkgs24.gcc12Stdenv;
+                enableCUDA = true;
+                enableTrace = false;
+                disableCPUKernel = true;
+                compileAsRelease = true;
+            };
+            program = "${my-star-fletcher}/bin/star-fletcher";
+            experiment-name = "ideal-block-size-machine-no-cpu-msamples";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./ideal-block-segment-no-cpu-trace.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { BlockSeg, Schedulers, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, ... }: 
+              let
+
+                filename = "${Schedulers}-${BlockSeg}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+            ''
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=0 \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
         trace-no-cpu = 
           let
             my-star-fletcher = star-fletcher.packages.${system}.default.override {
@@ -220,7 +270,7 @@
     {
         packages.${system} = {
             default = experiment-using-cuda-12-2;
-            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment trace-no-cpu;
+            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment trace-no-cpu no-cpu-msamples;
         };
     };
 }
