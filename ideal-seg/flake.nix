@@ -96,7 +96,7 @@
           };
 
         
-        experimentScriptBase = options:
+        experimentScriptBase = name: options: 
           let
             my-star-fletcher = star-fletcher.packages.${system}.default.override ({
                 cudaPackages = pkgs24.cudaPackages_12_2;
@@ -107,7 +107,7 @@
             } // options);
             program = "${my-star-fletcher}/bin/star-fletcher";
 
-            experiment-name = "ideal-block-size-machine";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -156,14 +156,19 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        experiment-using-cuda-12-2 = experimentScriptBase {};
-        experiment-using-cuda-12-4 = experimentScriptBase {
-          cudaPackages = pkgs24.cudaPackages_12_4;
-          stdenv = pkgs24.gcc13Stdenv;
+        experiment-using-cuda-12-2 = experimentScriptBase "ideal-block-size-machine-12-2" {};
+        experiment-using-cuda-12-4 = experimentScriptBase "ideal-block-size-machine-12-4"{
+            cudaPackages = pkgs24.cudaPackages_12_4;
+            stdenv = pkgs24.gcc13Stdenv;
         };
+        experiment-using-cuda-12-2-no-cpu-kernel = experimentScriptBase "ideal-block-size-machine-no-cpu" {
+	    disableCPUKernel = true;
+	};
     in
     {
-      packages.${system}.default = experiment-using-cuda-12-2;
-      inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment;
+        packages.${system} = {
+ 	    default = experiment-using-cuda-12-2;
+            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment experiment-using-cuda-12-2-no-cpu-kernel;
+        };
     };
 }
