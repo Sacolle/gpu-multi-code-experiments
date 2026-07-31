@@ -92,7 +92,7 @@ Temos que gerar 5 experimentos
 
   sf_cpu_factors <- list(
     WithIO =  c(0, 1),
-    BlockSeg = segmentations[segmentations > 3 & segmentations < 100],
+    BlockSeg = segmentations[segmentations > 3 & segmentations <= (total_width / 9)],
     Schedulers = c("random", "ws", "lws", "dm", "dmdar")
   )
 
@@ -114,7 +114,8 @@ Temos que gerar 5 experimentos
 
   print(dim(fb_ex))
 
-  #ex |> readr::write_csv(glue("./sscad/star-fletcher-fix-size.csv"))
+  sf_ex |> readr::write_csv(glue("./sscad/star-fletcher-fix-size.csv"))
+  fb_ex |> readr::write_csv(glue("./sscad/fletcher-base-fix-size.csv"))
 
 #+END_SRC
  
