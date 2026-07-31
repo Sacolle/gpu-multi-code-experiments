@@ -13,7 +13,7 @@
             inherit system; 
             config.allowUnfree = true;
         };
-        rEnv = pkgs.rWrapper.override {
+        rEnv = extra: pkgs.rWrapper.override {
             packages = with pkgs.rPackages; [
                 languageserver
                 numbers
@@ -24,8 +24,7 @@
                 tidyverse
                 janitor
                 patchwork
-                starvz.packages.${system}.starvz
-            ];
+            ] ++ extra;
         };
         StarPU = starpu.packages.${system}.default.override {
             enableCUDA = true;
@@ -39,11 +38,16 @@
         };
     in 
   {
-        devShells.${system}.default = pkgs.mkShell { 
-            buildInputs =  [ 
-                rEnv 
-                myStarvzTools
-            ]; 
+        devShells.${system} = {
+            default = pkgs.mkShell { 
+                buildInputs =  [ 
+                    (rEnv [ starvz.packages.${system}.starvz ])
+                    myStarvzTools
+                ]; 
+            };
+            simple = pkgs.mkShell { 
+                buildInputs =  [ (rEnv [ ]) ]; 
+            };
         };
   };
 }

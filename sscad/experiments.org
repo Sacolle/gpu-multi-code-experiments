@@ -1,0 +1,229 @@
+: Plano do Projeto Experimental
+
+** Máquinas
+
+Quais máquinas iremos executar?
+
+| Máquina   | Processador                      | Threads | Cores | Frequência |
+|-----------+----------------------------------+---------+-------+------------|
+| draco     | 2 x Intel(R) Xeon(R) E5-2640 v2  |      32 |    16 | 2.0 GH     |
+| poti      | Intel(R) Core(TM) i7-14700KF     |      28 |    20 | 3.4 GHz    |
+| cei       | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz    |
+| grace     | 2 x Grace A02                    |     144 |   144 | 3.4 GHz    |
+| tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz    |
+
+
+O plano é executar experimentos em todas essas máquinas.
+
+** Parâmetros
+
+Quais parâmetros queremos analisar nos testes.
+Iniciamos um teste com um volume fixo -> 576? Muito grande para a CPU talvez
+- Para esse teste, computamos com e sem IO 
+	- Com IO consideramos o mkspan -> preciso instrumentar isso ainda
+	- Sem IO consideramos os Msamples
+	- Nisso temos um teste muito semelhante ao do /ideal-seg/, 
+	  em que também fixamos o número de iterações e alteramos a segmentação do meio, com várias replicações.
+
+Temos outro teste que consiste em manter a ordem fixa (tamanho do bloco) e mudar o volume.
+- Podemos usar o mesmo setup de escalonadores, dessa vez sem IO para considerar bem os Msamples.
+- Só precisamos de um tamanho de bloco não tão grande, que dê uma granularidade legal.
+- Comparamos a execução com os tamanhos do /fletcher-base/.
+
+*** Usar escalonadores do StarPU
+
+Selecionar alguns.
+  |--------+----------------------------------------------------+-------------|
+  | name   | descriptor                                         | performance |
+  |--------+----------------------------------------------------+-------------|
+  | random | random                                             | no          |
+  | ws     | worker rouba a task de outro caso este esteja idle | no          |
+  | lws    | tipo ws, mas local                                 | no          |
+  | dm     | usa tempo de execução                              | yes         |
+  | dmdar  | tipo dmda, mas considera o local                   | yes         |
+
+Não estamos incluindo outros escalonadores que levam em consideração a prioridade das tasks,
+pois estes são desnecessários. O star-fletcher é dominado por uma única task.
+
+** Experimentos
+
+Temos que gerar 5 experimentos
+ - Experimento volume fixo
+	- Versão star-fletcher
+	- Versão fletcher-base
+	- Dado o resultado deste experimentos, fazer o de baixo
+ - Experimento ordem fixa
+	- Versão star-fletcher
+	- Versão fletcher-base
+ - Geração de traces do star-fletcher
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  library(DoE.base)
+  library(glue)
+  library(tidyverse)
+  library(numbers)
+
+  #no scientific notation
+  options(scipen = 999)
+
+
+  total_width = 384
+  border_size = 4
+  absorb_size = 8
+  width = total_width - 2 * (border_size + absorb_size)
+  seed = 0
+  time_step = 0.0001
+  iterations = 10
+  replications = 5
+
+  generate_experiment <- function(factors, replications, seed) {
+    DoE.base::fac.design(
+      nfactors = length(factors),
+      replications = replications,
+      repeat.only = FALSE,
+      randomize = TRUE,
+      seed = seed,
+      nlevels = sapply(factors, length),
+      factor.names = factors
+    )
+  }
+
+  segmentations = divisors(total_width)
+
+  sf_cpu_factors <- list(
+    WithIO =  c(0, 1),
+    BlockSeg = segmentations[segmentations > 3 & segmentations < 100],
+    Schedulers = c("random", "ws", "lws", "dm", "dmdar")
+  )
+
+  sf_ex <- generate_experiment(sf_cpu_factors, replications, seed) |>
+    as_tibble() |>
+    mutate(
+  	Width = width,
+  	AbsorbSize = absorb_size,
+  	TotalTime = format(time_step * iterations, scientific = FALSE),
+  	TimeStep = format(time_step, scientific = FALSE),
+  	OutputTime = format(time_step, scientific = FALSE)
+    )
+  # for the fletcher-base, remove all non-relevant parameters
+  fb_ex <- sf_ex |> select(-BlockSeg, -Schedulers) |> unique()
+
+
+  # for the traces, remove the replications and select a smaller range of segmentaions
+  # TODO: sf_ex_traces
+
+  print(dim(fb_ex))
+
+  #ex |> readr::write_csv(glue("./sscad/star-fletcher-fix-size.csv"))
+
+#+END_SRC
+ 
+* Análise de Dados
+
+TODO
+
+Dados da execução inicial.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+   options(crayon.enabled = FALSE)
+   #library(starvz)
+   library(tidyverse)
+   library(ggplot2)
+   library(dplyr)
+   library(patchwork)
+
+   base_dir = "./ideal-seg/results"
+
+   machines <- tribble(
+     ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, ~GPU, ~GPU_count, ~GPU_gb_mem,
+     "cidia", "2 x Intel(R) Xeon(R) Silver 4208", 2.1, 32, 16, "NVIDIA GeForce RTX 2080 Ti", 2, 11,
+     "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
+     "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
+     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20, "NVIDIA GeForce RTX 4070", 1, 12,
+     "saude", "Intel(R) Xeon(R) E5-2620 v4", 2.1, 16, 8, "NVIDIA GeForce GTX 1080 Ti", 3, 11,
+     "grace", "2 x Grace A02", 3.4, 144, 144, "NVIDIA L40S", 1,  46
+   )
+
+   ex_star_fletcher <- read_csv('./ideal-seg/ideal-block-segment.csv')
+   ex_fletcher_base <- read_csv('./ideal-seg/base-test.csv')
+
+   sf <- machines |> cross_join(ex_star_fletcher)
+   fb <- machines |> cross_join(ex_fletcher_base)
+
+   sf_res <- sf |>
+     mutate(FILE = paste0(base_dir,"/ideal-block-size-machine/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+     mutate(Msamples = map_dbl(FILE, function(file) {
+       #print(file)
+       lines <- tryCatch({
+   	read_lines(file)
+       }, error = function(e){
+   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+   	return(NA_real_) # Returns NULL instead of breaking the script
+       })
+        lines |>
+         tail(1) |>
+         str_remove("Msamples/s: ") |>
+         as.numeric()
+     })) |>
+     filter(!is.na(Msamples)) |>
+     mutate(Order = (Width + 2 * (AbsorbSize + BorderSize)) / BlockSeg) 
+
+
+  fb_res <- fb |>
+    mutate(FILE = paste0(base_dir,"/fletcher-base-max-size/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Msamples = map_dbl(FILE, function(file) {
+       lines <- tryCatch({
+   	read_lines(file)
+       }, error = function(e){
+   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+   	return(NA_real_) # Returns NULL instead of breaking the script
+       })
+      res <- lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("[\\d.]+") |> 
+        as.numeric()
+      res[1]
+    })) |>
+    filter(!is.na(Msamples)) 
+  #|>
+   # group_by(across(-c(replication, Msamples, FILE))) |>
+    #summarize(Mean = mean(Msamples), Min = min(Msamples), Max = max(Msamples)) |> print()
+
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes
+
+    plot_msamples <- function(io_state){
+      x_breaks <- sort(unique(sf_res$Order))
+
+      max_fb <- fb_res |>
+  	filter(WithIO == io_state) |>
+  	group_by(Processor) |>
+  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
+  	# Join back to machines so the hline can inherit the exact Machine color
+  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+      
+      ggplot(sf_res |> filter(WithIO == io_state) |> filter(Schedulers == "dmdar" | Schedulers == "lws"), aes(x = Order, y = Msamples, color = Processor)) +
+      geom_jitter(width = 2, alpha = 0.3) +
+      geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Processor), linetype = "dashed", linewidth = 0.8) +
+      #geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
+      scale_x_continuous(breaks = x_breaks) +
+      #scale_y_continuous(trans='log2') +
+      ylim(0,NA)+
+      facet_grid(~ Schedulers) + 
+      labs(
+  	title = paste0("Msamples vs. Block Order when WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Msamples/s"
+      ) +
+      theme_bw(base_size=15) +
+      theme(legend.position = "bottom")
+  }
+
+    #plot_msamples(0) / plot_msamples(1)
+  plot_msamples(0)
+      
+#+END_SRC
+
+#+RESULTS:
