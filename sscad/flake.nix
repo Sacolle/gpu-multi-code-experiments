@@ -29,7 +29,9 @@
         fletcher-base-cpu =
           let
             my-fletcher-base = fletcher-base.packages.${system}.default.override {
-		          OpenMPbackend = true;
+                CUDAbackend = false;
+                OpenMPbackend = true;
+                OpenACCbackend = false;
             };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-max-size";
@@ -64,7 +66,7 @@
                 ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
 
                 cat ${stdout-file}
-                rm ${rsf-file} ${rsf-at-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
                 cp ${stdout-file} ${home-folder}
             '';
           };
@@ -76,6 +78,8 @@
                 enableCUDA = false;
                 enableTrace = false;
                 compileAsRelease = true;
+		enableVerbose = false;
+		stdenv = pkgs.gcc13Stdenv;
             };
             program = "${my-star-fletcher}/bin/star-fletcher";
 
