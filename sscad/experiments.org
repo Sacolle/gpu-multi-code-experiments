@@ -1,4 +1,4 @@
-: Plano do Projeto Experimental
+* Plano do Projeto Experimental
 
 ** Máquinas
 
@@ -118,12 +118,10 @@ Temos que gerar 5 experimentos
   fb_ex |> readr::write_csv(glue("./sscad/fletcher-base-fix-size.csv"))
 
 #+END_SRC
- 
+
 * Análise de Dados
 
-TODO
-
-Dados da execução inicial.
+Aqui segue os dados das máquinas usadas nas execuções. 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
   options(crayon.enabled = FALSE)
@@ -143,13 +141,18 @@ Dados da execução inicial.
     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "grace1", "2 x Grace A02", 3.4, 144, 144,
     "cei1", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "cei2", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
     "cei3", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
     "draco1", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
-    "draco2", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16
+    "draco2", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco6", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco7", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16
   )
 
 #+END_SRC
 
+
+** Experimentos base da Variação da Ordem
 
 Experimento do star-fletcher
 
@@ -160,6 +163,9 @@ Experimento do star-fletcher
   sf_res <- sf |>
     mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
       #print(file)
       lines <- tryCatch({
         read_lines(file)
@@ -189,8 +195,12 @@ Experimento do fletcher-base
   fb_res <- fb |>
     mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      
        lines <- tryCatch({
-   	read_lines(file) |> tail(4) |> head(2)
+   	read_lines(file) 
        }, error = function(e){
    	 message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
          return(NULL) # Returns NULL instead of breaking the script
@@ -200,12 +210,13 @@ Experimento do fletcher-base
        }
        msamples <-  lines |>
         str_subset("MSamples/s") |> 
-        str_extract("\\d.\\d+") |> 
+        str_extract("\\d+.\\d+") |> 
         as.numeric()
+
 
        exec_time <-  lines |>
         str_subset("Total execution time") |> 
-        str_extract("\\d.\\d+") |> 
+        str_extract("\\d+.\\d+") |> 
         as.numeric()
 
        tribble(~Msamples, ~ExecTime,
@@ -216,35 +227,242 @@ Experimento do fletcher-base
 
 #+END_SRC
 
-#+BEGIN_SRC R :session *R* :async yes
+*** Gráficos dos resultados
 
-    x_breaks <- sort(unique(sf_res$Order))
+Gráfico da relação Mega Samples por Tamanho de bloco.
+Pode-se observar que quando desconsiderando o IO, para os
+escalonadores simples (lws e ws) há um ponto em que a performance do star-fletcher supera o
+obtido no fletcher-base.
+Quando observando essa métrica considerando o IO, a única máquina que mantém essa vantagem é a poti.
+Entretanto, a comparação quando o IO está ligado é injusta, pois a conta do Msamples no flecher-base desconsidera o tempo de IO,
+enqunato essa granularidade é não é possível no caso do star-fletcher devido a sua arquitetura em tarefas. 
 
-      max_fb <- fb_res |>
-  	#filter(Machine != "grace1") |>
-  	filter(WithIO == 0) |>
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  x_breaks <- sort(unique(sf_res$Order))
+  msamples_plot <- function(io_state) {
+    max_fb <- fb_res |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+  	filter(WithIO == io_state) |>
   	group_by(Machine) |>
   	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
   	# Join back to machines so the hline can inherit the exact Machine color
   	#left_join(machines |> select(Machine, Processor), by = "Processor")
-      
-      ggplot(sf_res |> filter(WithIO == 0), aes(x = Order, y = Msamples, color = Machine)) +
-      geom_jitter(width = 2, alpha = 0.3) +
-      geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
-      #geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
-      scale_x_continuous(breaks = x_breaks) +
-      #scale_y_continuous(trans='log2') +
-      ylim(0,NA)+
-      facet_grid(~ Schedulers) + 
-      labs(
-  	title = "Msamples vs. Block Order",
+
+   sf_msamples_plot <- sf_res |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples, color = Machine)) +
+    geom_point(size = 2, alpha = 0.3) +
+    geom_line(linewidth = 0.8) +
+    geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    ylim(0,NA)+
+    facet_grid(~ Schedulers) + 
+    labs(
+  	title = paste0("Msamples vs. Block Order with WithIO = ", io_state),
   	subtitle = "Faceted by Scheduler",
   	x = "Block Size",
   	y = "Msamples/s"
-      ) +
-      theme_bw(base_size=15) +
-      theme(legend.position = "bottom")
-      
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(0) / msamples_plot(1)
 #+END_SRC
 
-#+RESULTS:
+Gráfico de tempo de execução por tamanho do bloco.
+Pode-se observar, que quando considerando o tempo de execução (que considera o tempo de IO junto),
+todas as máquinas possuem um ponto em que o star-fletcher teve um desempenho melhor que o fletcher-base.
+É interessante observar que no caso da grace, isso só acontece em uma configuração específica usando o escalonador ws.
+Mesmo assim, os outros escalonadores também se aproximam desse resultado ao chegar mais perto da segmentação ideal.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  x_breaks <- sort(unique(sf_res$Order))
+
+  time_plot <- function(io_state) {
+    max_fb_time <- fb_res |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+  	filter(WithIO == io_state) |>
+  	group_by(Machine) |>
+  	summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") #|>
+  	# Join back to machines so the hline can inherit the exact Machine color
+  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+
+   sf_time_plot <- sf_res |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_time_plot, aes(x = factor(Order), y = ExecTime, fill = Machine)) +
+    stat_summary(fun = mean, geom = "bar", position = "dodge", color = "black", linewidth = 0.3) +
+    # geom_jitter() +
+    geom_hline(data = max_fb_time, aes(yintercept = Min_Time), linewidth = 0.8) +
+    #scale_y_continuous(breaks = sort(unique(c(seq(0, 50, by = 10), max_fb_time$Min_Time))), labels = function(x) round(x, 2), # Rounds to 2 decimal places to keep it tidy) +
+    #scale_x_continuous(breaks = x_breaks) +
+    coord_cartesian(ylim = c(0, 40)) +
+    #ylim(0,50)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Execution Time vs. Block Order with WithIO = ", io_state) ,
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Execution Time (s)"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+    }
+
+  #time_plot(0)
+
+  time_plot(1)
+    
+#+END_SRC
+
+** Experimentos de Ordem fixa, variando o tamanho
+
+Extraindo os dados dos experimentos do star-fletcher-fix-order
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order.csv')
+  sf_order <- machines |> cross_join(ex_star_fletcher_order)
+
+  sf_res_order <- sf_order |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      
+      lines <- tryCatch({
+        read_lines(file)
+      }, error = function(e){
+        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+        return(NULL) # Returns NULL instead of breaking the script
+      })
+      if(is.null(lines)) {
+        return(NULL)
+      }
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[6]], vals[[5]])
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data)
+#+END_SRC
+
+
+Experimento do fletcher-base-fix-order
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+
+  ex_fletcher_base_order <- read_csv('./sscad/fletcher-base-fix-order.csv')
+  fb_order <- machines |> cross_join(ex_fletcher_base_order)
+
+  fb_res_order <- fb_order |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order/", Machine ,"/stdout-", Width, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      
+       lines <- tryCatch({
+   	read_lines(file) 
+       }, error = function(e){
+   	 message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+         return(NULL) # Returns NULL instead of breaking the script
+       })
+       if(is.null(lines)) {
+         return(NULL)
+       }
+       msamples <-  lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       exec_time <-  lines |>
+        str_subset("Total execution time") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data)
+#+END_SRC
+
+*** Gráficos
+
+
+Gráficos do aumento do tamanho pelos Msamples
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  x_breaks <- sort(unique(sf_res_order$Width))
+  msamples_plot <- function(io_state) {
+    fb_msamples <- fb_res_order |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      filter(WithIO == io_state)
+
+   sf_msamples_order_plot <- sf_res_order |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_order_plot, aes(x = Width, y = Msamples, color = Machine)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 0.8) +
+    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    #ylim(0,NA)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Msamples vs. Volume Size with WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Msamples/s"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(0) #/ msamples_plot(1)
+#+END_SRC
+
+Gráficos do aumento do tamanho pelo tempo de execução
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  x_breaks <- sort(unique(sf_res_order$Width))
+  msamples_plot <- function(io_state) {
+    fb_msamples <- fb_res_order |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      filter(WithIO == io_state)
+
+   sf_msamples_order_plot <- sf_res_order |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_order_plot, aes(x = Width, y = ExecTime, color = Machine)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 1) +
+    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    #ylim(0,NA)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Execution Time vs. Volume Size with WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Time (s)"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(1) #/ msamples_plot(1)
+#+END_SRC
