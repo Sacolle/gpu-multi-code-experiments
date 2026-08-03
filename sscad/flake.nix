@@ -109,7 +109,7 @@
                 ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
 
                 cat ${stdout-file}
-                rm ${rsf-file} ${rsf-at-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
                 cp ${stdout-file} ${home-folder}
             '';
           };
@@ -197,7 +197,7 @@
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
                 prof-name = "prof_file_${filename}";
-		            prof-file = "${scratch-folder}/${prof-name}_0";
+                prof-file = "${scratch-folder}/${prof-name}_0";
             in
             ''
                 STARPU_TRACE_BUFFER_SIZE=4096 \
@@ -267,7 +267,7 @@
     in
     {
         packages = {
-            inherit fletcher-base-cpu star-fletcher-cpu fletcher-base-cpu-fix-order star-fletcher-cpu-fix-order;
+            inherit fletcher-base-cpu star-fletcher-cpu fletcher-base-cpu-fix-order star-fletcher-cpu-fix-order star-fletcher-cpu-trace;
         };
     });
 }
