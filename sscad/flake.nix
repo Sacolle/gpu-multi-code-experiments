@@ -4,7 +4,10 @@
     inputs = {
         nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
         experiments.url = "github:Sacolle/experiments-nix"; 
-
+	StarPU = {
+            url = "github:Sacolle/nix-starpu";
+            inputs.nixpkgs.follows = "nixpkgs";
+	};
         star-fletcher = {
             url = "github:Sacolle/Star-Fletcher?ref=CUDA";
             inputs.nixpkgs.follows = "nixpkgs";
@@ -17,10 +20,14 @@
 
         flake-utils.url = "github:numtide/flake-utils";
     };
-    outputs = { self, nixpkgs, experiments, star-fletcher, fletcher-base,  flake-utils }: 
+    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base,  flake-utils }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; };
+
+        starpu-no-check = StarPU.packages.${system}.default.overrideAttrs {
+            doCheck = false;
+        };
 
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
         mk-home-folder = name: "~/experimental-results/${name}/$HOSTNAME";
@@ -74,7 +81,9 @@
         fletcher-base-cpu-fix-order =
           let
             my-fletcher-base = fletcher-base.packages.${system}.default.override {
-		          OpenMPbackend = true;
+                CUDAbackend = false;
+                OpenMPbackend = true;
+                OpenACCbackend = false;
             };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-cpu-fix-order";
@@ -123,6 +132,7 @@
                 compileAsRelease = true;
 		enableVerbose = false;
 		stdenv = pkgs.gcc13Stdenv;
+                StarPU = starpu-no-check;
             };
             program = "${my-star-fletcher}/bin/star-fletcher";
 
@@ -170,6 +180,9 @@
                 enableCUDA = false;
                 enableTrace = false;
                 compileAsRelease = true;
+		enableVerbose = false;
+		stdenv = pkgs.gcc13Stdenv;
+                StarPU = starpu-no-check;
             };
             program = "${my-star-fletcher}/bin/star-fletcher";
 
@@ -224,6 +237,9 @@
                 enableCUDA = false;
                 enableTrace = false;
                 compileAsRelease = true;
+		enableVerbose = false;
+		stdenv = pkgs.gcc13Stdenv;
+                StarPU = starpu-no-check;
             };
             program = "${my-star-fletcher}/bin/star-fletcher";
 
