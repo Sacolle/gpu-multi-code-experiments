@@ -1,1 +1,11 @@
+# nix output
 result
+
+# latex build files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out

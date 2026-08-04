@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # -*- mode: org -*-
 
-#+TITLE: Article Title
-#+AUTHOR: Lucas Mello Schnorr
+#+TITLE: Performance Analysis of Fletcher’s Reverse Time Migration Using Task-Based Paradigm on Multiple CPUs
+#+AUTHOR: Pedro Henrique Boniatti Colle
 
 #+STARTUP: overview indent
 #+LANGUAGE: en
@@ -31,15 +31,13 @@
 \title{\orgtitle}
 
 \author{
+   Pedro Henrique Boniatti Colle\inst{1},
    Lucas Mello Schnorr\inst{1},
-   Somebody Else\inst{2}}
+   }
 
 \address{
    Institute of Informatics, Federal University of Rio Grande do Sul (UFRGS)\\
    Caixa Postal 15.064 -- 91.501-970 -- Porto Alegre -- RS -- Brazil
-   \nextinstitute
-   Somebody else's Institution,
-   Adress --  Brazil
    \email{schnorr@inf.ufrgs.br}}
 #+END_EXPORT
 
@@ -61,37 +59,311 @@ This is just an example to show how Orgmode cite:orgmode can be
 neatly used to write papers following the SBC Article latex style. Feel
 free to modify and distributed this as you wish.
 
-Be aware that this example is compatible with OrgMode 9.*. Earlier or
-later OrgMode versions require minor modifications to the Makefile
-and/or ieee.org files.
-
 For a detailed explanation on why and how to write reproducible
-articles using OrgMode, please visit the following [[https://github.com/alegrand/RR_webinars/blob/master/1_replicable_article_laboratory_notebook/index.org][page]].
-
-** Background and Experimental Context
-<<sec.context>>
-*** Background
-<<sec.background>>
-*** Experimental Context and Workload Details
-<<sec.setup>>
-** Related Work and Motivation
-<<sec.relatedwork>>
-
+articles using OrgMode, please visit the following. 
 Check this paper cite:schnorr2013visualizing about how you need to
-semantically aggregate data.
+
+Sem subseções na introdução (max 2 página)
+
+- Contextualização ->
+
+  Aplicação RTM é normalmente OpenMP parar explorar arq. multi-core
+	- Mas faz 15 anos que temos o paradgima task based (cita artigo don garra)
+          
+- Não tem nenhuma solução hoje do fletcher em task based\*  (tem uma outra implementação, já foi explorado)
+	- Por que o fletcher especificamente (Spadoto) -> sem task based
+		- Related work aqui
+	- Eu fiz isso em CPU single node 
+		- Ainda é muito relevante fazer CPU-only (tá, como?) -> computação hybrida
+ 
+ Contribuições
+    - O programa
+    - Otimização do IO
+    - Análise de desempenho -> com múltiplas GPUS
+    - Comparação com OpenMP base (que )
+
+ Estrutura do texto
+
 
 ** Your Great Contribution to Computer Science
 <<sec.proposal>>
-** Your Super Results
+
+** Methods and Materials
+
+Figura do workflow do projeto\footnote{coisas2}
+
+*** Fletcher's Equations
+- Equações diferenciais do fletcher.
+  
+*** Task Based Implementation
+- Descrição da implementação.
+	- Tudo o que eu fiz
+          
+*** Methodology
+- Projeto experimental
+  - Metodologia
+    - Quais métricas foram usadas
+    - Porque quando meço os MSamples não uso o IO
+    - O que significa o Tempo de execução
+  - máquinas
+  - Nix e tal
+
+
+** Results
+<<sec.results>>
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  options(crayon.enabled = FALSE)
+  #library(starvz)
+  library(tidyverse)
+  library(ggplot2)
+  library(dplyr)
+  library(patchwork)
+
+  base_dir = "./sscad/results"
+
+  machines <- tribble(
+    ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, 
+    "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "poti1", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "poti4", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "grace1", "2 x Grace A02", 3.4, 144, 144,
+    "cei1", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "cei2", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "cei3", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "draco1", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco2", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco6", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco7", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16
+  )
+
+  parse_files <- function(tibble, FILE, parse_fn){
+    mutate(tibble, Data = map( {{ FILE }} , function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      #print(file)
+      lines <- tryCatch({
+        read_lines(file)
+      }, error = function(e){
+        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+        return(NULL) # Returns NULL instead of breaking the script
+      })
+      if(is.null(lines)) {
+        return(NULL)
+      }
+      parse_fn(lines)
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data)
+  }
+#+END_SRC
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  ex_star_fletcher <- read_csv('./sscad/star-fletcher-fix-size.csv')
+  sf <- machines |> cross_join(ex_star_fletcher)
+
+  sf_res <- sf |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    parse_files(FILE, \(lines){
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[6]], vals[[5]])
+    }) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+
+  ex_fletcher_base <- read_csv('./sscad/fletcher-base-fix-size.csv')
+  fb <- machines |> cross_join(ex_fletcher_base)
+
+  fb_res <- fb |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    parse_files(FILE, function(lines) {
+       msamples <-  lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       exec_time <-  lines |>
+        str_subset("Total execution time") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+    })
+
+#+END_SRC
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none 
+  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order-64.csv')
+  sf_order <- machines |> cross_join(ex_star_fletcher_order)
+
+  sf_res_order <- sf_order |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    parse_files(FILE, \(lines){
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[6]], vals[[5]])
+    })
+
+  ex_fletcher_base_order <- read_csv('./sscad/fletcher-base-fix-order-64.csv')
+  fb_order <- machines |> cross_join(ex_fletcher_base_order)
+
+  fb_res_order <- fb_order |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order-64/", Machine ,"/stdout-", Width, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    parse_files(FILE, function(lines) {
+       msamples <-  lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       exec_time <-  lines |>
+        str_subset("Total execution time") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+    })
+#+END_SRC
+
+*** MSamples/s Performance
+
+
+#+BEGIN_SRC R :async yes :results file output graphics :file (org-babel-temp-file "figure" ".pdf") :exports results :width 6 :height 8 :session *R*
+
+  x_breaks <- sort(unique(sf_res$Order))
+  msamples_plot <- function(io_state) {
+    max_fb <- fb_res |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+  	filter(WithIO == io_state) |>
+  	group_by(Machine) |>
+  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
+  	# Join back to machines so the hline can inherit the exact Machine color
+  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+
+   sf_msamples_plot <- sf_res |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples, color = Machine)) +
+    geom_point(size = 2, alpha = 0.3) +
+    geom_line(linewidth = 0.8) +
+    geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    ylim(0,NA)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Msamples vs. Block Order with WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Msamples/s"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(0) 
+#+END_SRC
+
+#+RESULTS:
+[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure8U04FG.pdf]]
+
+*** Size increasse
+
+Gráficos do aumento do tamanho pelos Msamples
+
+#+BEGIN_SRC R :async yes :results file output graphics :file (org-babel-temp-file "figure" ".pdf") :exports results :width 6 :height 8 :session *R*
+
+  x_breaks <- sort(unique(sf_res_order$Width))
+  msamples_plot <- function(io_state) {
+    fb_msamples <- fb_res_order |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      filter(WithIO == io_state)
+
+   sf_msamples_order_plot <- sf_res_order |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_order_plot, aes(x = Width, y = Msamples, color = Machine)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 0.8) +
+    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    #ylim(0,NA)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Msamples vs. Volume Size with WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Msamples/s"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(0) #/ msamples_plot(1)
+#+END_SRC
+
+#+RESULTS:
+[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure3HfoK7.pdf]]
+
+Gráficos do aumento do tamanho pelo tempo de execução
+
+#+BEGIN_SRC R :async yes :results file output graphics :file (org-babel-temp-file "figure" ".pdf") :exports results :width 6 :height 8 :session *R*
+
+  x_breaks <- sort(unique(sf_res_order$Width))
+  msamples_plot <- function(io_state) {
+    fb_msamples <- fb_res_order |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      filter(WithIO == io_state)
+
+   sf_msamples_order_plot <- sf_res_order |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_msamples_order_plot, aes(x = Width, y = ExecTime, color = Machine)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 1) +
+    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
+    scale_x_continuous(breaks = x_breaks) +
+    #ylim(0,NA)+
+    facet_grid(Machine ~ Schedulers) + 
+    labs(
+  	title = paste0("Execution Time vs. Volume Size with WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Time (s)"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom")
+  }
+
+  msamples_plot(1) #/ msamples_plot(1)
+#+END_SRC
+
+#+RESULTS:
+[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure6kTLXR.pdf]]
+
 ** Conclusion
+
+It was cool and awesome
+
 ** Acknowledgments
 :PROPERTIES:
 :UNNUMBERED: t
 :END:
 
-Who paid for this?
+Who paid for this? stuff
 
-** References                                                        :ignore:
+** References                                                      :ignore:
 
 # See next section to understand how refs.bib file is created.
 bibliographystyle:sbc
