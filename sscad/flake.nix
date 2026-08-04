@@ -176,7 +176,7 @@
           let
             trace-star-fletcher = star-fletcher.packages.${system}.default.override {
                 enableCUDA = false;
-                enableTrace = false;
+                enableTrace = true;
                 compileAsRelease = true;
                 enableVerbose = false;
                 stdenv = pkgs.gcc13Stdenv;
