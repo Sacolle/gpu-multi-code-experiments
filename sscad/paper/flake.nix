@@ -14,6 +14,11 @@
       in
       {
         packages.default = paper.pdf;
+        devShells = {
+            default = pkgs.mkShell { 
+                nativeBuildInputs = [ pkgs.texliveFull ];
+            };
+        };
       }
     );
 }

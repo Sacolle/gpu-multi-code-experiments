@@ -54,13 +54,6 @@ Coloque o resumo aqui.
 #+end_resumo
 
 ** Introduction
-
-This is just an example to show how Orgmode cite:orgmode can be
-neatly used to write papers following the SBC Article latex style. Feel
-free to modify and distributed this as you wish.
-
-For a detailed explanation on why and how to write reproducible
-articles using OrgMode, please visit the following. 
 Check this paper cite:schnorr2013visualizing about how you need to
 
 Sem subseções na introdução (max 2 página)
@@ -85,32 +78,71 @@ Sem subseções na introdução (max 2 página)
  Estrutura do texto
 
 
-** Your Great Contribution to Computer Science
-<<sec.proposal>>
-
 ** Methods and Materials
 
 Figura do workflow do projeto\footnote{coisas2}
 
 *** Fletcher's Equations
 - Equações diferenciais do fletcher.
-  
+  -> tem que ver algum artigo dos guris que já as tenha.
+  - Mencionar aqui a implementação do \texttt{fletcher-base} e as suas caracterísiticas
+  - Mencionar que existem outras implementações e citar elas se possível.
+
 *** Task Based Implementation
 - Descrição da implementação.
-	- Tudo o que eu fiz
+  - Uso do StarPU
+    - Essencial para as otimizações
+    - Uso de escalonadores 
+  - Segmentação espacial
+    - Mencionar de passagem os desafios de portar as derivadas para o formato segmentado
+  - Formato de fletcha permitido pelas alocações automáticas do StarPU
+    - Mencionar de passagem os artigos de segmentação temporal.
           
 *** Methodology
-- Projeto experimental
-  - Metodologia
-    - Quais métricas foram usadas
-    - Porque quando meço os MSamples não uso o IO
-    - O que significa o Tempo de execução
-  - máquinas
+- Metodologia
+  - Quais métricas foram usadas
+  - Porque quando meço os MSamples não uso o IO
+  - O que significa o Tempo de execução
+  - Porque o tamanho do bloco
+- Máquinas Usadas
+  - O que é o PCAD.
+  - Porque a draco e a Grace (homogêneas)
+  - Poque a poti e a cei (heterogêneas)
   - Nix e tal
-
+    - Foi usado nix para fazer os ambientes de execução de forma reprodutível.
+    - Este paper foi feito também com os princípios de programação literal.
+- Projeto experimental
+  - Foram feitos 2 experimentos. Cada um com o \texttt{star-fletcher} e o \texttt{fletcher-base}, comparando-os.
+  - Também foi feito um trace de alguns casos do primeiro experimento para visualizar o sequenciamento de tarefas.
+  - No primeiro, procurou-se indentificar qual o mehor tamanho de bloco para o \texttt{star-fletcher}.
+    tendo o resultado o \texttt{fletcher-base} para comparar. Computou-se com e sem IO.
+    - Obteve-se as metricas de MSamples e de tempo de execução.
+    - Com o tempo de execução pode-se observar a otimização de IO
+  - No segundo. Fixou-se um tamanho de bloco e variou-se o tamanho nos dois programas, para ver como a aplicação escala com o aumento do meio.
+    - Obteve-se as metricas de MSamples e de tempo de execução.
+    - Com o tempo de execução pode-se observar a otimização de IO
+    
 
 ** Results
 <<sec.results>>
+
+Como que eu falo dos resultados, o que estamos observando aqui?
+Acho que quarta dá para finalizar a introdução e metodologia, mas eu preciso
+pensar como falar dos resultados e como projetar os dados produzido, pois tempos
+5 escalonadores, com o random sempre sendo ruim. e 4 máquinas, fazendo a facetação do projeto bem feia.
+Dá pra reduzir o número de escalonadores.
+
+Mas a apresentação dos resultados começa com certeza com:
+- Fix size Msamples
+- Fix size ExecTime -> Talk some about IO
+  - Show a trace here.
+
+Heterogenity theory
+- Need an experiment where i fix the cores for poti and cei.
+
+Brief section on the scalability of teh program
+- Fix order Msamples
+  - Maybe use ExecTime here too?
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
@@ -272,7 +304,8 @@ Figura do workflow do projeto\footnote{coisas2}
 #+END_SRC
 
 #+RESULTS:
-[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure8U04FG.pdf]]
+[[file:/tmp/nix-shell.OlOHnp/babel-AptWhW/figureBbi4LR.pdf]]
+
 
 *** Size increasse
 
@@ -312,7 +345,8 @@ Gráficos do aumento do tamanho pelos Msamples
 #+END_SRC
 
 #+RESULTS:
-[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure3HfoK7.pdf]]
+[[file:/tmp/nix-shell.OlOHnp/babel-AptWhW/figure8TlaVv.pdf]]
+
 
 Gráficos do aumento do tamanho pelo tempo de execução
 
@@ -350,7 +384,8 @@ Gráficos do aumento do tamanho pelo tempo de execução
 #+END_SRC
 
 #+RESULTS:
-[[file:/tmp/nix-shell.63IGGu/babel-wLK0xp/figure6kTLXR.pdf]]
+[[file:/tmp/nix-shell.OlOHnp/babel-AptWhW/figurezD9PUw.pdf]]
+
 
 ** Conclusion
 
@@ -373,30 +408,554 @@ bibliographystyle:sbc
 
 Tangle this file with C-c C-v t
 #+begin_src bibtex :tangle refs.bib
-@article{orgmode,
-  author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
-  title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
-  journal =	"J. of Stat. Soft.",
-  volume =	"46",
-  number =	"3",
-  day =  	"25",
-  year = 	"2012",
-  CODEN =	"JSSOBK",
-  ISSN = 	"1548-7660",
-  bibdate =	"2011-10-03",
-  accepted =	"2011-10-03",
-  acknowledgement = "",
-  submitted =	"2010-12-22",
+  @article{orgmode,
+    author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
+    title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
+    journal =	"J. of Stat. Soft.",
+    volume =	"46",
+    number =	"3",
+    day =  	"25",
+    year = 	"2012",
+    CODEN =	"JSSOBK",
+    ISSN = 	"1548-7660",
+    bibdate =	"2011-10-03",
+    accepted =	"2011-10-03",
+    acknowledgement = "",
+    submitted =	"2010-12-22",
+  }
+
+  @incollection{schnorr2013visualizing,
+    title={Visualizing More Performance Data Than What Fits on Your Screen},
+    author={Schnorr, Lucas M and Legrand, Arnaud},
+    booktitle={Tools for High Performance Computing 2012},
+    pages={149--162},
+    year={2013},
+    publisher={Springer}
+  }
+
+@InProceedings{starpu-paper,
+	author="Augonnet, C{\'e}dric
+	and Thibault, Samuel
+	and Namyst, Raymond
+	and Wacrenier, Pierre-Andr{\'e}",
+	editor="Sips, Henk
+	and Epema, Dick
+	and Lin, Hai-Xiang",
+	title="StarPU: A Unified Platform for Task Scheduling on Heterogeneous Multicore Architectures",
+	booktitle="Euro-Par 2009 Parallel Processing",
+	year="2009",
+	publisher="Springer Berlin Heidelberg",
+	address="Berlin, Heidelberg",
+	pages="863--874",
+	abstract="In the field of HPC, the current hardware trend is to design multiprocessor architectures that feature heterogeneous technologies such as specialized coprocessors (e.g. Cell/BE SPUs) or data-parallel accelerators (e.g. GPGPUs).",
+	isbn="978-3-642-03869-3", 
+	annote = {Tenho ele impresso.  Paper usado para citar o StarPU.  },
+	file = {PDF:/home/colle/Zotero/storage/VQW8BS4F/Augonnet et al. - StarPU A Unified Platform for Task Scheduling on Heterogeneous Multicore Architectures.pdf:application/pdf},
+}
+% artigo igual ao do nesi, não?
+% \cite{leandro_nesi_task-based_2020},
+% esse aqui é o que não tem disponível online o pdf acho
+% ou seja, o que implementa a flecha
+@InProceedings{nesi_conference_paper,
+	author="Nesi, Lucas Leandro
+	and Schnorr, Lucas Mello
+	and Navaux, Philippe Olivier Alexandre",
+	editor="Senger, Hermes
+	and Marques, Osni
+	and Garcia, Rogerio
+	and Pinheiro de Brito, Tatiana
+	and Iope, Rog{\'e}rio
+	and Stanzani, Silvio
+	and Gil-Costa, Veronica",
+	title="Design, Implementation and Performance Analysis of a CFD Task-Based Application for Heterogeneous CPU/GPU Resources",
+	booktitle="High Performance Computing for Computational Science -- VECPAR 2018",
+	year="2019",
+	publisher="Springer International Publishing",
+	address="Cham",
+	pages="31--44",
+	abstract="The development of parallel solutions over contemporary heterogeneous supercomputers is complex and challenging, especially for coding, performance analysis, and behavioral characterization. The task-based programming model is a possible alternative to adequately reduce the burden on the programmer. Such model consists of dividing the application into tasks with dependencies through a directed acyclic graph (DAG), and subject the DAG to a runtime scheduler that will map tasks to resources. In this paper, we present the design, development, and performance analysis of a task-based heterogeneous (CPU and GPU) application of a Computational Fluid Dynamics (CFD) problem that simulates the flow of an incompressible Newtonian fluid with constant viscosity. We implement our solution based on the StarPU runtime and use the StarVZ toolkit to conduct a comprehensive performance analysis. Results indicate that our solution provides a 6.5{\$}{\$}{\backslash}times {\$}{\$}{\texttimes}speedup compared to the serial version on the target machine using 7 CPU workers and a 60{\$}{\$}{\backslash}times {\$}{\$}{\texttimes}speedup using 5 CPU and 2 GPU workers.",
+	isbn="978-3-030-15996-2",
+	annote = {Esse é o trabalho do mestrando do schnorr sobre StarPU.
+Eu tenho ele impresso. Revisar.
+Ele destaca o sistema de flecha, entrando no caso de tiling com o StarPU.
+	},
+	file = {PDF:/home/colle/Zotero/storage/BAAP7L5U/Design, Implementation and Performance Analysis of a CFD Task-Based Application for Heterogeneous CP.pdf:application/pdf;Snapshot:/home/colle/Zotero/storage/83FPFEI8/345472918_Design_Implementation_and_Performance_Analysis_of_a_CFD_Task-Based_Application_for_He.html:text/html},
 }
 
-@incollection{schnorr2013visualizing,
-  title={Visualizing More Performance Data Than What Fits on Your Screen},
-  author={Schnorr, Lucas M and Legrand, Arnaud},
-  booktitle={Tools for High Performance Computing 2012},
-  pages={149--162},
-  year={2013},
-  publisher={Springer}
+@article{fletcher_reverse_2009,
+	title = {Reverse time migration in tilted transversely isotropic ({TTI}) media},
+	volume = {74},
+	issn = {0016-8033, 1942-2156},
+	url = {https://library.seg.org/doi/10.1190/1.3269902},
+	doi = {10.1190/1.3269902},
+	abstract = {Reverse time migration RTM exhibits great advantages over other imaging methods because it is based on computing numerical solutions to a two-way wave equation. It does not suffer from dip limitation like one-way downward continuation techniques do, thus enabling overturned reﬂections to be imaged.As well as correctly handling multipathing, RTM has the potential to image internal multiples when the boundaries responsible for generating the multiples are present in the model. In isotropic media, one can use a scalar acoustic wave equation for RTM of pressure data. In anisotropic media, Pand SV-waves are coupled together so, formally, elastic wave equations must be used for RTM. A new wave equation for Pwaves is proposed in tilted transversely isotropic TTI media that can be solved as part of an acoustic anisotropic RTM algorithm, using standard explicit ﬁnite differencing. If the shear velocity along the axis of symmetry is set to zero, stable numerical solutions can be computed for media with a vertical axis of symmetry and not less than . In TTI media with rapid variations in the direction of the axis of symmetry, setting the shear velocity along the axis of symmetry to zero can cause numerical solutions to become unstable. A solution to this problem is proposed that involves using a small amount of nonzero shear velocity. The amount of shear velocity added is chosen to remove triplications from the SV wavefront and to minimize the anisotropic term of the SV reﬂection coefﬁcient. We show modeling and high-quality RTM results in complex TTI media using this equation.},
+	language = {en},
+	number = {6},
+	urldate = {2025-10-16},
+	journal = {GEOPHYSICS},
+	author = {Fletcher, Robin P. and Du, Xiang and Fowler, Paul J.},
+	month = nov,
+	year = {2009},
+	pages = {WCA179--WCA187},
+	annote = {Literalmente o Paper do Fletcher.
+
+Ele descreve o programa que estamos implementando.
+},
+	file = {PDF:/home/colle/Zotero/storage/KX7BWZ2J/Fletcher et al. - 2009 - Reverse time migration in tilted transversely isotropic (TTI) media.pdf:application/pdf},
 }
+
+%fix author
+% essa é a tese de doutorado eu acho
+@misc{noauthor_asynchronous_nodate,
+	title = {Asynchronous {Task}-{Based} {Parallelism} in {Seismic} {Imaging} and {Reservoir} {Modeling} {Simulations}},
+	url = {https://repository.kaust.edu.sa/items/f0506e64-3db9-4491-9ee8-db5f6dcaa152},
+	urldate = {2026-02-04},
+	annote = {Anotações(11/02/2026, 10:17:04)
+(“Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations”, p. 92) Como entendido antes, o RTM é trivialmente paralelizado entre shots.Mas talvez a memória de cada shot não caiba em um nodo.“There are several attempts in porting RTM to GPUs,” (“Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations”, p. 92) Não é tão fácil fazer RTM em GPU?(“Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations”, p. 94) A partir daqui é só o artigo publicado.(“Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations”, p. 94) Assim como o paper q esse mesmo cara escreveu. Não há segmentação de domínio. Apenas node/shot usando o StarPU para salvar os dados das iterações e gerenciar o uso da memória.“TM belongs to the class of out-of-core algorithms, since it requires to offload to disk snapshots of the domain solution at many time intervals during the forward modeling phase” (“Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations”, p. 95)
+},
+	annote = {Essa é a Tese do author do “Asynchronous Task-Based Execution of the Reverse Time Migration for the Oil and Gas Industry” (AlOnazi et al., 2019, p. 1). 
+
+A parte relevante é só uma cópia do artigo.
+},
+	file = {Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations:/home/colle/Zotero/storage/PLQ7BXAP/f0506e64-3db9-4491-9ee8-db5f6dcaa152.html:text/html;PDF:/home/colle/Zotero/storage/WX3R5EPU/Asynchronous Task-Based Parallelism in Seismic Imaging and Reservoir Modeling Simulations.pdf:application/pdf},
+}
+
+@inproceedings{alturkestani_maximizing_2020,
+	address = {Cham},
+	title = {Maximizing {I}/{O} {Bandwidth} for {Reverse} {Time} {Migration} on {Heterogeneous} {Large}-{Scale} {Systems}},
+	isbn = {978-3-030-57675-2},
+	doi = {10.1007/978-3-030-57675-2_17},
+	abstract = {Reverse Time Migration (RTM) is an important scientific application for oil and gas exploration. The 3D RTM simulation generates terabytes of intermediate data that does not fit in main memory. In particular, RTM has two successive computational phases, i.e., the forward modeling and the backward propagation, that necessitate to write and then to read the state of the computed solution grid at specific time steps of the time integration. Advances in memory architecture have made it feasible and affordable to integrate hierarchical storage media on large-scale systems, starting from the traditional Parallel File Systems (PFS) to intermediate fast disk technologies (e.g., node-local and remote-shared Burst Buffer) and up to CPU main memory. To address the trend of heterogeneous HPC systems deployment, we introduce an extension to our Multilayer Buffer System (MLBS) framework to further maximize RTM I/O bandwidth in presence of GPU hardware accelerators. The main idea is to leverage the GPU’s High Bandwidth Memory (HBM) as an additional storage media layer. The objective of MLBS is ultimately to hide the application’s I/O overhead by enabling a buffering mechanism operating across all the hierarchical storage media layers. MLBS is therefore able to sustain the I/O bandwidth at each storage media layer. By asynchronously performing expensive I/O operations and creating opportunities for overlapping data motion with computations, MLBS may transform the original I/O bound behavior of the RTM application into a compute-bound regime. In fact, the prefetching strategy of MLBS allows the RTM application to believe that it has access to a larger memory capacity on the GPU, while transparently performing the necessary housekeeping across the storage layers. We demonstrate the effectiveness of MLBS on the Summit supercomputer using 2048 compute nodes equipped with a total of 12288 GPUs by achieving up to 1.4X performance speedup compared to the reference PFS-based RTM implementation for large 3D solution grid.},
+	language = {en},
+	booktitle = {Euro-{Par} 2020: {Parallel} {Processing}},
+	publisher = {Springer International Publishing},
+	author = {Alturkestani, Tariq and Ltaief, Hatem and Keyes, David},
+	editor = {Malawski, Maciej and Rzadca, Krzysztof},
+	year = {2020},
+	keywords = {Asynchronous I/O operations, Heterogeneous systems, Hierarchical storage media, Multilayer Buffer System, Reverse Time Migration},
+	pages = {263--278},
+	annote = {Esse paper explica como a modificação da técnica de multi layer buffer system (MLBS) para incluir GPUs potencializou a execução da aplicação. Isso inclui técnicas de prefetching e mascaramento de transmissões.
+
+Ele é útil pois dá alguns números da dominância do IO no RTM, assim como explica o porquê disso.
+Além disso pode-se fazer um link com o Asynchronous Task-Based Execution of the Reverse Time Migration for the Oil and Gas Industry e a feature OOC do starpu.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/4L8GUNIJ/Alturkestani et al. - 2020 - Maximizing IO Bandwidth for Reverse Time Migration on Heterogeneous Large-Scale Systems.pdf:application/pdf},
+}
+
+@inproceedings{kunas_enhancing_2025,
+	address = {Cham},
+	title = {Enhancing {Reverse} {Time} {Migration} {Simulations} in {HPC} {Systems} {Through} {I}/{O} and {Computation} {Overlapping}},
+	isbn = {978-3-031-80084-9},
+	doi = {10.1007/978-3-031-80084-9_5},
+	abstract = {The evaluation of scientific simulation applications is crucial for their efficiency and effectiveness. Managing input and output (I/O) operations in seismic simulations represents a significant challenge. The Fletcher Reverse Time Migration (RTM) algorithm is a prime example, where synchronous I/O operations pause computation to store data on disk, which is necessary for saving simulation checkpoints. This approach leads to idle CPU and GPU periods, significantly affecting the simulation time, especially in long-term or high-resolution simulations. This paper examines the performance of the Fletcher RTM algorithm, with a particular focus on the impact of I/O operations. It explores the potential for overlapping computation with I/O to optimize execution, allowing continued data processing while asynchronously saving checkpoints. This strategy can reduce idle periods and enhance efficiency, particularly in environments where efficient management of compute-intensive tasks and data I/O operations is essential, such as modern data centers, cloud computing, and high-performance computing (HPC) systems.},
+	language = {en},
+	booktitle = {High {Performance} {Computing}},
+	publisher = {Springer Nature Switzerland},
+	author = {Künas, Cristiano A. and Freytag, Gabriel and Navaux, Philippe O. A.},
+	editor = {Guerrero, Ginés and San Martín, Jaime and Meneses, Esteban and Barrios Hernández, Carlos Jaime and Osthoff, Carla and Monsalve Diaz, Jose M.},
+	year = {2025},
+	keywords = {Compute and I/O overlap, HPC, I/O, RTM, Seismic Simulation},
+	pages = {68--82},
+	annote = {Anotações(13/02/2026, 16:47:39)
+(Künas et al., 2025, p. 2) Acidentalemente implementamos uma interface optimizada de IO.Com o modelo de flecha, a geração do I/O não trava nenhum recurso, podendo ser computada completamente de forma assíncrona.No momento em que o bloco está disponível para ser salvo até o momento que este é escrito em disco, não há modificações no bloco. Ele apenas será usado como leitura para as exatas duas iterações seguintes e depois liberado automaticamente pelo StarPU. Dessa forma a ação de escrita nunca bloqueia a execução do programa. Pode ocorrer uma possível desaceleração caso uma tarefa de processamento não consiga um core, pois este está ocupado com escrita. Mas como a escrita é um tempo significativamente menor que o processamento do bloco, isso não deve ser significativo.Otimizando IO por engano.“[4] focuses on optimizing Reverse Time Migration (RTM) for seismic imaging, a computationally intensive process widely used in the oil and gas industry. The authors developed a task-based framework, TB-RTM, which leverages the STARPU dynamic runtime system to effectively manage and schedule tasks across heterogeneous GPU-based systems.” (Künas et al., 2025, p. 3) Tá aqui“Their findings reveal optimal configurations that maximize I/O performance, providing valuable insights for developing efficient asynchronous I/O aggregation schemes” (Künas et al., 2025, p. 3) StarPU determina isso dinamicamente
+},
+	annote = {Esse peper é ótimo pois sua o mesmo domínio que o meu e fala da assincronicidade. É muito bom para apontar que o StarPU e os sistema STF entregam isso de graça.
+},
+	file = {PDF:/home/colle/Zotero/storage/T58B5T7Q/Künas et al. - 2025 - Enhancing Reverse Time Migration Simulations in HPC Systems Through IO and Computation Overlapping.pdf:application/pdf},
+}
+
+@inproceedings{huang_towards_2023,
+	title = {Towards {Improving} {Reverse} {Time} {Migration} {Performance} by {High}-speed {Lossy} {Compression}},
+	url = {https://ieeexplore.ieee.org/document/10171443/},
+	doi = {10.1109/CCGrid57682.2023.00066},
+	abstract = {Seismic imaging is an exploration method for estimating the seismic characteristics of the earth's sub-surface for geologists and geophysicists. Reverse time migration (RTM) is a critical method in seismic imaging analysis. It can produce huge volumes of data that need to be stored for later use during its execution. The traditional solution transfers the vast amount of data to peripheral devices and loads them back to memory whenever needed, which may cause a substantial burden to I/O and storage space. As such, an efficient data compressor turns out to be a very critical solution. In order to get the best overall RTM analysis performance, we develop a novel hybrid lossy compression method (called HyZ), which is not only fairly fast in both compression and decompression but also has a good compression ratio with satisfactory reconstructed data quality for post hoc analysis. We evaluate several state-of-the-art error-controlled lossy compression algorithms (including HyZ, BR, SZx, SZ, SZ-Interp, ZFP, etc.) in a supercomputer. Experiments show that HyZ not only significantly improves the overall performance for RTM by 6.29∼6.60× but also obtains fairly good qualities for both RTM single snapshots and the final stacking image.},
+	urldate = {2026-02-04},
+	booktitle = {2023 {IEEE}/{ACM} 23rd {International} {Symposium} on {Cluster}, {Cloud} and {Internet} {Computing} ({CCGrid})},
+	author = {Huang, Yafan and Zhao, Kai and Di, Sheng and Li, Guanpeng and Dmitriev, Maxim and Tonellot, Thierry-Laurent D. and Cappello, Franck},
+	month = may,
+	year = {2023},
+	keywords = {Reverse Time Migration, Data integrity, Earth, Geology, Image coding, Lossy Compression, Memory management, Performance, Performance evaluation, Seismic Imaging, Stacking},
+	pages = {651--661},
+	annote = {Anotações(04/03/2026, 16:09:45)
+“The traditional solution transfers the vast amount of data to peripheral devices and loads them back to memory whenever needed, which may cause a substantial burden to I/O and storage space.” (Huang et al., 2023, p. 651)“In order to get the best overall RTM analysis performance, we develop a novel hybrid lossy compression method (called HyZ” (Huang et al., 2023, p. 651)“e evaluate several state-ofthe-art error-controlled lossy compression algorithms” (Huang et al., 2023, p. 651)“improves the overall performance for RTM by 6.29∼6.60× but also obtains fairly good qualities for both RTM single snapshots and the final stacking image” (Huang et al., 2023, p. 651)
+},
+	annote = {Só li o abstract.Esse paper fala da compressão de dados para reduzir o I/O. Ele entra na categoria de técnicas que afetam o resultado final, junto com o sistema de mudança de precisão nos dados. Este é mais adequado para o domínio da aplicação, mas vale citar os dois. 
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/XLEQIZ3I/Huang et al. - 2023 - Towards Improving Reverse Time Migration Performance by High-speed Lossy Compression.pdf:application/pdf},
+}
+
+@inproceedings{alonazi_asynchronous_2019,
+	title = {Asynchronous {Task}-{Based} {Execution} of the {Reverse} {Time} {Migration} for the {Oil} and {Gas} {Industry}},
+	url = {https://ieeexplore.ieee.org/document/8891054/},
+	doi = {10.1109/CLUSTER.2019.8891054},
+	abstract = {We propose a new framework for deploying Reverse Time Migration (RTM) simulations on distributed-memory systems equipped with multiple GPUs. Our software, TB-RTM, infrastructure engine relies on the StarPU dynamic runtime system to orchestrate the asynchronous scheduling of RTM computational tasks on the underlying resources. Besides dealing with the challenging hardware heterogeneity, TB-RTM supports tasks with different workload characteristics, which stress disparate components of the hardware system. RTM is challenging in that it operates intensively at both ends of the memory hierarchy, with compute kernels running at the highest level of the memory system, possibly in GPU main memory, while I/O kernels are saving solution data to fast storage. We consider how to span the wide performance gap between the two extreme ends of the memory system, i.e., GPU memory and fast storage, on which large-scale RTM simulations routinely execute. To maximize hardware occupancy while maintaining high memory bandwidth throughout the memory subsystem, our framework presents the new-of-core (OOC) feature from StarPU to prefetch data solutions in and out not only from/to the GPU/CPU main memory but also from/to the fast storage system. The OOC technique may trigger opportunities for overlapping expensive data movement with computations. TB-RTM framework addresses this challenging problem of heterogeneity with a systematic approach that is oblivious to the targeted hardware architectures. Our resulting RTM framework can effectively be deployed on massively parallel GPU-based systems, while delivering performance scalability up to 500 GPUs.},
+	urldate = {2026-02-04},
+	booktitle = {2019 {IEEE} {International} {Conference} on {Cluster} {Computing} ({CLUSTER})},
+	author = {AlOnazi, A. and Ltaief, H. and Keyes, D. and Said, I. and Thibault, S.},
+	month = sep,
+	year = {2019},
+	note = {ISSN: 2168-9253},
+	keywords = {Computational modeling, Kernel, Task analysis, Reverse Time Migration, RTM, Asynchronous Executions, Graphics processing units, Hardware, Out-Of-Core Algorithms, Overlapping I/O with Computation, Runtime, STARPU OOC, Task-Based Programming Model, STARPU},
+	pages = {1--11},
+	annote = {Tenho ele impresso.
+Esse é a referência base quando se trata de RTM e StarPU.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/VCJ7JCUY/AlOnazi et al. - 2019 - Asynchronous Task-Based Execution of the Reverse Time Migration for the Oil and Gas Industry.pdf:application/pdf},
+}
+
+@article{abdulah_accelerating_2022,
+	title = {Accelerating {Geostatistical} {Modeling} and {Prediction} {With} {Mixed}-{Precision} {Computations}: {A} {High}-{Productivity} {Approach} {With} {PaRSEC}},
+	volume = {33},
+	issn = {1558-2183},
+	shorttitle = {Accelerating {Geostatistical} {Modeling} and {Prediction} {With} {Mixed}-{Precision} {Computations}},
+	url = {https://ieeexplore.ieee.org/document/9442267/},
+	doi = {10.1109/TPDS.2021.3084071},
+	abstract = {Geostatistical modeling, one of the prime motivating applications for exascale computing, is a technique for predicting desired quantities from geographically distributed data, based on statistical models and optimization of parameters. Spatial data are assumed to possess properties of stationarity or non-stationarity via a kernel fitted to a covariance matrix. A primary workhorse of stationary spatial statistics is Gaussian maximum log-likelihood estimation (MLE), whose central data structure is a dense, symmetric positive definite covariance matrix of the dimension of the number of correlated observations. Two essential operations in MLE are the application of the inverse and evaluation of the determinant of the covariance matrix. These can be rendered through the Cholesky decomposition and triangular solution. In this contribution, we reduce the precision of weakly correlated locations to single- or half- precision based on distance. We thus exploit mathematical structure to migrate MLE to a three-precision approximation that takes advantage of contemporary architectures offering BLAS3-like operations in a single instruction that are extremely fast for reduced precision. We illustrate application-expected accuracy worthy of double-precision from a majority half-precision computation, in a context where uniform single-precision is by itself insufficient. In tackling the complexity and imbalance caused by the mixing of three precisions, we deploy the PaRSEC runtime system. PaRSEC delivers on-demand casting of precisions while orchestrating tasks and data movement in a multi-GPU distributed-memory environment within a tile-based Cholesky factorization. Application-expected accuracy is maintained while achieving up to 1.59X1.59X by mixing FP64/FP32 operations on 1536 nodes of HAWK or 4096 nodes of Shaheen II, and up to 2.64X2.64X by mixing FP64/FP32/FP16 operations on 128 nodes of Summit, relative to FP64-only operations. This translates into up to 4.5, 4.7, and 9.1 (mixed) PFlop/s sustained performance, respectively, demonstrating a synergistic combination of exascale architecture, dynamic runtime software, and algorithmic adaptation applied to challenging environmental problems.},
+	number = {4},
+	urldate = {2026-02-04},
+	journal = {IEEE Transactions on Parallel and Distributed Systems},
+	author = {Abdulah, Sameh and Cao, Qinglei and Pei, Yu and Bosilca, George and Dongarra, Jack and Genton, Marc G. and Keyes, David E. and Ltaief, Hatem and Sun, Ying},
+	month = apr,
+	year = {2022},
+	keywords = {Computational modeling, Task analysis, Runtime, Climate/weather prediction, Covariance matrices, Data models, dynamic runtime systems, geospatial statistics, high performance computing, Maximum likelihood estimation, multiple precisions, Predictive models, user-productivity},
+	pages = {964--976},
+	annote = {Anotações(10/02/2026, 13:28:26)
+“. PaRSEC delivers on-demand casting of precisions” (Abdulah et al., 2022, p. 964) Como?Será que o Starpu faz isso também.Se faz, faria sentido adicionar a pesquisa?“PaRSEC, extending the approach in [4] to accelerate the Cholesky factorization by mixing FP64 double-precision (DP), FP32 single-precision (SP) and FP16 half-precision (HP) to take advantage of the tensor cores of modern GPUs, e.g., NVIDIA V100s” (Abdulah et al., 2022, p. 965) uso ParSEC na fatorização de Cholskey“Precision adaptation inveighs against predictable load-balancing, which therefore requires reliance on a dynamic runtime system to schedule computationally rich tasks of tile-sized granularity and data exchanges. The nimble runtime system PaRSEC is leveraged to deal with the complexity of the proposed mixed-precision algorithm, tackle the introduced imbalance, and limit the memory usage on distributed-memory systems equipped with multiple GPU” (Abdulah et al., 2022, p. 965) esse sistema misto precisa de load balancing e com isso usa o PaRSEC.“xploit heterogeneity” (Abdulah et al., 2022, p. 965) usam CPU também?(Abdulah et al., 2022, p. 965) cap 5 e 6 respone o PaRSEC“existing works on both mixed-precision” (Abdulah et al., 2022, p. 965)“In particular, we extend the mixed twoprecision arithmetic approach [4] initially based on StarPU to PaRSEC instead with mixed three-precision computations” (Abdulah et al., 2022, p. 966) see [4]“The precision conversion becomes now a runtime decision made by PaRSEC as opposed to a user decision with StarPU in [4]” (Abdulah et al., 2022, p. 966)“From a performance standpoint, algorithms described in PTG have been shown capable of delivering a significant percentage of the hardware peak performance on many hybrid distributed-memory machines for several scientific fields [44], [45], [46], [47], [48].” (Abdulah et al., 2022, p. 967)“We embed the support of multiple precisions into PaRSEC by incorporating the datatype information of the task operands into the data-flow. To our knowledge, this is the first time a runtime system provides a precision-agnostic mechanism to seamlessly handle workloads with variable precisions.” (Abdulah et al., 2022, p. 969)
+},
+	annote = {O texto é interessante ao falar das estratégias de precisão mista e como, ao realiza-las, cria-se um problema de balanceamento entre as GPUS. Assim o sistema dinâmico junto das otimizações é necessário para balancear o sistema.
+
+Para a pesquisa, este trabalho serve como uma indicação de possíveis otimizações no sistema. Segundo o artigo, StarPU não tem suporte direto a mudança de precisão, então devemos ver como o PaRSEC faz e se foi implementado no StarPU. No fim disso, deve-se ver se é um caminho que a pesquisa vai seguir.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/KY7Y6R27/Abdulah et al. - 2022 - Accelerating Geostatistical Modeling and Prediction With Mixed-Precision Computations A High-Produc.pdf:application/pdf},
+}
+
+@inproceedings{grosser_hybrid_2018,
+	address = {New York, NY, USA},
+	series = {{CGO} '14},
+	title = {Hybrid {Hexagonal}/{Classical} {Tiling} for {GPUs}},
+	isbn = {978-1-4503-2670-4},
+	url = {https://dl.acm.org/doi/10.1145/2544137.2544160},
+	doi = {10.1145/2544137.2544160},
+	abstract = {Time-tiling is necessary for the efficient execution of iterative stencil computations. Classical hyper-rectangular tiles cannot be used due to the combination of backward and forward dependences along space dimensions. Existing techniques trade temporal data reuse for inefficiencies in other areas, such as load imbalance, redundant computations, or increased control flow overhead, therefore making it challenging for use with GPUs.We propose a time-tiling method for iterative stencil computations on GPUs. Our method does not involve redundant computations. It favors coalesced global-memory accesses, data reuse in local/shared-memory or cache, avoidance of thread divergence, and concurrency, combining hexagonal tile shapes along the time and one spatial dimension with classical tiling along the other spatial dimensions. Hexagonal tiles expose multi-level parallelism as well as data reuse. Experimental results demonstrate significant performance improvements over existing stencil compilers.},
+	urldate = {2026-02-04},
+	booktitle = {Proceedings of {Annual} {IEEE}/{ACM} {International} {Symposium} on {Code} {Generation} and {Optimization}},
+	publisher = {Association for Computing Machinery},
+	author = {Grosser, Tobias and Cohen, Albert and Holewinski, Justin and Sadayappan, P. and Verdoolaege, Sven},
+	month = oct,
+	year = {2018},
+	pages = {66--75},
+	annote = {Anotações(24/02/2026, 17:14:20)
+(Grosser et al., 2018, p. 66) Esse artigo é sobre o sistema de tilling em GPUS. Isso já é diferente do sistema de diamantes para RTM que era CPU-only“Stencil computations involve the repeated updating of values associated with points on a multi-dimensional grid, using only the values at a set of neighboring points.” (Grosser et al., 2018, p. 66)“parallel wavefronts” (Grosser et al., 2018, p. 66) o q é parallel wavefront“nfortunately this inhibits inter-tile parallelism” (Grosser et al., 2018, p. 66)“Other approaches such” (Grosser et al., 2018, p. 66)(Grosser et al., 2018, p. 66) Quais são esses outros métodos de tilling?“diamond tiling [2] have been proposed to address the loss of concurrency when time-tiling stencil computations.” (Grosser et al., 2018, p. 66)“approaches have some limitations” (Grosser et al., 2018, p. 66)“in the context of GPU” (Grosser et al., 2018, p. 66)“We choose a hybrid tiling scheme that combines hexagonal tiling on the outer dimension with classical tiling on all remaining ones” (Grosser et al., 2018, p. 67)“Our hexagonal tiling approach is closely related to diamond tiling” (Grosser et al., 2018, p. 67)“First, diamond tiles always have a narrow peak” (Grosser et al., 2018, p. 67)(Grosser et al., 2018, p. 68) A partir desse ponto eu paro de entender a implementação. Parece que se escapa do domínio da aplicação.O Paper parece relevante no aspecto que demonstra que a segmentação em diamante não é única no quesito propagação do tempo.“the automatic parallelization of iterative stencil computations on GPUs” (Grosser et al., 2018, p. 74) Acho que a palavra chave é automatic. Com o uso do StarPU não há automatização e a segmentação é manual.Poderia-se gerar pesquisa em fazer STF como ferramenta na segmentação automática, mas isso depende da interpretação que o sistema de flecha tem nesse contexto de tilling.
+},
+	annote = {O paper é bom na investigação da fundamentação do sistema de flecha do star-fletcher. 
+
+O foco dele é na segmentação automática, o que não é o caso do fletcher.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/PPT4IRS3/Grosser et al. - 2018 - Hybrid HexagonalClassical Tiling for GPUs.pdf:application/pdf},
+}
+
+@article{vitter_external_2001,
+	title = {External memory algorithms and data structures: dealing with \textbf{massive data}},
+	volume = {33},
+	issn = {0360-0300, 1557-7341},
+	shorttitle = {External memory algorithms and data structures},
+	url = {https://dl.acm.org/doi/10.1145/384192.384193},
+	doi = {10.1145/384192.384193},
+	abstract = {Data sets in large applications are often too massive to fit completely inside the computers internal memory. The resulting input/output communication (or I/O) between fast internal memory and slower external memory (such as disks) can be a major performance bottleneck. In this article we survey the state of the art in the design and analysis of external memory (or EM) algorithms and data structures, where the goal is to exploit locality in order to reduce the I/O costs. We consider a variety of EM paradigms for solving batched and online problems efficiently in external memory. For the batched problem of sorting and related problems such as permuting and fast Fourier transform, the key paradigms include distribution and merging. The paradigm of disk striping offers an elegant way to use multiple disks in parallel. For sorting, however,  disk striping can be nonoptimal with respect to I/O, so to gain further improvements we discuss distribution and merging techniques for using the disks independently. We also consider useful techniques for batched EM problems involving matrices (such as matrix multiplication and transposition), geometric data (such as finding intersections and constructing convex hulls), and graphs (such as list ranking, connected components, topological sorting, and shortest paths). In the online domain, canonical EM applications include dictionary lookup and range searching. The two important classes of indexed data structures are based upon extendible hashing and B-trees. The paradigms of filtering and bootstrapping provide a convenient means in online data structures to make effective use of the data accessed from disk. We also reexamine some of the above EM problems in slightly different settings, such as when the data items are moving, when the data items are variable-length (e.g., text strings), or when the allocated amount of internal memory can change dynamically. Programming tools and environments are available for simplifying the EM programming task. During the course of the survey, we report on some experiments in the domain of spatial databases using the TPIE system (transparent parallel I/O programming environment). The newly developed EM algorithms and data structures that incorporate the paradigms we discuss are significantly faster than methods currently used in practice.},
+	language = {en},
+	number = {2},
+	urldate = {2026-02-04},
+	journal = {ACM Computing Surveys},
+	author = {Vitter, Jeffrey Scott},
+	month = jun,
+	year = {2001},
+	pages = {209--271},
+	annote = {Em que contexto esse artigo foi obtido. Ele analiza estado da arte em 2001. Se for no contexto de algoritmos OOC (out-of-core), deve haver uma fonte mais recente.
+},
+	file = {PDF:/home/colle/Zotero/storage/8ETDRVZ4/Vitter - 2001 - External memory algorithms and data structures dealing with massive data.pdf:application/pdf},
+}
+
+@article{qu_high_nodate,
+	title = {High {Performance} {Asynchronous} {Reverse} {Time} {Migration} for {Oil} and {Gas} {Exploration}},
+	abstract = {Reverse Time Migration (RTM) is a state-of-the-art algorithm used in seismic depth imaging in complex geological environments for the oil and gas exploration industry. It calculates high-resolution images by solving the three-dimensional acoustic wave equation using seismic datasets recorded at various receiver locations. Using a ﬁnite-difference time-domain (FDTD) scheme, the time integration follows an adjoint-state formulation with two successive phases, i.e., forward modeling and backward integration. Each subsurface image is then generated during the imaging condition that combines a forward propagated source waveﬁeld with a backward propagated receiver waveﬁeld. RTM’s computational phases are predominantly composed of stencil computational kernels for the FDTD, applying the absorbing boundary conditions, and I/O operations needed for the imaging condition. In fact, RTM can be considered as an out-of-core algorithm, which requires ofﬂoading to disk snapshots of the domain solution at speciﬁc time intervals during the forward modeling phase. During the backward time integration, these snapshots are read back and synchronized at the corresponding times. As far as optimizing the stencil computation, spatial blocking represents the widely-adopted vendor-agnostic technique for increasing data reuse in the high-level of the memory subsystem. In this paper, we integrate in RTM the asynchronous Multicore Wavefront Diamond (MWD) tiling approach that permits to further increase data reuse by leveraging spatial with Temporal Blocking (TB) during the stencil computations. This integration engenders new challenges with a snowball effect on the legacy synchronous RTM workﬂow as it requires to deeply rethink of how the absorbing boundary conditions, the I/O operations, and the imaging condition operate. These disruptive changes in cascade are necessary to maintain the performance superiority of asynchronous stencil execution throughout the time integration, while ensuring the quality of the subsurface image does not deteriorate. We assess the overall performance of the new MWD-based RTM and compare against traditional SB-based RTM on various shared-memory systems using the SEG Salt3D model. The MWD-based RTM is able to achieve up to 60\% performance speedup compared to SB-based RTM. To our knowledge, this paper highlights for the ﬁrst time the applicability of asynchronous RTM executions, which results in a higher simulation throughput and may eventually create new research opportunities in improving the hydrocarbon extraction for the petroleum industry.},
+	language = {en},
+	author = {Qu, Long and Abdelkhalak, Rached and Ltaief, Hatem and Said, Issam and Keyes, David},
+	annote = {Same as “Exploiting temporal data reuse and asynchrony in the reverse time migration” (Qu et al., 2023, p. 132)
+},
+	file = {PDF:/home/colle/Zotero/storage/33KBATDH/Qu et al. - High Performance Asynchronous Reverse Time Migration for Oil and Gas Exploration.pdf:application/pdf},
+}
+
+@inproceedings{qu_toward_2021,
+	title = {Toward {High} {Performance} {Asynchronous} {RTM} with {Temporal} {Blocking} and {Buffered} {I}/{O}},
+	volume = {2021},
+	url = {https://www.earthdoc.org/content/papers/10.3997/2214-4609.2021612022},
+	doi = {10.3997/2214-4609.2021612022},
+	abstract = {Summary During the forward and backward modeling in Reverse Time Migration (RTM), stencil computations constitute one of the main computationally intensive components. Their classic implementation based on Spatial Blocking (SB) is subject to performance limitation on modern multicore architectures due to several reasons, including non-uniform memory access, memory bandwidth starvation, load imbalance, and limited data locality. The Multicore Wavefront Diamond-tiling Temporal Blocking technique (MWD-TB) introduced in (Malas, PhD thesis 2015, Malas et al., SIAM SciCo 2015, Malas et al., ACM Trans 2017) aims at reducing the memory bandwidth requirement of stencil computations by increasing cache reuse within successive time steps. The authors in (Akbudak et al. IJHPCA 2020) integrate the MWD-TB technique into the modeling phase and the authors in (Qu et al., KAUST Tech Report 2020) eventually embed it into the full RTM using in-memory I/O operations snapshotting for the imaging condition and illustrate with the Salt3D dataset. In this paper, we further enable Out-Of-Core (OOC) I/O snapshotting operations on the Lustre parallel file system using the buffering strategy from MLBS (Alturkestani et al., EuroPar 2020). We present preliminary results using the Marmoussi 3D dataset.},
+	language = {en},
+	urldate = {2026-02-04},
+	publisher = {European Association of Geoscientists \& Engineers},
+	author = {Qu, L. and Ltaief, H. and Keyes, D.},
+	month = sep,
+	year = {2021},
+	note = {ISSN: 2214-4609
+Issue: 1},
+	keywords = {Tiling},
+	pages = {1--5},
+	annote = {É uma continuação dos papers de Tiling que eu li, seguindo a pesquisa de Multicore Wavefront Diamond-tiling Temporal Blocking technique (MWD-TB) (eu li?), a implementação desta em RTM ( esse eu li ).
+A contribuição é implementação de Out of Core (OOC) I/O no Lustre PFS usando a técnica de MLBS (esse eu li também). 
+},
+	file = {Snapshot:/home/colle/Zotero/storage/49XIWCY5/2214-4609.html:text/html},
+}
+
+@article{qu_exploiting_2023,
+	title = {Exploiting temporal data reuse and asynchrony in the reverse time migration},
+	volume = {37},
+	issn = {1094-3420, 1741-2846},
+	url = {https://journals.sagepub.com/doi/10.1177/10943420221128529},
+	doi = {10.1177/10943420221128529},
+	abstract = {Reverse Time Migration (RTM) is a state-of-the-art algorithm used in seismic depth imaging in complex geological environments for the oil and gas exploration industry. It calculates high-resolution images by solving the three-dimensional acoustic wave equation using seismic datasets recorded at various receiver locations. Reverse Time Migration’s computational phases are predominantly composed of stencil computational kernels for the ﬁnite-difference time-domain scheme, applying the absorbing boundary conditions, and I/O operations needed for the imaging condition. In this paper, we integrate the asynchronous Multicore Wavefront Diamond (MWD) tiling approach into the full RTM workﬂow. Multicore Wavefront Diamond permits to further increase data reuse by leveraging spatial with Temporal Blocking (TB) during the stencil computations. This integration engenders new challenges with a snowball effect on the legacy synchronous RTM workﬂow as it requires rethinking of how the absorbing boundary conditions, the I/O operations, and the imaging condition operate. These disruptive changes are necessary to maintain the performance superiority of asynchronous stencil execution throughout the time integration, while ensuring the quality of the subsurface image does not deteriorate. We assess the overall performance of the new MWD-based RTM and compare against traditional Spatial Blocking (SB)-based RTM on various shared-memory systems using the SEG Salt3D model. The MWD-based RTM achieves up to 70\% performance speedup compared to SB-based RTM. To our knowledge, this paper highlights for the ﬁrst time the applicability of asynchronous executions with temporal blocking throughout the whole RTM. This may eventually create new research opportunities in improving hydrocarbon extraction for the petroleum industry.},
+	language = {en},
+	number = {2},
+	urldate = {2026-02-04},
+	journal = {The International Journal of High Performance Computing Applications},
+	author = {Qu, Long and Abdelkhalak, Rached and Ltaief, Hatem and Said, Issam and Keyes, David},
+	month = mar,
+	year = {2023},
+	keywords = {Tiling, Relevant},
+	pages = {132--150},
+	annote = {Anotações(24/02/2026, 14:22:38)
+“integrate asynchronous the Multicore Wavefront Diamond (MWD) tiling technique from GIRIH (Girih)” (Qu et al., 2023, p. 133) What is the MWD“the traditional Spatial Blocking (SB) technique (Datta et al., 2009) in the context of pure stencil computation (Malas et al., 2015)” (Qu et al., 2023, p. 133) What is the SB technique“using the SEG Salt3D synthetic dataset.” (Qu et al., 2023, p. 133)(Qu et al., 2023, p. 133) reler essa parte porque tem muito material interessante no Realted Work.O fletcher modelado atual é, aparentemente, feito com SB. interessante ver do que se trata o MWD e a borda que ele comenta (ABC)“5.2. Diamond tiling” (Qu et al., 2023, p. 136)“the diamond tiling is performed in 2D with spatial dimension Y and temporal dimension t.” (Qu et al., 2023, p. 137)(Qu et al., 2023, p. 137) Pode-se imaginar a técnica de \_Diamond Tilling\_ como uma forma limitada do sistema de flecha.Na flecha, as \$t - n\$ iterações anteriores são salvas, dado o tamanho \$n\$ da flecha. No sistema de diamantes, a onda é processada em formato triangular com o intuito de reusar o cache mais. Mas fundamentalmente, apenas os buffers \$t\$ e \$t - 1\$ são salvos. Cada diamante é então uma segmentação espacial/temporal por thread em que um bloco \$B\_\{i, j, k\}\$ no volume total pode pertencer a \$[t.. t - 3]\$. Mas independe do \$t\$ do bloco, o sistema só usa dois buffers para salvar eles, Essa explicação da onda diamante não ficou muito boa, porém é suficiente para quando for escrever a fundamentação eu tenha base para referenciar e relembrar.“both stencil schemes necessitate two arrays, denoted as Pcur and Pprv, for saving the current t and previous t 1 time steps, since the acoustic wave equatio” (Qu et al., 2023, p. 137)“Once a diamond tile processing is completed, these two arrays host portions of the latest two-time steps following the pattern of the diamond tile, as shown in Figure 5(b).” (Qu et al., 2023, p. 137)“5.4. Multicore wavefront parallelism” (Qu et al., 2023, p. 137) Não entendi“Algorithm 1. The modeling phase based on SB” (Qu et al., 2023, p. 138) separate into blocks for computation. Ele separa apenas no x, y, fazendo mais pilares da direção z.“Algorithm 2. The modeling phase based on MWD” (Qu et al., 2023, p. 138) tendi não(Qu et al., 2023, p. 139) Na imagem, podemos imagianr que, se os meus tres antecendentes foram computados, eu já posso ser computado.  x   {\textless}- bloco a ser computado+++ {\textless}- antecedentesisso naturalemente gera o diamante, ou melhor a flecha. Porém o esquema de salvar esses valores tem dependências mais fortes, usando apenas dois buffers. Além das dificuldades agora apontadas no IO.“Therefore, the number of time steps between two consecutive snapshots needs to be a multiple of the selected height of the diamond tile in order to maintain the RTM integrity.” (Qu et al., 2023, p. 140) Problema de salvar a front do diamante é que talvez o momento de samplear não bata com o fim do diamante, precisando escolher o valor para que isso aconteça.“Moreover, we plan to port the MWD RTM on GPU hardware accelerators. In particular, we will take advantage of the new Magnum I/O feature, which permits to bypass the CPU and to directly write onto fast storage media.” (Qu et al., 2023, p. 148) Não foi feito em GPU
+},
+	annote = {Esse artigo apresenta o sistema de segmentação em diamantes usando a dimensão espacial para aumentar o uso do Cache. O sistema de flecha do Star-Fletcher é similar a essa ideia, porém não se usa de apenas dois buffers ( mais uso de memória ), mas não gera uma saída não uniforme que deve se adequar a propagação da segmentação.
+
+Em suma, fundamentação teórica para o sistema de flecha, ver o que o trabalho do Nesi fala sobre isso. 
+},
+	file = {PDF:/home/colle/Zotero/storage/ZDL5S3G8/Qu et al. - 2023 - Exploiting temporal data reuse and asynchrony in the reverse time migration.pdf:application/pdf},
+}
+
+@article{akbudak_asynchronous_2020,
+	title = {Asynchronous computations for solving the acoustic wave propagation equation},
+	volume = {34},
+	issn = {1094-3420, 1741-2846},
+	url = {https://journals.sagepub.com/doi/10.1177/1094342020923027},
+	doi = {10.1177/1094342020923027},
+	abstract = {The aim of this study is to design and implement an asynchronous computational scheme for solving the acoustic wave propagation equation with absorbing boundary conditions (ABCs) in the context of seismic imaging applications. While the convolutional perfectly matched layer (CPML) is typically used for ABCs in the oil and gas industry, its formulation further stresses memory accesses and decreases the arithmetic intensity at the physical domain boundaries. The challenges with CPML are twofold: (1) the strong, inherent data dependencies imposed on the explicit time-stepping scheme render asynchronous time integration cumbersome and (2) the idle time is further exacerbated by the load imbalance introduced among processing units. In fact, the CPML formulation of the ABCs requires expensive synchronization points, which may hinder the parallel performance of the overall asynchronous time integration. In particular, when deployed in conjunction with the multicore-optimized wavefront diamond temporal blocking (MWD-TB) approach for the inner domain points, it results in a major performance slow down. To relax CPML’s synchrony and mitigate the resulting load imbalance, we embed CPML’s calculation into MWD-TB’s inner loop and carry on the time integration with fine-grained computations in an asynchronous, holistic way. This comes at the price of storing transient results to alleviate dependencies from critical data hazards while maintaining the numerical accuracy of the original scheme. Performance and scalability results on various x86 architectures demonstrate the superiority of MWD-TB with CPML support against the standard spatial blocking on various grid sizes. To our knowledge, this is the first practical study that highlights the consolidation of CPML ABCs with asynchronous temporal blocking stencil computations.},
+	language = {en},
+	number = {4},
+	urldate = {2026-02-04},
+	journal = {The International Journal of High Performance Computing Applications},
+	author = {Akbudak, Kadir and Ltaief, Hatem and Etienne, Vincent and Abdelkhalak, Rached and Tonellot, Thierry and Keyes, David},
+	month = jul,
+	year = {2020},
+	keywords = {Tiling, See Related Work},
+	pages = {377--393},
+	annote = {Anotações(11/02/2026, 09:27:06)
+(Akbudak et al., 2020, p. 377) Esse q ele referência inclui o fletcher“cking (MWD-TB) approach (Malas et al., 2015, 2017).” (Akbudak et al., 2020, p. 378) Tenho estes artigos salvos?“We assess the numerical robustness by checking the numerical accuracy as well as the absorbed energy within the domain solution” (Akbudak et al., 2020, p. 378) How?“More thorough related work can be found at Malas et al. (2017) and Yuan et al. (2017)” (Akbudak et al., 2020, p. 379)(Akbudak et al., 2020, p. 380) sem segmentação espacial.Apenas single node.
+},
+	annote = {Esse paper serve caso fosse analizar a condição de borda estabelecida. Como isso está além do meu escopo, as ideias apresentadas podem ser úteis, principalemente na fundamentação teorica.
+Não há falas de um runtime, apenas do “MWD-TB” (Akbudak et al., 2020, p. 385), que pode ser lido sobre.
+Esse paper é complementar a Exploiting temporal data reuse and asynchrony in the reverse time migration, em que explora a condição de borda no contexto de diamond tiling e por consequência, no seu formato pseudo flecha. 
+},
+	file = {PDF:/home/colle/Zotero/storage/97BHFR4U/Akbudak et al. - 2020 - Asynchronous computations for solving the acoustic wave propagation equation.pdf:application/pdf},
+}
+
+@inproceedings{boillot_task-based_2014,
+	title = {Task-{Based} {Programming} for {Seismic} {Imaging}: {Preliminary} {Results}},
+	shorttitle = {Task-{Based} {Programming} for {Seismic} {Imaging}},
+	url = {https://ieeexplore.ieee.org/document/7056905/},
+	doi = {10.1109/HPCC.2014.205},
+	abstract = {The level of hardware complexity of current supercomputers is forcing the High Performance Computing (HPC) community to reconsider parallel programming paradigms and standards. The high-level of hardware abstraction provided by task-based paradigms make them excellent candidates for writing portable codes that can consistently deliver high performance across a wide range of platforms. While this paradigm has proved efficient for achieving such goals for dense and sparse linear solvers, it is yet to be demonstrated that industrial parallel codes relying on the classical Message Passing Interface (MPI) standard and that accumulate dozens of years of expertise (and countless lines of code) may be revisited to turn them into efficient task-based programs. In this paper, we study the applicability of task-based programming in the case of a Reverse Time Migration (RTM) application for Seismic Imaging. The initial MPI-based application is turned into a task-based code executed on top of the PaRSEC runtime system. Preliminary results show that the approach is competitive with (and even potentially superior to) the original MPI code on an homogenous multicore node and can exploit much more efficiently complex hardware such as a cache coherent Non Uniform Memory Access (ccNUMA) node or an Intel Xeon Phi accelerator.},
+	urldate = {2026-02-04},
+	booktitle = {2014 {IEEE} {Intl} {Conf} on {High} {Performance} {Computing} and {Communications}, 2014 {IEEE} 6th {Intl} {Symp} on {Cyberspace} {Safety} and {Security}, 2014 {IEEE} 11th {Intl} {Conf} on {Embedded} {Software} and {Syst} ({HPCC},{CSS},{ICESS})},
+	author = {Boillot, Lionel and Bosilca, George and Agullo, Emmanuel and Calandra, Henri},
+	month = aug,
+	year = {2014},
+	keywords = {Computer architecture, Hardware, Runtime, ccNUMA nodes, elastic wave propagation, Intel Xeon Phi co-processors, Programming, Propagation, runtime system, task-based programming, Tensile stress},
+	pages = {1259--1266},
+	annote = {Não li inteiro.
+
+Paper de 2014. RTM com PaRSEC. 
+CPU-only, single node.
+Referenciar quando falando de outros casos de uso. 
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/5XAW635X/Boillot et al. - 2014 - Task-Based Programming for Seismic Imaging Preliminary Results.pdf:application/pdf},
+}
+
+@article{bosilca_parsec_2013,
+	title = {{PaRSEC}: {Exploiting} {Heterogeneity} to {Enhance} {Scalability}},
+	volume = {15},
+	issn = {1558-366X},
+	shorttitle = {{PaRSEC}},
+	url = {https://ieeexplore.ieee.org/document/6654146/},
+	doi = {10.1109/MCSE.2013.98},
+	abstract = {New high-performance computing system designs with steeply escalating processor and core counts, burgeoning heterogeneity and accelerators, and increasingly unpredictable memory access times call for one or more dramatically new programming paradigms. These new approaches must react and adapt quickly to unexpected contentions and delays, and they must provide the execution environment with sufficient intelligence and flexibility to rearrange the execution to improve resource utilization. The authors present an approach based on task parallelism that reveals the application's parallelism by expressing its algorithm as a task flow. This strategy allows the algorithm to be decoupled from the data distribution and the underlying hardware, since the algorithm is entirely expressed as flows of data. This kind of layering provides a clear separation of concerns among architecture, algorithm, and data distribution. Developers benefit from this separation because they can focus solely on the algorithmic level without the constraints involved with programming for current and future hardware trends.},
+	number = {6},
+	urldate = {2026-02-04},
+	journal = {Computing in Science \& Engineering},
+	author = {Bosilca, George and Bouteiller, Aurelien and Danalis, Anthony and Faverge, Mathieu and Herault, Thomas and Dongarra, Jack J.},
+	month = nov,
+	year = {2013},
+	keywords = {Computational modeling, Computer architecture, Scalability, HPC, Runtime, Programming, Adaptation models, Biological system modeling, distributed programming, high-performance computing, Parallel processing, programming paradigms, scheduling and task partitioning, scientific computing},
+	pages = {36--45},
+	annote = {Não li todo.
+Paper sobre STF e o PaRSEC.
+Posso citar ao referenciar outros runtimes. Mais isso eu devo copiar de algum outro artigo.
+
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/JMQMN262/Bosilca et al. - 2013 - PaRSEC Exploiting Heterogeneity to Enhance Scalability.pdf:application/pdf},
+}
+
+@article{agullo_achieving_2017,
+	title = {Achieving {High} {Performance} on {Supercomputers} with a {Sequential} {Task}-based {Programming} {Model}},
+	issn = {1558-2183},
+	url = {https://ieeexplore.ieee.org/document/8226789/},
+	doi = {10.1109/TPDS.2017.2766064},
+	abstract = {The emergence of accelerators as standard computing resources on supercomputers and the subsequent architectural complexity increase revived the need for high-level parallel programming paradigms. Sequential task-based programming model has been shown to efficiently meet this challenge on a single multicore node possibly enhanced with accelerators, which motivated its support in the OpenMP 4.0 standard. In this paper, we show that this paradigm can also be employed to achieve high performance on modern supercomputers composed of multiple such nodes, with extremely limited changes in the user code. To prove this claim, we have extended the StarPU runtime system with an advanced inter-node data management layer that supports this model by posting communications automatically. We illustrate our discussion with the task-based tile Cholesky algorithm that we implemented on top of this new runtime system layer. We show that it allows for very high productivity while achieving a performance competitive with both the pure Message Passing Interface (MPI)-based ScaLAPACK Cholesky reference implementation and the DPLASMA Cholesky code, which implements another (non sequential) task-based programming paradigm.},
+	urldate = {2026-02-04},
+	journal = {IEEE Transactions on Parallel and Distributed Systems},
+	author = {Agullo, Emmanuel and Aumage, Olivier and Faverge, Mathieu and Furmento, Nathalie and Pruvost, Florent and Sergent, Marc and Thibault, Samuel Paul},
+	year = {2017},
+	keywords = {Runtime, Programming, runtime system, task-based programming, Algorithm design and analysis, Cholesky factorization, distributed computing, GPU, heterogeneous computing, Libraries, multicore, Productivity, sequential task flow, Supercomputers, STARPU},
+	pages = {1--1},
+	annote = {Anotações(10/02/2026, 12:37:36)
+(Agullo et al., 2017, p. 1) Artigo dizendo. Dá pra usar StarPU em sistema multi-nodo.
+“have extended the StarPU runtime system with an advanced inter-node data management layer” (Agullo et al., 2017, p. 1) Is it available?
+“is certainly one of the most popular of these candidates. Many studies have indeed shown that task-based numerical algorithms could compete against or even surpass state-ofthe-art highly optimized low-level peers in areas as diverse as dense linear algebra [1]–[4], sparse linear algebra [5]–[7], fast multipole methods [8], [9], H-matrix computation [10] or stencil computation [11], [12]” (Agullo et al., 2017, p. 1) usar essas citações caso necessárioVer [11] e [12] (12 eu já li)
+“arameterized Task Graph (PTG)” (Agullo et al., 2017, p. 2) Dar uma lida sobre isso, que parece ser a ideia de task funcional
+(Agullo et al., 2017, p. 3) Ótima sessão sobre os runtimes que existem. O paper é antigo (201\&) mas essa sessão é boa para justificar o porquê do StarPU.
+(Agullo et al., 2017, p. 8) Ver essa listagem quando for adicionar MPI ao StarPU.Ver se existem aplicações mais recentes que posso me basear.
+},
+	annote = {Artigo interessante. Muito relevante a motivação de usar StarPU e lista os outros sistemas existentes. Deve-se buscar algum artigo mais recente, visto que este é de 2017. Mas é suficiente. 
+Além disso, ele lista otimizações no contexto MPI q podem ser úteis. Ver quais artigos o citam pode ser uma mina de outro.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/HAI98QHY/Agullo et al. - 2017 - Achieving High Performance on Supercomputers with a Sequential Task-based Programming Model.pdf:application/pdf},
+}
+
+@article{lucas_use_nodate,
+	title = {On the use of hierarchical tasks for heterogeneous architectures},
+	abstract = {In the last decades, the computing power of high-performance platforms has grown exponentially at the expense of increased complexity. Programming such platforms to take full advantage of their computing power is challenging. The programmer must take into account different types of computing units, memory hierarchy, data transfers within a node or across a network, etc. Task-based runtime systems have become popular because of their ability to express efficient and portable applications on these complex heterogeneous architectures. This paradigm relies on various programming models to represent applications as task graphs. In particular, the Sequential Task Flow (STF) model provides a simple interface for writing efficient applications, but unfortunately only supports static task graphs. The lack of dynamism is detrimental for execution on heterogeneous systems, where task granularity may need to be adjusted to optimally match the different types of computing units available at any given time. The sequential nature of the STF model also creates a submission overhead that limits scalability for embarrassingly parallel applications.},
+	language = {en},
+	author = {Lucas, Gwenolé},
+	annote = {Esse paper é grande e possibilita um espaço de busca da aplicação. Não passei do abstract.
+
+Ele fala que o StarPU não é muito bom em lidar em tasks trivialmente paralelizáveis e paresenta uma solução para isso. Esse tema é relevante, pois o RTM entre shots é trivialmente paralelizável. Então, voltando ao paper do oil and gás, se formos expandir para um full RTM esse paper demonstra caminhos para a eficiência.
+
+Poderia citar ele para falar de limitações no full RTM e possíveis formas de lidar com elas.
+},
+	file = {PDF:/home/colle/Zotero/storage/VHSIPVQC/Lucas - On the use of hierarchical tasks for heterogeneous architectures.pdf:application/pdf},
+}
+
+@article{couteyen_carpaye_design_2018,
+	title = {Design and analysis of a task-based parallelization over a runtime system of an explicit finite-volume {CFD} code with adaptive time stepping},
+	volume = {28},
+	issn = {1877-7503},
+	url = {https://www.sciencedirect.com/science/article/pii/S1877750317302880},
+	doi = {10.1016/j.jocs.2017.03.008},
+	abstract = {FLUSEPA (registered trademark in France No. 134009261) is an advanced simulation tool which performs a large panel of aerodynamic studies. It is the unstructured finite-volume solver developed by Airbus Safran Launchers company to calculate compressible, multidimensional, unsteady, viscous and reactive flows around bodies in relative motion. The time integration in FLUSEPA is done using an explicit temporal adaptive method. The current production version of the code is based on MPI and OpenMP. This implementation leads to important synchronizations that must be reduced. To tackle this problem, we present the study of a task-based parallelization of the aerodynamic solver of FLUSEPA using the runtime system StarPU and combining up to three levels of parallelism. We validate our solution by the simulation (using a finite-volume mesh with 80 million cells) of a take-off blast wave propagation for Ariane 5 launcher.},
+	urldate = {2026-02-10},
+	journal = {Journal of Computational Science},
+	author = {Couteyen Carpaye, Jean Marie and Roman, Jean and Brenner, Pierre},
+	month = sep,
+	year = {2018},
+	keywords = {Aerospace industry, Computational fluid dynamics, High performance computing, Runtime system, Task-based parallelism, STARPU},
+	pages = {439--454},
+	annote = {Anotações(11/02/2026, 14:24:03)
+(Couteyen Carpaye et al., 2018, p. 439) Using StarPU to do aerodynamic sims
+“A preliminary version of this work appeared in [10].” (Couteyen Carpaye et al., 2018, p. 440)
+},
+	annote = {Esse artigo serve como um caso de uso do StarPU em outro domínio. Similar ao outro trabalho do mestrando do Schnorr.
+},
+	file = {ScienceDirect Full Text PDF:/home/colle/Zotero/storage/XSLCE75L/Couteyen Carpaye et al. - 2018 - Design and analysis of a task-based parallelization over a runtime system of an explicit finite-volu.pdf:application/pdf;ScienceDirect Snapshot:/home/colle/Zotero/storage/47CRE42D/S1877750317302880.html:text/html},
+}
+
+@article{furmento_optimizing_2025,
+	title = {Optimizing parallel heterogeneous system efficiency: {Dynamic} task graph adaptation with recursive tasks},
+	volume = {205},
+	issn = {0743-7315},
+	shorttitle = {Optimizing parallel heterogeneous system efficiency},
+	url = {https://www.sciencedirect.com/science/article/pii/S0743731525001248},
+	doi = {10.1016/j.jpdc.2025.105157},
+	abstract = {Task-based programming models are currently an ample trend to leverage heterogeneous parallel systems in a productive way (OpenACC, Kokkos, Legion, OmpSs, PaRSEC, StarPU, XKaapi, ...). Among these models, the Sequential Task Flow (STF) model is widely embraced (PaRSEC's DTD, OmpSs, StarPU) since it allows to express task graphs naturally through a sequential-looking submission of tasks, and tasks dependencies are inferred automatically. However, STF is limited to task graphs with task sizes that are fixed at submission, posing a challenge in determining the optimal task granularity. Notably, in heterogeneous systems, the optimal task size varies across different processing units, so a single task size would not fit all units. StarPU's recursive tasks allow graphs with several task granularities by turning some tasks into sub-graphs dynamically at runtime. The decision to transform these tasks into sub-graphs is decided by a StarPU component called the Splitter. After deciding to transform some tasks, classical scheduling approaches are used, making this component generic, and orthogonal to the scheduler. In this paper, we propose a new policy for the Splitter, which is designed for heterogeneous platforms, that relies on linear programming aimed at minimizing execution time and maximizing resource utilization. This results in a dynamic well-balanced set comprising both small tasks to fill multiple CPU cores, and large tasks for efficient execution on accelerators like GPU devices. We then present an experimental evaluation showing that just-in-time adaptations of the task graph lead to improved performance across various dense linear algebra algorithms.},
+	urldate = {2026-02-10},
+	journal = {Journal of Parallel and Distributed Computing},
+	author = {Furmento, Nathalie and Guermouche, Abdou and Lucas, Gwenolé and Morin, Thomas and Thibault, Samuel and Wacrenier, Pierre-André},
+	month = nov,
+	year = {2025},
+	keywords = {Runtime system, Accelerator, Granularity, Multicore, STF, Task-based programming},
+	pages = {105157},
+	annote = {Anotações(04/03/2026, 13:58:30)
+“StarPU’s recursive tasks allow graphs with several task granularities by turning some tasks into sub-graphs dynamically at runtime” (Furmento et al., 2025, p. 1)“n this paper, we propose a new policy for the Splitter, which is designed for heterogeneous platforms, that relies on linear programming aimed at minimizing execution time and maximizing resource utilization.” (Furmento et al., 2025, p. 1)
+},
+	annote = {Não passei do abstract.
+Esse paper fala das tasks recursivas do StarPU e como técnicas baseadas em programação linear ajudaram a melhorar a divisão das tarefas.
+
+Esse paper pode ser usado para apontar o espaço de tasks recursivas no StarPU quando falado de possíveis melhoras.
+Além disso, programação linear é muito interessante. 
+},
+	file = {ScienceDirect Full Text PDF:/home/colle/Zotero/storage/WMMKRBB4/Furmento et al. - 2025 - Optimizing parallel heterogeneous system efficiency Dynamic task graph adaptation with recursive ta.pdf:application/pdf;ScienceDirect Snapshot:/home/colle/Zotero/storage/76RKBJYE/S0743731525001248.html:text/html},
+}
+
+@article{leandro_nesi_task-based_2020,
+	title = {Task-based parallel strategies for computational fluid dynamic application in heterogeneous {CPU}/{GPU} resources},
+	volume = {32},
+	copyright = {© 2020 John Wiley \& Sons, Ltd.},
+	issn = {1532-0634},
+	url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.5772},
+	doi = {10.1002/cpe.5772},
+	abstract = {Parallel applications executing in contemporary heterogeneous clusters are complex to code and optimize. The task-based programming model is an alternative to handle the coding complexity. This model consists of splitting the problem domain into tasks with dependencies through a directed acyclic graph, and submit the set of tasks to a runtime scheduler that maps each task dynamically to resources. We consider that computational fluid dynamics applications are typical in scientific computing but not enough exploited by designs that employ the task-based programming model. This article presents task-based parallel strategies for a simple CFD application that targets heterogeneous multi-CPU/multi-GPU computing resources. We design, develop, evaluate, and compare the performance of three parallel strategies (naive, ghost-cells, and arrow) of a task-based heterogeneous (CPU and GPU) application that simulates the flow of an incompressible Newtonian fluid with constant viscosity. All implementations rely on the StarPU runtime, and we use the StarVZ toolkit to conduct comprehensive performance analysis. Results indicate that the ghost cell strategy provides the best speedup (77×) considering the simulation time when the GPU resources still have available memory. However, the arrow strategy achieves better results when the simulation data increases.},
+	language = {en},
+	number = {20},
+	urldate = {2026-02-10},
+	journal = {Concurrency and Computation: Practice and Experience},
+	author = {Leandro Nesi, Lucas and da Silva Serpa, Matheus and Mello Schnorr, Lucas and Navaux, Philippe Olivier Alexandre},
+	year = {2020},
+	note = {\_eprint: https://onlinelibrary.wiley.com/doi/pdf/10.1002/cpe.5772},
+	keywords = {computational fluid dynamics, performance analysis, task-based programming paradigm},
+	pages = {e5772},
+	file = {Full Text PDF:/home/colle/Zotero/storage/2NFMSQKT/Leandro Nesi et al. - 2020 - Task-based parallel strategies for computational fluid dynamic application in heterogeneous CPUGPU.pdf:application/pdf;Snapshot:/home/colle/Zotero/storage/DIPQTJKQ/cpe.html:text/html},
+}
+
+@inproceedings{pei_sequential_2022,
+	title = {Sequential {Task} {Flow} {Runtime} {Model} {Improvements} and {Limitations}},
+	url = {https://ieeexplore.ieee.org/document/10025520},
+	doi = {10.1109/ROSS56639.2022.00009},
+	abstract = {The sequential task flow (STF) model is the main-stream approach for interacting with task-based runtime systems, with StarPU and the Dynamic task discovery (DTD) in PaRSEC being two implementations of this model. Compared with other approaches of submitting tasks into a runtime system, STF has interesting advantages centered around an easy-to-use API, that allows users to expressed algorithms as a sequence of tasks (much like in OpenMP), while allowing the runtime to automatically identify and analyze the task dependencies and scheduling. In this paper, we focus on the DTD interface in PaRSEC, highlight some of its lesser known limitations and implemented two optimization techniques for DTD: support for user level graph trimming, and a new API for broadcast read-only data to remote tasks. We then analyze the benefits and limitations of these optimizations with benchmarks as well as on two common matrix factorization kernels Cholesky and QR, on two different systems Shaheen II from KAUST and Fugaku from RIKEN. We point out some potential for further improvements, and provided valuable insights into the strength and weakness of STF model. hoping to guide the future developments of task-based runtime systems.},
+	urldate = {2026-02-10},
+	booktitle = {2022 {IEEE}/{ACM} {International} {Workshop} on {Runtime} and {Operating} {Systems} for {Supercomputers} ({ROSS})},
+	author = {Pei, Yu and Bosilca, George and Dongarra, Jack},
+	month = nov,
+	year = {2022},
+	keywords = {Computational modeling, Runtime, Supercomputers, Benchmark testing, Conferences, Dynamic Runtime Systems, Heuristic algorithms, High Performance Computing, Linear algebra, Numerical Linear Algebra},
+	pages = {1--8},
+	annote = {Tenho esse paper impresso. Ele é relevante para citar que existem melhoras para fazer nos sistemas, mas não é diretamente relevante para a nossa aplicação.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/4SBN8BKT/Pei et al. - 2022 - Sequential Task Flow Runtime Model Improvements and Limitations.pdf:application/pdf},
+}
+
+@article{krishnamoorthy_effective_2007,
+	title = {Effective automatic parallelization of stencil computations},
+	volume = {42},
+	issn = {0362-1340},
+	url = {https://dl.acm.org/doi/10.1145/1273442.1250761},
+	doi = {10.1145/1273442.1250761},
+	abstract = {Performance optimization of stencil computations has been widely studied in the literature, since they occur in many computationally intensive scientific and engineering applications. Compiler frameworks have also been developed that can transform sequential stencil codes for optimization of data locality and parallelism. However, loop skewing is typically required in order to tile stencil codes along the time dimension, resulting in load imbalance in pipelined parallel execution of the tiles. In this paper, we develop an approach for automatic parallelization of stencil codes, that explicitly addresses the issue of load-balanced execution of tiles. Experimental results are provided that demonstrate the effectiveness of the approach.},
+	number = {6},
+	urldate = {2026-02-24},
+	journal = {SIGPLAN Not.},
+	author = {Krishnamoorthy, Sriram and Baskaran, Muthu and Bondhugula, Uday and Ramanujam, J. and Rountev, Atanas and Sadayappan, P},
+	month = jun,
+	year = {2007},
+	keywords = {Tiling},
+	pages = {235--244},
+	annote = {Anotações(02/03/2026, 10:53:07)
+(Krishnamoorthy et al., 2007, p. 235) Novamente um paper que me confunde bastante com a suas explicações. Mas ele existe no mesmo espaço que o outro paper que automatizava a compilação das iterações em relação ao tempo.Ele é mais uma fundamentação do sistema de flecha.“However, loop skewing is typically required in order to tile stencil codes along the time dimension, resulting in load imbalance in pipelined parallel execution of the tiles.” (Krishnamoorthy et al., 2007, p. 235)“Loop tiling is the key transformation to enable parallelization and data-locality optimization of stencil code” (Krishnamoorthy et al., 2007, p. 235)“However, there are inter-tile dependences in the horizontal direction, inhibiting concurrent execution of tiles by different processors. However, if the vertical tile size is reduced to one (i.e., tiling is eliminated along the time dimension), all tiles along the spatial dimension (adjoining the x-axis) can be executed concurrently. Thus there is a trade-off between achieving good data reuse and load balancing of parallel execution.” (Krishnamoorthy et al., 2007, p. 236)“Instead of the standard tiling described above, consider the tiling shown in Figure 5. Starting with the tiles formed by the same hyperplanes, an additional triangular region is added to the left of the tile, overlapping with the points at the right end of the neighboring tile. With this tiling, the iteration points processed by the tiles are no longer disjoint. Some of the iterations are executed redundantly by two neighboring tiles. This results in an increase in the computation cost. But doing so eliminates the dependence between tiles along the horizontal direction. All processors can start executing in parallel, eliminating the initial processor idling that results with the pipelined parallel execution of tiles in Figure 4.” (Krishnamoorthy et al., 2007, p. 236) Isso remete bastante ao halo usado, em que há repetição de algumas computações para evitar a dependência de dados.No caso do Halo ele serve mais para diminuir a banda necessária para as comunicações, mas pode ser visto assim também.
+},
+	annote = {Como colocado nas notas anteriores, esse paper fala mais do processo de compilação automático do tilling em relação ao tempo.
+Ele é ótimo pois comenta de coisas que fundamentam o sistema de flecha da nossa aplicação e como o uso do starpu resolve vários problemas que esses papers penam para resolver, como load balancing e limites de memória.
+},
+	file = {Full Text PDF:/home/colle/Zotero/storage/ZTNBAJTN/Krishnamoorthy et al. - 2007 - Effective automatic parallelization of stencil computations.pdf:application/pdf},
+}
+  
 #+end_src
 * Emacs setup                                                      :noexport:
 # Local Variables:
