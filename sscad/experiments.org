@@ -123,10 +123,18 @@ Temos que gerar 5 experimentos
     filter(Schedulers == "lws" | Schedulers == "dmdar") |>
     filter(as.numeric(as.character(BlockSeg)) > 8)
 
-
   traces |> readr::write_csv(glue("./sscad/star-fletcher-fix-size-traces.csv"))
 
 #+END_SRC
+
+Experimento para o star-fletcher e fletcher base para verificar como o aumento do
+tamanho afeta o tempo de execução. O uso de uma ordem fixa também mostrar como
+o tamanho ideal do bloco pode mudar com diferentes tamanhos de volume.
+
+O melhor tamanho atualmente encontrado é ordem 64. Com um tamanho de 384, temos que
+a segmentação ideal é 6 -> 216 blocos por iteração.
+
+Consideramos uma ordem menor, 32, para ter uma maior granularidade.
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
   fixed_order = 32
@@ -153,6 +161,35 @@ Temos que gerar 5 experimentos
   fb_ex_order |> readr::write_csv(glue("./sscad/fletcher-base-fix-order.csv"))
 
 #+END_SRC
+
+Os resultados observados não foram ideais, principalmente a considerar a máquina grace.
+Nisso, vamos aumentar a ordem para 64 e relançar os experimentos.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  fixed_order = 64
+
+  sf_cpu_size_grow <- list(
+    WithIO = c(0, 1),
+    BlockSeg = c(3, 4, 5, 6, 7),
+    Schedulers = c("ws", "lws", "dm", "dmdar")
+  )
+
+  sf_ex_order <- generate_experiment(sf_cpu_size_grow, replications, seed) |>
+    as_tibble() |>
+    mutate(
+  	Width = ((as.numeric(as.character(BlockSeg)) * fixed_order) - (2 * (border_size + absorb_size))),
+  	AbsorbSize = absorb_size,
+  	TotalTime = format(time_step * iterations, scientific = FALSE),
+  	TimeStep = format(time_step, scientific = FALSE),
+  	OutputTime = format(time_step, scientific = FALSE)
+    )
+
+  fb_ex_order <- sf_ex_order |> select(-BlockSeg, -Schedulers) |> unique()
+
+  sf_ex_order |> readr::write_csv(glue("./sscad/star-fletcher-fix-order-64.csv"))
+  fb_ex_order |> readr::write_csv(glue("./sscad/fletcher-base-fix-order-64.csv"))
+#+END_SRC
+
 
 * Análise de Dados
 

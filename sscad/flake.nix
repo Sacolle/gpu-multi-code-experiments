@@ -25,8 +25,23 @@
     let
         pkgs = import nixpkgs { inherit system; };
 
+        my-fletcher-base = fletcher-base.packages.${system}.default.override {
+            CUDAbackend = false;
+            OpenMPbackend = true;
+            OpenACCbackend = false;
+        };
+
         starpu-no-check = StarPU.packages.${system}.default.overrideAttrs {
             doCheck = false;
+        };
+
+        my-star-fletcher = star-fletcher.packages.${system}.default.override {
+            enableCUDA = false;
+            enableTrace = false;
+            compileAsRelease = true;
+            enableVerbose = false;
+            stdenv = pkgs.gcc13Stdenv;
+            StarPU = starpu-no-check;
         };
 
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
@@ -35,11 +50,6 @@
 
         fletcher-base-cpu =
           let
-            my-fletcher-base = fletcher-base.packages.${system}.default.override {
-                CUDAbackend = false;
-                OpenMPbackend = true;
-                OpenACCbackend = false;
-            };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-cpu-fix-size";
             scratch-folder = mk-scratch-folder experiment-name;
@@ -78,13 +88,8 @@
             '';
           };
 
-        fletcher-base-cpu-fix-order =
+        fletcher-base-cpu-fix-order = file:
           let
-            my-fletcher-base = fletcher-base.packages.${system}.default.override {
-                CUDAbackend = false;
-                OpenMPbackend = true;
-                OpenACCbackend = false;
-            };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-cpu-fix-order";
             scratch-folder = mk-scratch-folder experiment-name;
@@ -93,7 +98,7 @@
             experiments.lib.mkExperiment {
               inherit pkgs;
 
-              csvFile = ./fletcher-base-fix-order.csv;
+              csvFile = file;
 
               preamble = ''
                 mkdir -p ${scratch-folder}
@@ -122,20 +127,13 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+        fletcher-base-cpu-fix-order-32 = fletcher-base-cpu-fix-order ./fletcher-base-fix-order.csv;
+        fletcher-base-cpu-fix-order-64 = fletcher-base-cpu-fix-order ./fletcher-base-fix-order-64.csv;
 
         
         star-fletcher-cpu =  
           let
-            my-star-fletcher = star-fletcher.packages.${system}.default.override {
-                enableCUDA = false;
-                enableTrace = false;
-                compileAsRelease = true;
-		enableVerbose = false;
-		stdenv = pkgs.gcc13Stdenv;
-                StarPU = starpu-no-check;
-            };
             program = "${my-star-fletcher}/bin/star-fletcher";
-
             experiment-name = "star-fletcher-cpu-fix-size";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
@@ -176,16 +174,15 @@
 
         star-fletcher-cpu-trace =  
           let
-            my-star-fletcher = star-fletcher.packages.${system}.default.override {
+            trace-star-fletcher = star-fletcher.packages.${system}.default.override {
                 enableCUDA = false;
                 enableTrace = false;
                 compileAsRelease = true;
-		enableVerbose = false;
-		stdenv = pkgs.gcc13Stdenv;
+                enableVerbose = false;
+                stdenv = pkgs.gcc13Stdenv;
                 StarPU = starpu-no-check;
             };
-            program = "${my-star-fletcher}/bin/star-fletcher";
-
+            program = "${trace-star-fletcher}/bin/star-fletcher";
             experiment-name = "star-fletcher-cpu-fix-size-trace";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
@@ -231,18 +228,9 @@
             '';
           };
 
-        star-fletcher-cpu-fix-order =  
+        star-fletcher-cpu-fix-order = file:  
           let
-            my-star-fletcher = star-fletcher.packages.${system}.default.override {
-                enableCUDA = false;
-                enableTrace = false;
-                compileAsRelease = true;
-		enableVerbose = false;
-		stdenv = pkgs.gcc13Stdenv;
-                StarPU = starpu-no-check;
-            };
             program = "${my-star-fletcher}/bin/star-fletcher";
-
             experiment-name = "star-fletcher-cpu-fix-order";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
@@ -250,7 +238,7 @@
           experiments.lib.mkExperiment {
             inherit pkgs; 
             
-            csvFile = ./star-fletcher-fix-order.csv;
+            csvFile = file;
 
             preamble = ''
                 mkdir -p ${scratch-folder}
@@ -280,10 +268,17 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+        star-fletcher-cpu-fix-order-32 = star-fletcher-cpu-fix-order ./star-fletcher-fix-order.csv;
+        star-fletcher-cpu-fix-order-64 = star-fletcher-cpu-fix-order ./star-fletcher-fix-order-64.csv;
     in
     {
         packages = {
-            inherit fletcher-base-cpu star-fletcher-cpu fletcher-base-cpu-fix-order star-fletcher-cpu-fix-order star-fletcher-cpu-trace;
+          inherit fletcher-base-cpu star-fletcher-cpu
+            star-fletcher-cpu-fix-order-32 
+            star-fletcher-cpu-fix-order-64 
+            fletcher-base-cpu-fix-order-32 
+            fletcher-base-cpu-fix-order-64 
+            star-fletcher-cpu-trace;
         };
     });
 }
