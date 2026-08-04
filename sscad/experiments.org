@@ -425,6 +425,36 @@ Extraindo os dados dos experimentos do star-fletcher-fix-order
     unnest(Data)
 #+END_SRC
 
+Extraindo os dados dos experimentos do star-fletcher-fix-order-64
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order-64.csv')
+  sf_order <- machines |> cross_join(ex_star_fletcher_order)
+
+  sf_res_order <- sf_order |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      
+      lines <- tryCatch({
+        read_lines(file)
+      }, error = function(e){
+        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+        return(NULL) # Returns NULL instead of breaking the script
+      })
+      if(is.null(lines)) {
+        return(NULL)
+      }
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[6]], vals[[5]])
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data)
+#+END_SRC
+
 
 Experimento do fletcher-base-fix-order
 

@@ -88,10 +88,10 @@
             '';
           };
 
-        fletcher-base-cpu-fix-order = file:
+        fletcher-base-cpu-fix-order = id: file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
-            experiment-name = "fletcher-base-cpu-fix-order";
+            experiment-name = "fletcher-base-cpu-fix-order-${id}";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -127,8 +127,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        fletcher-base-cpu-fix-order-32 = fletcher-base-cpu-fix-order ./fletcher-base-fix-order.csv;
-        fletcher-base-cpu-fix-order-64 = fletcher-base-cpu-fix-order ./fletcher-base-fix-order-64.csv;
+        fletcher-base-cpu-fix-order-32 = fletcher-base-cpu-fix-order "32" ./fletcher-base-fix-order.csv;
+        fletcher-base-cpu-fix-order-64 = fletcher-base-cpu-fix-order "64" ./fletcher-base-fix-order-64.csv;
 
         
         star-fletcher-cpu =  
@@ -228,10 +228,10 @@
             '';
           };
 
-        star-fletcher-cpu-fix-order = file:  
+        star-fletcher-cpu-fix-order = id: file:  
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
-            experiment-name = "star-fletcher-cpu-fix-order";
+            experiment-name = "star-fletcher-cpu-fix-order-${id}";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -268,8 +268,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        star-fletcher-cpu-fix-order-32 = star-fletcher-cpu-fix-order ./star-fletcher-fix-order.csv;
-        star-fletcher-cpu-fix-order-64 = star-fletcher-cpu-fix-order ./star-fletcher-fix-order-64.csv;
+        star-fletcher-cpu-fix-order-32 = star-fletcher-cpu-fix-order "32" ./star-fletcher-fix-order.csv;
+        star-fletcher-cpu-fix-order-64 = star-fletcher-cpu-fix-order "64" ./star-fletcher-fix-order-64.csv;
     in
     {
         packages = {
