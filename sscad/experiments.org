@@ -432,7 +432,7 @@ Extraindo os dados dos experimentos do star-fletcher-fix-order-64
   sf_order <- machines |> cross_join(ex_star_fletcher_order)
 
   sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)

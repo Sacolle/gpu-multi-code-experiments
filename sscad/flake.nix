@@ -88,6 +88,47 @@
             '';
           };
 
+        fletcher-base-cpu-p-core = name: config:
+          let
+            program = "${my-fletcher-base}/bin/fletcher-base";
+            experiment-name = name;
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+            experiments.lib.mkExperiment {
+              inherit pkgs;
+
+              csvFile = ./fletcher-base-fix-size.csv;
+
+              preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+                '';
+
+              bashRunFn = { WithIO, Blocks, Width, AbsorbSize, TotalTime, TimeStep, OutputTime }: 
+              let
+                filename = "${WithIO}-${tail1 Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+              ''
+                ${config} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
+                cp ${stdout-file} ${home-folder}
+            '';
+            };
+        fletcher-base-cpu-tupi = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-tupi" ''MP_PLACES="0-15" export OMP_PROC_BIND=true export OMP_NUM_THREADS=16''; 
+        fletcher-base-cpu-poti = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-poti" ''MP_PLACES="0-15" export OMP_PROC_BIND=true export OMP_NUM_THREADS=16''; 
+        
         fletcher-base-cpu-fix-order = id: file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
@@ -171,6 +212,50 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+
+        star-fletcher-cpu-p-cores =  name: config:
+          let
+            program = "${my-star-fletcher}/bin/star-fletcher";
+            experiment-name = name;
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./star-fletcher-fix-size.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = {
+              WithIO, BlockSeg, Schedulers, Blocks, Width,
+              AbsorbSize, TotalTime, TimeStep, OutputTime
+            }: 
+              let
+                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${tail1 Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+              ''
+                ${config} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+                cat ${stdout-file}
+                rm ${rsf-file} ${rsf-at-file}
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+        star-fletcher-cpu-tupi = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-tupi" ''STARPU_NCPU=2 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 1 3"'';
+        star-fletcher-cpu-poti = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-poti" ''STARPU_NCPU=2 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 1 3"'';
 
         star-fletcher-cpu-trace =  
           let
@@ -278,6 +363,10 @@
             star-fletcher-cpu-fix-order-64 
             fletcher-base-cpu-fix-order-32 
             fletcher-base-cpu-fix-order-64 
+            star-fletcher-cpu-tupi
+            star-fletcher-cpu-poti
+            fletcher-base-cpu-tupi
+            fletcher-base-cpu-poti
             star-fletcher-cpu-trace;
         };
     });
