@@ -209,6 +209,7 @@ Aqui segue os dados das máquinas usadas nas execuções.
     ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, 
     "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
     "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "poti1", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "poti4", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "grace1", "2 x Grace A02", 3.4, 144, 144,
@@ -307,7 +308,7 @@ Experimento do star-fletcher
   ex_star_fletcher <- read_csv('./sscad/star-fletcher-fix-size.csv')
   sf <- machines |> cross_join(ex_star_fletcher)
 
-  sf_res <- sf |>
+  sf_res_p <- sf |>
     mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
                          "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Data = map(FILE, function(file) {
@@ -340,8 +341,9 @@ Experimento do fletcher-base
   ex_fletcher_base <- read_csv('./sscad/fletcher-base-fix-size.csv')
   fb <- machines |> cross_join(ex_fletcher_base)
 
-  fb_res <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+  fb_res_p <- fb |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
+                         "/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -387,17 +389,17 @@ enqunato essa granularidade é não é possível no caso do star-fletcher devido
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
-  x_breaks <- sort(unique(sf_res$Order))
-  msamples_plot <- function(io_state) {
-    max_fb <- fb_res |>
+  msamples_plot <- function(io_state, sft, fbt) {
+    x_breaks <- sort(unique(sft$Order))
+    max_fb <- fbt |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
   	filter(WithIO == io_state) |>
   	group_by(Machine) |>
   	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
 
-   sf_msamples_plot <- sf_res |>
-     filter(WithIO == io_state) |>
-     mutate(Machine = str_sub(Machine, end = -2))
+    sf_msamples_plot <- sft |>
+      filter(WithIO == io_state) |>
+      mutate(Machine = str_sub(Machine, end = -2))
 
     ggplot(sf_msamples_plot, aes(x = Order, y = Msamples, color = Machine)) +
     geom_point(size = 2, alpha = 0.3) +
@@ -416,7 +418,8 @@ enqunato essa granularidade é não é possível no caso do star-fletcher devido
     theme(legend.position = "bottom")
   }
 
-  msamples_plot(0) #/ msamples_plot(1)
+  msamples_plot(0, sf_res, fb_res) #/ msamples_plot(1)
+  #msamples_plot(0, sf_res_p, fb_res_p) #/ msamples_plot(1)
 
 #+END_SRC
 
@@ -428,14 +431,14 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
-  time_plot <- function(io_state) {
-    max_fb_time <- fb_res |>
+  time_plot <- function(io_state, sft, fbt, name = "") {
+    max_fb_time <- fbt |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
       filter(WithIO == io_state) |>
       group_by(Machine) |>
       summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") 
 
-   sf_time_plot <- sf_res |>
+   sf_time_plot <- sft |>
      filter(WithIO == io_state) |>
      mutate(Machine = str_sub(Machine, end = -2))
 
@@ -449,7 +452,7 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
     #ylim(0,50)+
     facet_grid(Machine ~ Schedulers, scales = "free_y") + 
     labs(
-  	title = paste0("Execution Time vs. Block Order with WithIO = ", io_state) ,
+  	title = paste0(name, "Execution Time vs. Block Order with WithIO = ", io_state) ,
   	subtitle = "Faceted by Scheduler",
   	x = "Block Size",
   	y = "Execution Time (s)"
@@ -458,7 +461,10 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
     theme(legend.position = "bottom")
     }
 
-  time_plot(0) / time_plot(1)
+  #time_plot(0, sf_res, fb_res) #/ time_plot(1)
+  time_plot_cmp <- function(io) time_plot(io, sf_res_p, fb_res_p, name = "Only P-cores: ") / time_plot(io, sf_res |> filter(str_sub(Machine, end = -2) %in% list("poti", "tupi")), fb_res_p)
+
+  time_plot_cmp(1)
     
 #+END_SRC
 
