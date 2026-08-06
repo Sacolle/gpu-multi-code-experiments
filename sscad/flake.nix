@@ -313,6 +313,66 @@
             '';
           };
 
+        star-fletcher-cpu-trace-p-core =  
+          let
+            trace-star-fletcher = star-fletcher.packages.${system}.default.override {
+                enableCUDA = false;
+                enableTrace = true;
+                compileAsRelease = true;
+                enableVerbose = false;
+                stdenv = pkgs.gcc13Stdenv;
+                StarPU = starpu-no-check;
+            };
+            program = "${trace-star-fletcher}/bin/star-fletcher";
+            experiment-name = "star-fletcher-cpu-fix-size-p-core-trace";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./star-fletcher-fix-size-traces.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = {
+              WithIO, BlockSeg, Schedulers, Width,
+              AbsorbSize, TotalTime, TimeStep, OutputTime
+            }: 
+              let
+                filename = "${Schedulers}-${BlockSeg}-${WithIO}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+                prof-name = "prof_file_${filename}";
+                prof-file = "${scratch-folder}/${prof-name}_0";
+            in
+              ''
+                STARPU_NCPU=8 \
+                STARPU_NCUDA=0 \
+                STARPU_NOPENCL=0 \
+                STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14 \
+                STARPU_TRACE_BUFFER_SIZE=4096 \
+                STARPU_FXT_TRACE=1 \
+                STARPU_FXT_PREFIX=${scratch-folder} \
+                STARPU_FXT_SUFFIX=${prof-name} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+                cat ${stdout-file}
+                rm ${rsf-file} ${rsf-at-file}
+                cp ${stdout-file} ${home-folder}
+                cp ${prof-file} ${home-folder}
+            '';
+          };
+
         star-fletcher-cpu-fix-order = id: file:  
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
@@ -367,7 +427,9 @@
             star-fletcher-cpu-poti
             fletcher-base-cpu-tupi
             fletcher-base-cpu-poti
-            star-fletcher-cpu-trace;
+            star-fletcher-cpu-trace
+            star-fletcher-cpu-trace-p-core
+          ;
         };
     });
 }
