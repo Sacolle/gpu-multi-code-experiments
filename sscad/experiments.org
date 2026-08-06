@@ -299,6 +299,82 @@ Experimento do fletcher-base
 
 #+END_SRC
 
+** Experimentos só com os p-cores
+
+Experimento do star-fletcher
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  ex_star_fletcher <- read_csv('./sscad/star-fletcher-fix-size.csv')
+  sf <- machines |> cross_join(ex_star_fletcher)
+
+  sf_res <- sf |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
+                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      #print(file)
+      lines <- tryCatch({
+        read_lines(file)
+      }, error = function(e){
+        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+        return(NULL) # Returns NULL instead of breaking the script
+      })
+      if(is.null(lines)) {
+        return(NULL)
+      }
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[6]], vals[[5]])
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+#+END_SRC
+
+Experimento do fletcher-base
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+
+  ex_fletcher_base <- read_csv('./sscad/fletcher-base-fix-size.csv')
+  fb <- machines |> cross_join(ex_fletcher_base)
+
+  fb_res <- fb |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(Data = map(FILE, function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      
+       lines <- tryCatch({
+   	read_lines(file) 
+       }, error = function(e){
+   	 message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+         return(NULL) # Returns NULL instead of breaking the script
+       })
+       if(is.null(lines)) {
+         return(NULL)
+       }
+       msamples <-  lines |>
+        str_subset("MSamples/s") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+
+       exec_time <-  lines |>
+        str_subset("Total execution time") |> 
+        str_extract("\\d+.\\d+") |> 
+        as.numeric()
+
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data) 
+
+#+END_SRC
+
 *** Gráficos dos resultados
 
 Gráfico da relação Mega Samples por Tamanho de bloco.
@@ -318,8 +394,6 @@ enqunato essa granularidade é não é possível no caso do star-fletcher devido
   	filter(WithIO == io_state) |>
   	group_by(Machine) |>
   	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
-  	# Join back to machines so the hline can inherit the exact Machine color
-  	#left_join(machines |> select(Machine, Processor), by = "Processor")
 
    sf_msamples_plot <- sf_res |>
      filter(WithIO == io_state) |>
@@ -331,7 +405,7 @@ enqunato essa granularidade é não é possível no caso do star-fletcher devido
     geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
     scale_x_continuous(breaks = x_breaks) +
     ylim(0,NA)+
-    facet_grid(~ Schedulers) + 
+    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
     labs(
   	title = paste0("Msamples vs. Block Order with WithIO = ", io_state),
   	subtitle = "Faceted by Scheduler",
@@ -342,7 +416,8 @@ enqunato essa granularidade é não é possível no caso do star-fletcher devido
     theme(legend.position = "bottom")
   }
 
-  msamples_plot(0) / msamples_plot(1)
+  msamples_plot(0) #/ msamples_plot(1)
+
 #+END_SRC
 
 Gráfico de tempo de execução por tamanho do bloco.
@@ -353,16 +428,12 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
-  x_breaks <- sort(unique(sf_res$Order))
-
   time_plot <- function(io_state) {
     max_fb_time <- fb_res |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
-  	filter(WithIO == io_state) |>
-  	group_by(Machine) |>
-  	summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") #|>
-  	# Join back to machines so the hline can inherit the exact Machine color
-  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+      filter(WithIO == io_state) |>
+      group_by(Machine) |>
+      summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") 
 
    sf_time_plot <- sf_res |>
      filter(WithIO == io_state) |>
@@ -376,7 +447,7 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
     #scale_x_continuous(breaks = x_breaks) +
     coord_cartesian(ylim = c(0, 40)) +
     #ylim(0,50)+
-    facet_grid(Machine ~ Schedulers) + 
+    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
     labs(
   	title = paste0("Execution Time vs. Block Order with WithIO = ", io_state) ,
   	subtitle = "Faceted by Scheduler",
@@ -387,11 +458,67 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
     theme(legend.position = "bottom")
     }
 
-  #time_plot(0)
-
-  time_plot(1)
+  time_plot(0) / time_plot(1)
     
 #+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  max_fb_time <- fb_res |>
+    mutate(
+      Machine = str_sub(Machine, end = -2),
+      WithIO = factor(WithIO, levels = c(0, 1), labels = c("Without IO", "With IO"))
+    ) |>
+    group_by(Machine, WithIO) |>
+    summarize(Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") 
+
+  sf_time_plot <- sf_res |>
+    mutate(
+      Machine = str_sub(Machine, end = -2),
+      WithIO = factor(WithIO, levels = c(0, 1), labels = c("Without IO", "With IO"))
+    )
+
+  ggplot(sf_time_plot, aes(x = factor(Order), y = ExecTime, fill = WithIO)) +
+    
+    stat_summary(fun = mean, geom = "bar", position = "dodge", color = "black", linewidth = 0.3) +
+
+    geom_hline(
+      data = max_fb_time, 
+      aes(yintercept = Min_Time), 
+      linetype = "solid", color = "black", linewidth = 1
+    ) +
+
+    geom_hline(
+      data = max_fb_time, 
+      aes(yintercept = Min_Time, color = WithIO), 
+      linetype = "solid", linewidth = 0.8
+    ) +
+    
+    
+    coord_cartesian(ylim = c(0, 40)) +
+    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
+    
+    labs(
+      title = "Execution Time vs. Block Order",
+      subtitle = "Faceted by Machine and Scheduler",
+      x = "Block Size",
+      y = "Execution Time (s)",
+      fill = "I/O State",
+      color = "I/O State"  # Matching legend labels combines fill and color into 1 legend
+    ) +
+    theme_bw(base_size = 15) +
+    theme(legend.position = "bottom")
+      
+#+END_SRC
+
+
+Now, considering just the p-cores
+
+
+
+
+
+
 
 ** Experimentos de Ordem fixa, variando o tamanho
 

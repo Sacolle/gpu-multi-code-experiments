@@ -57,45 +57,22 @@ Coloque o resumo aqui.
 
 ** Introduction
 <<sec:intro>>
-Check this paper cite:schnorr2013visualizing about how you need to
+                  
+Reverse Time Migration (RTM) is a linchpin algorithm for the oil and gas industry. With it, data recorded by geophones can be analyzed to detect subsurface deposits of oil and gas. When dealing with Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more adequate for multiple types of recorded mediums. It works by propagating a wave field forwards in time, recording it and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
-Sem subseções na introdução (max 2 página)
-- Contextualização ->
+This common parallelization approach won't do when nodes' architectures get increasing more heterogeneous: in the processors case with non-uniform memory access and mixed p-core/e-core architecture; and in the hardware accelerators case with multiple kinds of accelerators such as GPUs, TPUs, FPGAs... In (YEAR) Dongarra cite(THE ARTICLE) already proposed the sequential task flow model which is much more well equipped to deal with heterogeneous computing environments. Many applications adopted this paradigm for a plethora of contexts, like dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020 and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF allows for the exploration of all available computational resources, segmenting all computations into tasks, and balancing the distributions of tasks across computational resources.
 
-  Aplicação RTM é normalmente OpenMP parar explorar arq. multi-core
-	- Mas faz 15 anos que temos o paradgima task based (cita artigo don garra)
-          
-- Não tem nenhuma solução hoje do fletcher em task based\*  (tem uma outra implementação, já foi explorado)
-	- Por que o fletcher especificamente (Spadoto) -> sem task based
-		- Related work aqui
-	- Eu fiz isso em CPU single node 
-		- Ainda é muito relevante fazer CPU-only (tá, como?) -> computação hybrida
- 
- Contribuições
+This is relevant when dealing with RTM applications, they are IO bound. The forward step saves the computed volume every $k$ iterations, which the backwards iteration has to read back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory or, and if it doesn't fit, from disk. Modern research focuses in overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025, and in that aspect AlOnazi's work uses STF to orchestrate the data transfer between the GPUs, using its load balancing capabilities to balance a /shot/ per node multi-GPU computation of RTM.
+
+
+ Contribuições -> after results
     - O programa
     - Otimização do IO
     - Análise de desempenho -> com múltiplas GPUS
     - Comparação com OpenMP base (que )
 
- Estrutura do texto
+ Estrutura do texto -> after contribuitions
  
-
-Reverse Time Migration is a linchpin algorithm for the oil and gas industry. With it, data recorded by geophones can be analyzed to detect subsurface deposits of oil and gas. When dealing with Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more adequate for multiple types of recorded mediums. It works by propagating a wave field forwards in time, recording it and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
-
-This common parallelization approach won't do when nodes get increasing more homogeneous: processors with non-uniform memory access and mixed p-core/e-core architecture; multiple types of hardware accelerators, such as GPUs, TPUs, FPGAs... In (YEAR) Dongarra cite(THE ARTICLE) already proposed the sequential task flow model which is much more well equipped to deal with homogeneous computing environments. Many applications adopted this paradigm for a plethora of contexts, like dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020 and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF allows for the exploration of all available computational resources, segmenting all computations into tasks, and balancing the distributions of tasks across computational resources.
-
-This is relevant when dealing with RTM applications, they are IO bound. The forward step saves the computed volume every $k$ iterations, which the backwards iteration has to read back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory or, and if it doesn't fit, from disk. Modern research focuses in overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025, and in that aspect AlOnazi's work uses STF to orchestrate the data transfer between the GPUs, using its load balancing capabilities to balance a /shot/ per node multi-GPU computation of RTM.
-
-
-TODO: Go back later in this section and complete it
-
-
-TODO:
-contributions -> after results
-
-Text structure -> after results
-
-
 
 ** Methods and Materials
 
@@ -106,6 +83,7 @@ Figura do workflow do projeto\footnote{coisas2}
 
 Fletcher modeling works as a technique for simulating wave propagation over time. This propagation is expressed through the acoustic equation (*Equation \ref{eq:equacao1}*), where the velocity varies according to the specific geological layers (*Equation \ref{eq:equacao2}*). Referring to the equations, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
+#+BEGIN_EXPORT latex
 \begin{equation}
 \frac{1}{{V^2}} \frac{{\partial^2 p}}{{\partial t^2}} = \nabla^2 p
 \label{eq:equacao1}
@@ -116,35 +94,22 @@ Fletcher modeling works as a technique for simulating wave propagation over time
 \frac{1}{{V^2}} \frac{{\partial^2 p}}{{\partial t^2}} = \nabla^2 p - \frac{{\nabla \rho}}{{\rho}} \cdot \nabla p
 \label{eq:equacao2}
 \end{equation}
+#+END_EXPORT
 
 The algorithms implementation is then based on the numerical solution of these wave equations, which is a differential equation over a three-dimensional grid. The program's loop consist of calculating every point in a volume at time $t$ using itself the volume at time $t-1$ to compute the volume at time $t + 1$. This paper uses an implementation of this algorithm, called /fletcher-base/ cite:fletcher_base, to benchmark its own implementation using the STF paradigm. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forwards propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a latter backwards propagation phase. It can be chosen 3 different parallelization back-ends: CUDA, OpenCL and OpenMP, the latter was used in the benchmarking in this CPU context.
 
 *** Task Based Implementation
 
-/Star-fletcher/'s implementation is based on the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. To deal with the load unbalances inherit with exploring homogeneous architectures, StarPU is equiped with multiple types of schedulers, with different rules to determine where each task is computed. It also has more advanced features which were essential to /star-fletcher/'s implementation, such as automatic memory allocations \footnote{Chapter 27.2 of StarPU's manual \url{https://files.inria.fr/starpu/doc/html/AdvancedDataManagement.html}}.
+/Star-fletcher/'s implementation is based on the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. To deal with the load unbalances inherit with exploring heterogeneous architectures, StarPU is equiped with multiple types of schedulers, with different rules to determine where each task is computed. It also has more advanced features which were essential to /star-fletcher/'s implementation, such as automatic memory allocations[fn::Chapter 27.2 of StarPU's manual \url{https://files.inria.fr/starpu/doc/html/AdvancedDataManagement.html}].
 
 The computed medium had to be segmented in cubes in order for /star-fletcher/ to use task based parallelism in first order, where each computed task is a section of the whole medium. This required a re-implementation of the discrete differential equations present in /fletcher-base/ using meta-programming to reduce the amount of checks to find the points in the neighboring cubes. But this segmentation presented an opportunity in the scheduling of tasks. We considered that instead of using one loop that for every iteration step alternates between two buffers, pausing the computation to save the IO, each block is an independent unit, detached from the hole. Therefore, to compute a cube $C_{i,j,k,t + 1}$, we need its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved though StarPU, which frees the memory once no other task needs the allocated block. Fundamentally, /fletcher-base/ executes $Prev +\!\!= F(Curr)$, followed by a swap between $Prev$ and $Curr$ buffers, resulting in an arbitrary synchronization point. /Star-fletcher/ then, considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between computations. Not only that, but this pattern mimics time tilling optimizations, allowing for future optimizations that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023.
 
           
-*** Methodology
+*** Experimental Methodology for Performance Evaluation
 
-- Metodologia
-  - Quais métricas foram usadas
-  - Porque quando meço os MSamples não uso o IO
-  - O que significa o Tempo de execução
-  - Porque o tamanho do bloco
+Two metrics where used to compare the two applications: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard and measures the efficiency of the computing kernel, therefore it only counts the time where the kernel is actively doing computation, and divides the total computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the swap and IO. /Star-fletcher/ is not able to achieve this level of granularity, so the computed time is measured from the first submitted task up to the ending of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time, measures the kernel time plus the IO time, which means is exactly /star-fletcher/'s measured time, with and without IO. To acquire this time in /fletcher-base/, it is measured from the loop start up to the loops end. This metric allows to check what are the consequences of IO on the code's performance, given that MSamples/s was not made to check that.
 
-To compare the two applications, two metrics where used: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard and measures the efficiency of the computing kernel, therefore it only counts the time where the kernel is actively doing computation, and divides the total computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the swap and IO. /Star-fletcher/ is not able to achieve this level of granularity, so the computed time is measured from the first submitted task up to the ending of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time, measures the kernel time plus the IO time, which means is exaclty /star-fletcher/'s measured time, with and without IO. To aquire this time in /fletcher-base/, it is measured from the loop start up to the loops end. This metric allows to check what are the consequences of IO on the code's performance, given that MSamples/s was not made to check that.
-
-- Máquinas Usadas
-  - O que é o PCAD.
-  - Porque a draco, a cei e a Grace (homogêneas)
-  - Poque a poti e a tupi (heterogêneas)
-  - Nix e tal
-    - Foi usado nix para fazer os ambientes de execução de forma reprodutível.
-    - Este paper foi feito também com os princípios de programação literal.
-
-/Star-fletcher/ allows for segmentation of it's medium that are perfect divisors. A block's order is its width, so a block of order 32 has $32^3 = 32768$ elements. For any given total volume and machine architecture, a certain block order and numer of blocks will be ideal. For that, the experiments where run in PCAD's infrastructure, which is the high performance park of the institute of informatics of UFRGS \footnote{PCAD's page - \url{https://gppd-hpc.inf.ufrgs.br/}}. The machines used are described in table ref{tab:hardware}. The Machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12 respectively). The machine grace is an special case, an /aarch-64/ architecture with core to thread correspondence, being a powerful homogeneous computer.
+Due to /Star-fletcher/ segmented space, block order was one of the optimization parameters. A block's order is its width, so a block of order 32 has $32^3 = 32768$ elements, with a total cube volume width of 320 units, totaling $320^3 = 32768000$ elements, there will be $(320/32)^3$ blocks to compute each iteration. For any given total volume and machine architecture, a certain block order and number of blocks will be ideal. For that, the experiments where run in PCAD's infrastructure, which is the high performance park of the institute of informatics of UFRGS [fn::PCAD's page - \url{https://gppd-hpc.inf.ufrgs.br/}]. The machines used are described in table ref{tab:hardware}. The Machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12 respectively). The machine grace is an special case, an /aarch-64/ architecture with core to thread correspondence, being a powerful homogeneous computer. 
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
@@ -157,30 +122,67 @@ To compare the two applications, two metrics where used: Mega Samples per second
 | grace     | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
 | tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
 
-To orchestrate all executions, the Nix package manager was used. All experiments are versioned in the repository to aim for maximum reproducibility (ADD the repo footnote). Nix allows for all machines with the same architecture to use the same programs in the same version, avoiding performance penalties between machines due to some inconsistency in software versioning. 
+To orchestrate all executions, the Nix package manager was used. All experiments are versioned in the repository to aim for maximum reproducibility [fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. Nix allows for all machines with the same architecture to use the same programs in the same version, avoiding performance penalties between machines due to some inconsistency in software versioning. Also, it speeds up work flows that require the same program to be compiled with different configurations for different use cases, like with or without trace capabilities.
 
-- Projeto experimental
-  - Foram feitos 2 experimentos. Cada um com o \texttt{star-fletcher} e o \texttt{fletcher-base}, comparando-os.
-  - Também foi feito um trace de alguns casos do primeiro experimento para visualizar o sequenciamento de tarefas.
-  - No primeiro, procurou-se indentificar qual o mehor tamanho de bloco para o \texttt{star-fletcher}.
-    tendo o resultado o \texttt{fletcher-base} para comparar. Computou-se com e sem IO.
-    - Obteve-se as metricas de MSamples e de tempo de execução.
-    - Com o tempo de execução pode-se observar a otimização de IO
-  - No segundo. Fixou-se um tamanho de bloco e variou-se o tamanho nos dois programas, para ver como a aplicação escala com o aumento do meio.
-    - Obteve-se as metricas de MSamples e de tempo de execução.
-    - Com o tempo de execução pode-se observar a otimização de IO
-
-
-Two experiments where generated to validate some assumptions about /star-fletcher/'s performance. One fixed the total computed volume and then varied the block order inside it. With a higher block order, less tasks are submitted per iteration, with each task requiring more computational resources to complete. Both the MSamples/s and Execution Time where measured, with the hipotesis that at some block order, the /star-fletcher/ implementation will be superior to the /fletcher-base/ implementation. More so when considering Execution Time, because /star-fletcher/ has asynchronous IO. A smaller version of this experiment was also ran to record traces of /star-fletcher/, to see how its tasks where being distributed between the threads.
+*Two experiments* where built to validate some assumptions about /star-fletcher/'s performance. One fixed the total computed volume and then varied the block order inside it. With a higher block order, less tasks are submitted per iteration, with each task requiring more computational resources to complete. Both the MSamples/s and Execution Time where measured, with the hipotesis that at some block order, the /star-fletcher/ implementation will be superior to the /fletcher-base/ implementation. More so when considering Execution Time, because /star-fletcher/ has asynchronous IO. A smaller version of this experiment was also ran to record traces of /star-fletcher/, to see how its tasks where being distributed between the threads.
 
 The second one measured how the growth of the total volume effected the performance of both applications. For /star-fletcher/, this experiment was ran with both block order of 32 and 64, with 64 presenting superior results. The same total volumes where used to compute the /fletcher-base/ experiments. It was expected that as the size grew, the /star-fletcher/ application would outperform the /fletcher-base/ one due to it's overhead being less significant. But, it also had the possibility that for any of the total volume sizes, the fixed chosen block order would not be the best one, degrading /star-fletcher/'s performance.
-
 
 
     
 
 ** Results
 <<sec.results>>
+
+
+Influence of the schedulers.
+
+Best order. (Msamples)
+- Each machine had a best order:
+  - draco was worst in every case, but not by much
+  - cei was the best at 48
+  - grace at 64
+  - poti at 48
+  - tupi at 48
+- So mostly at 48. It is weird that a machine with more threads had a better performance with less tasks. src_R[:exports result]{(384 / 64)^3}, but not inconsistent due to no need for syncing.
+
+Best Order (Exec Time)
+- Without IO
+  - draco was worst in every case, but not by much
+  - cei was the best at 48
+  - grace at 64
+  - poti at 48
+  - tupi at 48 and 24 depending on the scheduler
+
+- With IO
+  - draco with ws matched at 96
+  - cei was the best at 48
+  - grace at 64 or 96 depending on the scheduler
+  - poti at 48
+  - tupi at 48
+
+They tended to perform better when IO was on -> HOW MUCH WAS IT ON -> Add to the methodology
+But not by much
+
+It was clear that poti and tupis machines outperformed by a lot the othes machines
+- They are heterogeneous
+- We ran experiments using only the p-cores, expecting it to change , /star-fletcher/ to get worse
+  - But it stayed with /star-fletcher/ better, but with a much smaller gap between the execution -> how much
+  - When considering the IO, the gap was a little wider. -> how much
+
+Why grace outperforms
+- Found the proper task granularity for the machine, with tweaking, maybe /fletcher-base/ could super /star-fletcher/.
+
+
+IO results
+The IO performances where marginal, making /star-fletcher/ acquire minimal gains, but always a few gains.
+- Why in the CPU the IO bottleneck is not that bad
+
+
+Tunning -> why it is necessary to tune by full size the aplication
+- Make a formula for expected size that would be best
+  - run in machines we did not run yet to validate the hipotesis.
+
 
 Como que eu falo dos resultados, o que estamos observando aqui?
 Acho que quarta dá para finalizar a introdução e metodologia, mas eu preciso
@@ -325,8 +327,10 @@ Brief section on the scalability of teh program
 
 #+BEGIN_SRC R :async yes :results file output graphics :file (org-babel-temp-file "figure" ".pdf") :exports results :width 6 :height 8 :session *R*
 
-  x_breaks <- sort(unique(sf_res$Order))
+  #x_breaks <- sort(unique(sf_res$Order))
   msamples_plot <- function(io_state) {
+    ord <- sf_res$Order
+    x_breaks <- c(12, 32, 48, 64, 96)
     max_fb <- fb_res |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
   	filter(WithIO == io_state) |>
@@ -345,7 +349,7 @@ Brief section on the scalability of teh program
     geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
     scale_x_continuous(breaks = x_breaks) +
     ylim(0,NA)+
-    facet_grid(Machine ~ Schedulers) + 
+    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
     labs(
   	title = paste0("Msamples vs. Block Order with WithIO = ", io_state),
   	subtitle = "Faceted by Scheduler",
@@ -353,14 +357,56 @@ Brief section on the scalability of teh program
   	y = "Msamples/s"
     ) +
     theme_bw(base_size=15) +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom", axis.text.x = element_text(size = 10))
   }
 
   msamples_plot(0) 
 #+END_SRC
 
 #+RESULTS:
-[[file:/tmp/nix-shell.OlOHnp/babel-AptWhW/figureBbi4LR.pdf]]
+[[file:/tmp/nix-shell.DDzc1F/babel-ooe9XK/figurepPs1fB.pdf]]
+
+#+BEGIN_SRC R :async yes :results file output graphics :file (org-babel-temp-file "figure" ".pdf") :exports results :width 6 :height 8 :session *R*
+
+  time_plot <- function(io_state) {
+
+    max_fb_time <- fb_res |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+  	filter(WithIO == io_state) |>
+  	group_by(Machine) |>
+  	summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") #|>
+  	# Join back to machines so the hline can inherit the exact Machine color
+  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+
+   sf_time_plot <- sf_res |>
+     filter(WithIO == io_state) |>
+     mutate(Machine = str_sub(Machine, end = -2))
+
+    ggplot(sf_time_plot, aes(x = factor(Order), y = ExecTime, fill = Machine)) +
+    stat_summary(fun = mean, geom = "bar", position = "dodge", color = "black", linewidth = 0.3) +
+    # geom_jitter() +
+    geom_hline(data = max_fb_time, aes(yintercept = Min_Time), linewidth = 0.8) +
+    #scale_y_continuous(breaks = sort(unique(c(seq(0, 50, by = 10), max_fb_time$Min_Time))), labels = function(x) round(x, 2), # Rounds to 2 decimal places to keep it tidy) +
+    coord_cartesian(ylim = c(0, 40)) +
+    # ylim(0,50)+
+    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
+    labs(
+  	title = paste0("Execution Time vs. Block Order with WithIO = ", io_state) ,
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Execution Time (s)"
+    ) +
+    theme_bw(base_size=15) +
+    theme(legend.position = "bottom", axis.text.x = element_text(size = 10))
+    }
+
+  time_plot(0)
+
+  #time_plot(1)
+#+END_SRC
+
+#+RESULTS:
+[[file:/tmp/nix-shell.ZhOfac/babel-gWXw6V/figure5QKEE6.pdf]]
 
 
 *** Size increasse
@@ -1011,7 +1057,7 @@ Tangle this file with C-c C-v t
   },
   	file = {Full Text PDF:/home/colle/Zotero/storage/ZTNBAJTN/Krishnamoorthy et al. - 2007 - Effective automatic parallelization of stencil computations.pdf:application/pdf},
   }
-@article{fletcher-base,
+@article{fletcher_base,
 author = {Serpa, Matheus and Pavan, Pablo and Cruz, Eduardo and Machado, Rodrigo and Panetta, Jairo and Azambuja, Antonio Carlos and Carissimi, Alexandre and Navaux, Philippe},
 year = {2021},
 month = {02},
