@@ -126,8 +126,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
             };
-        fletcher-base-cpu-tupi = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-tupi" ''MP_PLACES="0-15" export OMP_PROC_BIND=true export OMP_NUM_THREADS=16''; 
-        fletcher-base-cpu-poti = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-poti" ''MP_PLACES="0-15" export OMP_PROC_BIND=true export OMP_NUM_THREADS=16''; 
+        fletcher-base-cpu-tupi = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-tupi" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
+        fletcher-base-cpu-poti = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-poti" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
         
         fletcher-base-cpu-fix-order = id: file:
           let
@@ -254,8 +254,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        star-fletcher-cpu-tupi = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-tupi" ''STARPU_NCPU=2 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 1 3"'';
-        star-fletcher-cpu-poti = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-poti" ''STARPU_NCPU=2 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 1 3"'';
+        star-fletcher-cpu-tupi = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-tupi" ''STARPU_NCPU=8 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14"'';
+        star-fletcher-cpu-poti = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-poti" ''STARPU_NCPU=8 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14"'';
 
         star-fletcher-cpu-trace =  
           let
