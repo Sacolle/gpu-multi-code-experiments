@@ -9,3 +9,7 @@ result
 *.fls
 *.log
 *.out
+
+# org produced files
+refs.bib
+sbc.tex
