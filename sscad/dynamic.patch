@@ -1,0 +1,13 @@
+diff --git a/original/OpenMP/openmp_propagate.c b/original/OpenMP/openmp_propagate.c
+index 6d77250..98d5125 100644
+--- a/original/OpenMP/openmp_propagate.c
++++ b/original/OpenMP/openmp_propagate.c
+@@ -23,7 +23,7 @@ void OPENMP_Propagate(int sx, int sy, int sz, int bord,
+     // including absortion zone
+     
+     
+-#pragma omp for
++#pragma omp for schedule(dynamic)
+     for (int iz=bord; iz<sz-bord; iz++) {
+       for (int iy=bord; iy<sy-bord; iy++) {
+ 	for (int ix=bord; ix<sx-bord; ix++) {
