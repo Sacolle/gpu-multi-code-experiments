@@ -31,6 +31,16 @@
             OpenACCbackend = false;
         };
 
+        my-fletcher-base-dynamic = (fletcher-base.packages.${system}.default.override {
+            CUDAbackend = false;
+            OpenMPbackend = true;
+            OpenACCbackend = false;
+        }).overrideAttrs (old: {
+            patches = (old.patches or []) ++ [
+                ./dynamic.patch
+            ];
+        });
+
         starpu-no-check = StarPU.packages.${system}.default.overrideAttrs {
             doCheck = false;
         };
@@ -128,6 +138,47 @@
             };
         fletcher-base-cpu-tupi = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-tupi" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
         fletcher-base-cpu-poti = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-poti" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
+
+        fletcher-base-cpu-p-core-dynamic =
+          let
+            program = "${my-fletcher-base-dynamic}/bin/fletcher-base";
+            experiment-name = "fletcher-base-cpu-fix-size-p-core-dynamic";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+            experiments.lib.mkExperiment {
+              inherit pkgs;
+
+              csvFile = ./fletcher-base-fix-size.csv;
+
+              preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+                '';
+
+              bashRunFn = { WithIO, Blocks, Width, AbsorbSize, TotalTime, TimeStep, OutputTime }: 
+              let
+                filename = "${WithIO}-${tail1 Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+              ''
+                OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" \
+                OMP_PROC_BIND=true \
+                OMP_NUM_THREADS=8 \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
+                cp ${stdout-file} ${home-folder}
+            '';
+            };
         
         fletcher-base-cpu-fix-order = id: file:
           let
@@ -429,6 +480,7 @@
             fletcher-base-cpu-poti
             star-fletcher-cpu-trace
             star-fletcher-cpu-trace-p-core
+            fletcher-base-cpu-p-core-dynamic
           ;
         };
     });
