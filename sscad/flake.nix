@@ -39,6 +39,7 @@
             patches = (old.patches or []) ++ [
                 ./dynamic.patch
             ];
+            patchFlags = [ "-p2" ];
         });
 
         starpu-no-check = StarPU.packages.${system}.default.overrideAttrs {
