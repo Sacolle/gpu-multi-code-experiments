@@ -415,7 +415,7 @@ The draco machine almost matched both program's performance, even with /fletcher
 \end{figure}
 #+END_EXPORT
 
-It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Chapter [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Figure [[fig:msamples_plot]].
+It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Figure [[fig:msamples_plot]].
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 6 :height 8 :session *R*
   time_plot <- function(sft, fbt) {
