@@ -25,6 +25,8 @@
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
 
+#+PROPERTY: header-args :eval never
+
 * *The Paper*                                                       :ignore:
 ** Frontpage                                                        :ignore:
 
@@ -350,7 +352,7 @@ The second type of experiment measured how changes in total volume affected the 
 
 *** Text                                                           :ignore:
 
-The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as a function of the growth of block order in the X-axis. It is faceted horizontaly by the scheduler and vertically by machine. The tested schedulers where: Work Stealing (ws), which takes tasks from other filled queues if it is available to do work; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
+The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as a function of the growth of block order in the X-axis. It is faceted horizontaly by the scheduler and vertically by machine. The tested schedulers where: Work Stealing (ws), which takes tasks from other filled queues if it is available to do work; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. The last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains have been observed with this strategy in recent hybrid CPU architectures cite:sscad_perf_model.
 
 With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The dotted line represents the MSamples/s of the /fletcher-base/ and the line represents the MSamples/s as the order increases on the /star-fletcher/ application. Dots where chosen to represent the data, and not box plots, due to incredible low variance between execution, in both applications. (DO THE T STUDENT TEST ON THE DATA TO VALIDATE THAT STATMENT) 
 
