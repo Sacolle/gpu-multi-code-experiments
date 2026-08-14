@@ -407,9 +407,9 @@ The draco machine almost matched both program's performance, even with /fletcher
 #+end_src
 
 #+BEGIN_EXPORT latex
-\begin{figure}[ht]
+\begin{figure}[!htb]
     \centering
-    \includegraphics[page=1, trim=0cm 13.63cm 0cm 0cm, clip, width=\textwidth, height=0.2\textheight]{../results/traces/grace/starvz.pdf}
+    \includegraphics[page=1, trim=0cm 13.63cm 0cm 0cm, clip, width=\linewidth, height=0.15\textheight]{../results/traces/grace/starvz.pdf}
     \caption{Iteration Panel of the execution of \emph{star-fletcher} with 10 iteration on the grace machine with order 64.}
     \label{fig:iteration_plot}
 \end{figure}
