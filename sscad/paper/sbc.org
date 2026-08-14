@@ -463,7 +463,7 @@ It is visible the overlap of iterations, which help slower workers to not stop c
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine.
 #+NAME: fig:time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .6\textwidth
 [[file:time_plot.pdf]]
 
 
