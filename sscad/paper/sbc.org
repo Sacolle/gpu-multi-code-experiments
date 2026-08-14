@@ -25,6 +25,8 @@
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
 
+#+PROPERTY: header-args :eval never
+
 * *The Paper*                                                       :ignore:
 ** Frontpage                                                        :ignore:
 
@@ -51,11 +53,11 @@
 ** Abstract                                                         :ignore:
 
 #+begin_abstract
-Put the abstract here.
+Reverse Time Migration (RTM) is a computationally and IO-intensive algorithm widely used in oil and gas exploration. This paper presents \emph{star-fletcher}, an implementation of the Fletcher RTM algorithm using the StarPU runtime and the Sequential Task Flow (STF) paradigm. By segmenting the computational domain into blocks and scheduling them as dependent tasks, \emph{star-fletcher} enables natural overlap of computation and I/O, eliminating global synchronization points. Experiments conducted on multiple CPU architectures show that \emph{star-fletcher} outperforms the OpenMP implementation \emph{fletcher-base}, with the most significant gains observed on heterogeneous architectures featuring mixed performance and efficiency cores.
 #+end_abstract
 
 #+begin_resumo
-Coloque o resumo aqui.
+Reverse Time Migration (RTM) é um algoritmo computacional e de I/O intensivo amplamente utilizado na exploração de petróleo e gás. Este artigo apresenta o \emph{star-fletcher}, uma implementação do algoritmo RTM de Fletcher utilizando o runtime StarPU e o paradigma Sequential Task Flow (STF). Ao segmentar o domínio computacional em blocos e escaloná-los como tarefas dependentes, o \emph{star-fletcher} possibilita a sobreposição natural entre computação e I/O, eliminando pontos de sincronização globais. Experimentos realizados em múltiplas arquiteturas de CPU mostram que o \emph{star-fletcher} supera a implementação OpenMP \emph{fletcher-base}, com os ganhos mais expressivos em arquiteturas heterogêneas com núcleos de desempenho e eficiência mistos.
 #+end_resumo
 
 ** Introduction
@@ -67,11 +69,9 @@ This common parallelization approach won't do when nodes' architectures get incr
 
 This is relevant when dealing with RTM applications because they are IO bound. The forwards step saves the computed volume every $k$ iterations, which the backwards step has to read back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory. Modern research focuses in overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate the data transfer between the GPUs, using its load balancing capabilities to balance a /shot/ per node multi-GPU computation of RTM.
 
-
 Considering these characteristics, this paper presents /star-fletcher/ an implementation of the /fletcher/ algorithm using the StarPU runtime for its task based implementation. It improves over a base implementation which uses OpenMP, called /fletcher-base/ cite:fletcher_base, by using tasks as first other parallelism units, making each task compute part of the whole medium. With this modification, /star-fletcher/ was able to acquire optimization for IO and iteration overlapping. This performance claim was demonstrated through comparative analysis of /star-fletcher/ executions with the /fletcher-base/ baseline. Multiple machines were used to show /star-fletcher/'s performance in a plethora of execution environments.
 
 This paper is structured as such: Chapter [[sec:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Chapter [[sec:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Chapter [[sec:conclusion]] presents this paper's conclusions.
-
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
@@ -80,6 +80,7 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
 #+BEGIN_EXPORT latex
 \begin{figure}[htbp]
     \centering
+    \scalebox{0.75}{%
     \begin{tikzpicture}[
         node distance=1.5cm and 2.5cm,
         >=Stealth,
@@ -170,8 +171,6 @@ To execute in all those machines, *an experiments* was made to validate some ass
 
 # The second one measured how the growth of the total volume effected the performance of both applications. For /star-fletcher/, this experiment was ran with both block order of 32 and 64, with 64 presenting superior results. The same total volumes where used to compute the /fletcher-base/ experiments. It was expected that as the size grew, the /star-fletcher/ application would outperform the /fletcher-base/ one due to it's overhead being less significant. But it also had the possibility that for any of the total volume sizes, the fixed chosen block order would not be the best one, degrading /star-fletcher/'s performance.
 
-
-    
 
 ** Results
 <<sec:results>>
@@ -424,7 +423,7 @@ In Figure [[fig:msamples_plot]] With exception of the machine draco, the hypothe
 
 #+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the x axis. The dots are the /star-fletcher/ values as the order increasses and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
 #+NAME: fig:msamples_plot
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .6\linewidth
 [[file:msamples_plot.pdf]]
 
 The draco machine almost matched both program's performance, even with /fletcher-base/ coming on top. The interesting performances com from grace, tupi and poti. With the latter two having multiple configurations in which they surpass the baseline. This was expected as their CPU architecture is heterogeneous, having performance cores share space with economic cores, making OpenMP simple static partitioning not as effective as StarPU's dynamic schedulers. The grace machine's performance was unexpected, as to how much above the baseline it rose, considering it is a homogeneous machine. Considering that most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. One other possibility is that /star-fletcher/ does not need to synchronize after every step, with that, a slow thread does not bottleneck the execution. Figure \ref{fig:iteration_plot} displays the iteration overlap of 10 iteration execution in the grace machine. Tasks are represented by vertical lines, with their color telling the kind of task they are and their x coordinate when they executed. The y axis tells which iteration they are a part of. The black lines above and bellow follow the start of the iteration and the end of it, respectively.
@@ -440,10 +439,10 @@ The draco machine almost matched both program's performance, even with /fletcher
 #+end_src
 
 #+BEGIN_EXPORT latex
-\begin{figure}[ht]
+\begin{figure}[!htb]
     \centering
-    \includegraphics[page=1, trim=0cm 13.63cm 0cm 0cm, clip, width=\textwidth, height=0.2\textheight]{../results/traces/grace/starvz.pdf}
-    \caption{Iteration Graph of the execution o /star-fletcher/ with 10 iteration on the grace machine with order 64.}
+    \includegraphics[page=1, trim=0cm 13.63cm 0cm 0cm, clip, width=\linewidth, height=0.15\textheight]{../results/traces/grace/starvz.pdf}
+    \caption{Iteration Panel of the execution of \emph{star-fletcher} with 10 iteration on the grace machine with order 64.}
     \label{fig:iteration_plot}
 \end{figure}
 #+END_EXPORT
@@ -524,7 +523,7 @@ It is visible the overlap of iterations, which help slower workers to not stop c
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .6\textwidth
 [[file:time_plot.pdf]]
 
 
@@ -540,7 +539,7 @@ Once more, the heterogeneous machines (tupi and poti) had great performances. Th
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only the processor's p-cores. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:pcore_time_plot.pdf]]
 
 The Figure [[fig:pcore_time_diff]] shows that the results in Figure [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expectation was that there would be no gain when only using p-cores. This is probably related to the other optimization, the computational overlap of iterations, which can be seen in Figure \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
@@ -554,13 +553,13 @@ Another aspect to consider is that the Fletcher algorithm is not adequate for st
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, only the processor's p-cores and using the dynamic runtime in OpenMP for /fletcher-base/. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_dyn_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
 
 *** Program Scalability                                            :noexport:
 
-The best order size may not be the overall best order size for all total volumes. With the second experiment, an order size of 64 was chosen and the total volume was varied. The results in relation to the MSamples/s can be seen in Graph (REF). There, it is clear that for the smaller sizes, the large order size was bad for their performance, whilst for the bigger one, it was not necessarily the best. In Graph [[fig:msamples_plot]], the best order size for most machines was 48, so this bigger order size had adverse effects on the performance of most machines.
+The best order size may not be the overall best order size for all total volumes. With the second experiment, an order size of 64 was chosen and the total volume was varied. The results in relation to the MSamples/s can be seen in Figure (REF). There, it is clear that for the smaller sizes, the large order size was bad for their performance, whilst for the bigger one, it was not necessarily the best. In Figure [[fig:msamples_plot]], the best order size for most machines was 48, so this bigger order size had adverse effects on the performance of most machines.
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_order_plot.pdf" :exports none :width 6 :height 8 :session *R*
 
@@ -597,7 +596,7 @@ The best order size may not be the overall best order size for all total volumes
 
 #+CAPTION: Growth of MSamples/s of /star-fletcher/ (filled line) and /fletcher-base/ (dashed-line) over the total volume size when fixing the block order for /star-fletcher/ of 64. 
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:msamples_order_plot.pdf]]
 
 
@@ -617,7 +616,11 @@ For future work, the aim is to continue the research into CPU-GPU mixed computat
 :UNNUMBERED: t
 :END:
 
- Some experiments in this work used the PCAD infrastructure, \url{http://pcad.inf.ufrgs.br}, at INF/UFRGS. 
+This study was financed in part by the Coordenação de Aperfeiçoamento
+de Pessoal de Nível Superior (CAPES), Finance Code 001. This work was
+also partially funded by Petrobras under Agreement no.  2020/00182-5 e
+2018/00263-5 with UFRGS. The authors thank PCAD/UFRGS, \url{http://pcad.inf.ufrgs.br}, for
+infrastructure access in the prior study's evaluation.
  
 ** References                                                      :ignore:
 
@@ -1211,7 +1214,19 @@ Tangle this file with C-c C-v t
   keywords={Programming;Computer architecture;Runtime;Computational modeling;Parallel processing;Biological system modeling;Adaptation models;Scalability;Programming;Computer architecture;Runtime;Computational modeling;Parallel processing;Biological system modeling;Adaptation models;Scalability;scientific computing;high-performance computing;HPC;scheduling and task partitioning;distributed programming;programming paradigms},
   doi={10.1109/MCSE.2013.98}
   }
-        
+
+@article{agullo2016implementing,
+  title={Implementing multifrontal sparse solvers for multicore architectures with sequential task flow runtime systems},
+  author={Agullo, Emmanuel and Buttari, Alfredo and Guermouche, Abdou and Lopez, Florent},
+  journal={Acm transactions on mathematical software (toms)},
+  volume={43},
+  number={2},
+  pages={1--22},
+  year={2016},
+  publisher={ACM New York, NY, USA}
+}
+
+
 #+end_src
 * Emacs setup                                                      :noexport:
 # Local Variables:
