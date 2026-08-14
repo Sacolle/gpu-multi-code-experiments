@@ -391,7 +391,7 @@ With exception of the machine draco, the hypothesis that for every machine there
 
 #+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the y axis. The continuous line is the /star-fletcher/ growth as the order increasses and the dashed line is the performance of /fletcher-base/ in that machine.
 #+NAME: fig:msamples_plot
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .6\linewidth
 [[file:msamples_plot.pdf]]
 
 The draco machine almost matched both program's performance, even with /fletcher-base/ coming on top. The interesting performances com from grace, tupi and poti. With the latter two having multiple configurations in which they surpass the baseline. This was expected as their CPU architecture is heterogeneous, having performance cores share space with economic cores, making OpenMP simple static partitioning not as effective as StarPU's dynamic schedulers. The grace machine's performance was unexpected, as to how much above the baseline it rose, considering it is a homogeneous machine. Considering the most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. One other possibility is that /star-fletcher/ does not need to synchronize after every step, with that, a slow thread does not bottleneck the execution. This is display by a trace of /star-fletcher/ on the grace machine.
