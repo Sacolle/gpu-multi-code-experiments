@@ -477,7 +477,7 @@ The schedulers did not have a significant role in the execution times. As observ
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only considering the poti and tupi machines when they are using only it's p-cores.
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:pcore_time_plot.pdf]]
 
 The Figure [[fig:pcore_time_diff]] shows that the results in Figure [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expected were that there would be no gain when only using p-cores. This is probably related again to the other optimization, the computational overlap of iterations, which can be seen in Figure \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
@@ -490,7 +490,7 @@ We can also consider that the static partitioning was the element that penalized
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Using the dynamic runtime in OpenMP for /fletcher-base/.
 #+NAME: fig:pcore_dyn_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
 The marginal gains from taking reducing to p-cores only are even greatly reduced, although they still persists on the best configured order. This shows again that the exploration of heterogeneous architectures is a great boost to execution time, but not the only one. (MISSING THE POTI DATA)
@@ -534,7 +534,7 @@ The best order size may not be the overall best order size for all total volumes
 
 #+CAPTION: Growth of MSamples/s of /star-fletcher/ (filled line) and /fletcher-base/ (dashed-line) over the total volume size when fixing the block order for /star-fletcher/ of 64. 
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width 1\textwidth
+#+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:msamples_order_plot.pdf]]
 
 
