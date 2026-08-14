@@ -593,6 +593,76 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
 #+END_SRC
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
+  time_plot <- function(sft, fbt) {
+    x_breaks <- c(12, 32, 48, 64, 96)
+    
+    fb_stats <- fbt |>
+      select(-FILE) |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        fb_n = n(),
+        ExecTime_fb_mean = mean(ExecTime, na.rm = TRUE),
+        ExecTime_fb_sd = sd(ExecTime, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    sf_comb <- sft |>
+      select(-FILE) |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        sf_n = n(),
+        ExecTime_sf_mean = mean(ExecTime, na.rm = TRUE),
+        ExecTime_sf_sd = sd(ExecTime, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      left_join(fb_stats, by = c("Machine", "WithIO")) |>
+      mutate(
+        # Difference of Means
+        Diff_mean = ExecTime_sf_mean - ExecTime_fb_mean,
+        
+        # Combined Standard Error for Independent Samples
+        Combined_SE = sqrt((ExecTime_sf_sd^2 / sf_n) + (ExecTime_fb_sd^2 / fb_n)),
+        
+        # 3x Error mapping
+        Diff_error = 3 * Combined_SE
+      )
+
+    # 3. Plot (Exact same plotting code as above)
+    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = factor(WithIO))) +
+      geom_hline(yintercept = 0, linetype = "dashed") +
+      geom_point(alpha = 0.8) +
+      geom_line(linewidth = 0.8) +
+      geom_errorbar(
+        aes(ymin = Diff_mean - Diff_error, ymax = Diff_mean + Diff_error), 
+        width = 0.5
+      ) +
+      coord_cartesian(ylim = c(-7.5, 7.5)) +
+      scale_x_continuous(breaks = x_breaks) +
+      facet_grid(Machine ~ Schedulers) +
+      scale_color_discrete(
+        name = NULL,
+        labels = c("0" = "without IO", "1" = "with IO")
+      ) +
+      labs(
+        title = "Execution Time Difference vs. Block Order",
+        subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
+        x = "Block Size",
+        y = "Execution Time Difference (s)"
+      ) +
+      theme_bw(base_size=15) +
+      theme(
+        legend.position = "bottom",
+        legend.margin = margin(t = -10, b = -10),
+        axis.text.x = element_text(size = 10)
+      )
+  }
+
+  time_plot(sf_res, fb_res) 
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
 
   max_fb_time <- fb_res |>
     mutate(
