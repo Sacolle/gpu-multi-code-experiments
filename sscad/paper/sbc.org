@@ -53,11 +53,11 @@
 ** Abstract                                                         :ignore:
 
 #+begin_abstract
-Put the abstract here.
+Reverse Time Migration (RTM) is a computationally and IO-intensive algorithm widely used in oil and gas exploration. This paper presents \emph{star-fletcher}, an implementation of the Fletcher RTM algorithm using the StarPU runtime and the Sequential Task Flow (STF) paradigm. By segmenting the computational domain into blocks and scheduling them as dependent tasks, \emph{star-fletcher} enables natural overlap of computation and I/O, eliminating global synchronization points. Experiments conducted on multiple CPU architectures show that \emph{star-fletcher} outperforms the OpenMP implementation \emph{fletcher-base}, with the most significant gains observed on heterogeneous architectures featuring mixed performance and efficiency cores.
 #+end_abstract
 
 #+begin_resumo
-Coloque o resumo aqui.
+Reverse Time Migration (RTM) é um algoritmo computacional e de I/O intensivo amplamente utilizado na exploração de petróleo e gás. Este artigo apresenta o \emph{star-fletcher}, uma implementação do algoritmo RTM de Fletcher utilizando o runtime StarPU e o paradigma Sequential Task Flow (STF). Ao segmentar o domínio computacional em blocos e escaloná-los como tarefas dependentes, o \emph{star-fletcher} possibilita a sobreposição natural entre computação e I/O, eliminando pontos de sincronização globais. Experimentos realizados em múltiplas arquiteturas de CPU mostram que o \emph{star-fletcher} supera a implementação OpenMP \emph{fletcher-base}, com os ganhos mais expressivos em arquiteturas heterogêneas com núcleos de desempenho e eficiência mistos.
 #+end_resumo
 
 ** Introduction
