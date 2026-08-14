@@ -61,17 +61,17 @@ Coloque o resumo aqui.
 ** Introduction
 <<sec:intro>>
                   
-Reverse Time Migration (RTM) is a linchpin algorithm for the oil and gas industry. With it, data recorded by geophones can be analyzed to detect subsurface deposits of oil and gas. When dealing with Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more adequate for multiple types of recorded mediums. It works by propagating a wave field forwards in time, recording it and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
+Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, data recorded by geophones can be analyzed to detect subsurface deposits of oil and gas. When dealing with Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more adequate for multiple types of recorded mediums. It works by propagating a wave field forwards in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
-This common parallelization approach won't do when nodes' architectures get increasing more heterogeneous: in the processors case with non-uniform memory access and mixed p-core/e-core architecture; and in the hardware accelerators case with multiple kinds of accelerators such as GPUs, TPUs, FPGAs... In 2013 Dongarra cite:dongarra already proposed the sequential task flow model which is much more well equipped to deal with heterogeneous computing environments. Many applications adopted this paradigm for a plethora of contexts, like dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020 and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF allows for the exploration of all available computational resources, segmenting all computations into tasks, and balancing the distributions of tasks across computational resources.
+This common parallelization approach won't do when nodes' architectures get increasing more heterogeneous: in the processors case with non-uniform memory access and mixed p-core/e-core architecture; and in the hardware accelerators case with multiple kinds of accelerators such as GPUs, TPUs, FPGAs... In 2013 Dongarra cite:dongarra already proposed the sequential task flow model which is much more well equipped to deal with heterogeneous computing environments. Many applications successfully adopted this paradigm  for a plethora of contexts, like dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020 and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF allows for the exploration of all available computational resources, segmenting all computations into tasks, and balancing the distributions of tasks across computational resources.
 
-This is relevant when dealing with RTM applications, they are IO bound. The forward step saves the computed volume every $k$ iterations, which the backwards iteration has to read back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory or, and if it doesn't fit, from disk. Modern research focuses in overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025, and in that aspect AlOnazi's work uses STF to orchestrate the data transfer between the GPUs, using its load balancing capabilities to balance a /shot/ per node multi-GPU computation of RTM.
+This is relevant when dealing with RTM applications because they are IO bound. The forwards step saves the computed volume every $k$ iterations, which the backwards step has to read back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory. Modern research focuses in overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate the data transfer between the GPUs, using its load balancing capabilities to balance a /shot/ per node multi-GPU computation of RTM.
 
 
-This paper presents /star-fletcher/ an implementation of the /fletcher/ algorithm using the StarPU runtime for its task based implementation. It improves over the base implementation that used OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the space and using tasks as first other parallelism units, where each worker computes one of the segment parts of the medium. With this modification, /star-fletcher/ was able to acquire optimization for IO overlapping and iteration overlapping, which speed it up even more in non-homogeneous execution environments. This claims were demonstrated through comparative analysis of /star-fletcher/ executions with the /fletcher-base/ baseline. Multiple machines were used to show /star-fletcher/'s performance in a plethora of cases.
+Considering these characteristics, this paper presents /star-fletcher/ an implementation of the /fletcher/ algorithm using the StarPU runtime for its task based implementation. It improves over a base implementation which uses OpenMP, called /fletcher-base/ cite:fletcher_base, by using tasks as first other parallelism units, making each task compute part of the whole medium. With this modification, /star-fletcher/ was able to acquire optimization for IO and iteration overlapping. This performance claim was demonstrated through comparative analysis of /star-fletcher/ executions with the /fletcher-base/ baseline. Multiple machines were used to show /star-fletcher/'s performance in a plethora of execution environments.
 
-Chapter [[ref:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Chapter [[ref:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Chapter [[ref:conclusion]] presents this paper's conclusions.
- 
+This paper is structured as such: Chapter [[sec:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Chapter [[sec:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Chapter [[sec:conclusion]] presents this paper's conclusions.
+
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
@@ -175,7 +175,7 @@ The second one measured how the growth of the total volume effected the performa
     
 
 ** Results
-<<sec.results>>
+<<sec:results>>
 *** Data Parsing                                                         :ignore:
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
@@ -234,7 +234,7 @@ The second one measured how the growth of the total volume effected the performa
   sf <- machines |> cross_join(ex_star_fletcher)
 
   sf_res <- sf |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, \(lines){
       vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
       tribble(~Msamples, ~ExecTime, 
@@ -246,7 +246,7 @@ The second one measured how the growth of the total volume effected the performa
   fb <- machines |> cross_join(ex_fletcher_base)
 
   fb_res <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, function(lines) {
        msamples <-  lines |>
         str_subset("MSamples/s") |> 
@@ -270,7 +270,7 @@ The second one measured how the growth of the total volume effected the performa
 
   sf_res_p <- sf |>
     mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, \(lines){
       vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
       tribble(~Msamples, ~ExecTime, 
@@ -283,7 +283,7 @@ The second one measured how the growth of the total volume effected the performa
 
   fb_res_p <- fb |>
     mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+                         "/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, function(lines) {
        msamples <-  lines |>
         str_subset("MSamples/s") |> 
@@ -300,7 +300,7 @@ The second one measured how the growth of the total volume effected the performa
     })
 
   fb_res_p_dyn <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-dynamic/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-dynamic/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, function(lines) {
        msamples <-  lines |>
         str_subset("MSamples/s") |> 
@@ -324,7 +324,7 @@ The second one measured how the growth of the total volume effected the performa
   sf_order <- machines |> cross_join(ex_star_fletcher_order)
 
   sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, \(lines){
       vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
       tribble(~Msamples, ~ExecTime, 
@@ -335,7 +335,7 @@ The second one measured how the growth of the total volume effected the performa
   fb_order <- machines |> cross_join(ex_fletcher_base_order)
 
   fb_res_order <- fb_order |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order-64/", Machine ,"/stdout-", Width, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order-64/", Machine ,"/stdout-", Width, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     parse_files(FILE, function(lines) {
        msamples <-  lines |>
         str_subset("MSamples/s") |> 
@@ -352,45 +352,73 @@ The second one measured how the growth of the total volume effected the performa
     })
 #+END_SRC
 
-*** Text                                                           :ignore:
+*** MSamples/s Plot                                                :ignore:
 
 The Graph [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s as the block order grows. It is faceted by the scheduler on the x axis and by machine on the y axis. The tested schedulers where: Work Stealing (ws), which takes tasks from other filled queues if it is available to do work; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
 
-With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The dotted line represents the MSamples/s of the /fletcher-base/ and the line represents the MSamples/s as the order increases on the /star-fletcher/ application. Dots where chosen to represent the data, and not box plots, due to incredible low variance between execution, in both applications. (DO THE T STUDENT TEST ON THE DATA TO VALIDATE THAT STATMENT) 
+With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 6 :height 8 :session *R*
-  msamples_plot <- function() {
-    x_breaks <- c(12, 32, 48, 64, 96)
-    max_fb <- fb_res |>
+  msamples_plot <- function(sft, fbt) {
+    x_breaks <- sort(unique(sft$Order))
+    
+    fb_stats <- fbt |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
-  	filter(WithIO == 0) |>
-  	group_by(Machine) |>
-  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
-  	# Join back to machines so the hline can inherit the exact Machine color
-  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+      filter(WithIO == 0) |>
+      group_by(Machine) |>
+      summarize(
+        rep = n(),
+        FB_Mean   = mean(Msamples),
+        FB_Sd     = sd(Msamples),
+        FB_Error  = (3 * FB_Sd) / sqrt(n()),
+        .groups   = "drop" 
+      )
 
-   sf_msamples_plot <- sf_res |>
-     filter(WithIO == 0) |>
-     mutate(Machine = str_sub(Machine, end = -2))
+    sf_msamples_plot <- sft |>
+      select(-FILE) |>
+      filter(WithIO == 0) |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        rep = n(),
+        Msamples_mean = mean(Msamples),
+        Msamples_sd = sd(Msamples),
+        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+        #ExecTime_mean = mean(ExecTime),
+        #ExecTime_sd = sd(ExecTime),
+        #ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+        .groups = "drop"
+      ) 
 
-    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples, color = Machine)) +
-    geom_point(size = 2, alpha = 0.3) +
-    geom_line(linewidth = 0.8) +
-    geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
-    scale_x_continuous(breaks = x_breaks) +
-    ylim(0,NA)+
-    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
-    labs(
-  	title = paste0("MSamples vs. Block Order"),
-  	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
-  	x = "Block Size",
-  	y = "Msamples/s"
-    ) +
-    theme_bw(base_size=15) +
-    theme(legend.position = "bottom", axis.text.x = element_text(size = 10))
+    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean, color = Machine)) +
+      
+      geom_point(alpha = 0.8) +
+      geom_errorbar(
+        aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine),
+        width = 0.5) +
+      geom_rect(
+  	data = fb_stats, 
+  	aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Machine),
+  	  xmin = -Inf,
+  	  xmax = Inf,
+  	  inherit.aes = FALSE,
+  	  alpha = 0.4
+      ) +
+      geom_hline(data = fb_stats, aes(yintercept = FB_Mean, color = Machine), linetype = "solid", linewidth = 0.8) +
+      scale_x_continuous(breaks = x_breaks) +
+      ylim(0, NA) +
+      facet_grid(Machine ~ Schedulers, scales = "free_y") + 
+      labs(
+    	title = paste0("MSamples vs. Block Order"),
+    	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
+    	x = "Block Size",
+    	y = "Msamples/s"
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom")
   }
 
-  msamples_plot() 
+  msamples_plot(sf_res, fb_res)
 #+END_SRC
 
 #+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the y axis. The continuous line is the /star-fletcher/ growth as the order increasses and the dashed line is the performance of /fletcher-base/ in that machine.
@@ -418,6 +446,8 @@ The draco machine almost matched both program's performance, even with /fletcher
     \label{fig:iteration_plot}
 \end{figure}
 #+END_EXPORT
+
+*** Time Plot                                                      :ignore:
 
 It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Chapter [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Graph [[fig:msamples_plot]].
 
@@ -497,9 +527,9 @@ We can also consider that the static partitioning was the element that penalized
 #+ATTR_LATEX: :placement [H] :width 1\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
-The marginal gains from taking reducing to p-cores only are even greatly reduced, although they still persists on the best configured order. This shows again that the exploration of heterogeneous architectures is a great boost to execution time, but not the only one. (MISSING THE POTI DATA)
+The marginal gains from taking reducing to p-cores only are even greatly reduced, although they still persists on the best configured order. This shows again that the exploration of heterogeneous architectures is a great boost to execution time, but not the only one.
 
-*** Program Scalability
+*** Program Scalability                                            :noexport:
 
 The best order size may not be the overall best order size for all total volumes. With the second experiment, an order size of 64 was chosen and the total volume was varied. The results in relation to the MSamples/s can be seen in Graph (REF). There, it is clear that for the smaller sizes, the large order size was bad for their performance, whilst for the bigger one, it was not necessarily the best. In Graph [[fig:msamples_plot]], the best order size for most machines was 48, so this bigger order size had adverse effects on the performance of most machines.
 
@@ -546,9 +576,11 @@ The machines where where dominant before, had awful performances because the ord
 
 
 ** Conclusion
-<<sec.conclusion>>
+<<sec:conclusion>>
 
-The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of the same algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits. The machines that benefit the most most the task model are the heterogeneous ones, which is not common in high performance environments, but with the task based model might as well be. This work aims to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
+The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of the same algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones, with more common HPC architectures, like the one in the grace machine, also showing improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
+
+For future work, the aim is to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
 
 
 ** Acknowledgments

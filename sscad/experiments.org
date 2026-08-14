@@ -125,6 +125,14 @@ Temos que gerar 5 experimentos
 
   traces |> readr::write_csv(glue("./sscad/star-fletcher-fix-size-traces.csv"))
 
+  traces2 <- sf_ex |>
+    select(-Blocks) |>
+    unique() |>
+    filter(Schedulers == "ws") |>
+    filter(as.numeric(as.character(BlockSeg)) <= 8)
+
+  traces2 |> readr::write_csv(glue("./sscad/star-fletcher-fix-size-traces-smaller.csv"))
+
 #+END_SRC
 
 Experimento para o star-fletcher e fletcher base para verificar como o aumento do
@@ -202,6 +210,7 @@ Aqui segue os dados das máquinas usadas nas execuções.
   library(ggplot2)
   library(dplyr)
   library(patchwork)
+  library(stringr)
 
   base_dir = "./sscad/results"
 
@@ -234,7 +243,7 @@ Experimento do star-fletcher
   sf <- machines |> cross_join(ex_star_fletcher)
 
   sf_res <- sf |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -266,7 +275,7 @@ Experimento do fletcher-base
   fb <- machines |> cross_join(ex_fletcher_base)
 
   fb_res <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -300,6 +309,44 @@ Experimento do fletcher-base
 
 #+END_SRC
 
+*** Teste de variância
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+
+  sf_var_check <- sf_res |>
+    group_by(across(-c(Msamples, ExecTime, Blocks, FILE))) |>
+    summarize(
+  	rep = n(),
+          rawExec = list(ExecTime),
+  	meanExec = mean(ExecTime),
+  	sdExec = sd(ExecTime),
+  	cvExec = (sdExec / meanExec) * 100,
+  	meanMsamples = mean(Msamples),
+  	sdMsamples = sd(Msamples),
+  	cvMsamples = (sdMsamples / meanMsamples) * 100,
+      .groups = "drop"
+    )
+
+  sf_var_check |> select(rep, meanExec, rawExec, sdExec, cvExec) |> unnest_wider(rawExec, names_sep="_")
+
+  fb_var_check <- fb_res |>
+    group_by(across(-c(Msamples, ExecTime, Blocks,FILE))) |>
+    summarize(
+  	rep = n(),
+          rawExec = list(ExecTime),
+  	meanExec = mean(ExecTime),
+  	sdExec = sd(ExecTime),
+  	cvExec = (sdExec / meanExec) * 100,
+  	meanMsamples = mean(Msamples),
+  	sdMsamples = sd(Msamples),
+  	cvMsamples = (sdMsamples / meanMsamples) * 100,
+      .groups = "drop"
+    )
+
+#+END_SRC
+
+
 ** Experimentos só com os p-cores
 
 Experimento do star-fletcher
@@ -310,7 +357,7 @@ Experimento do star-fletcher
 
   sf_res_p <- sf |>
     mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -343,7 +390,7 @@ Experimento do fletcher-base
 
   fb_res_p <- fb |>
     mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
+                         "/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -387,39 +434,71 @@ Quando observando essa métrica considerando o IO, a única máquina que mantém
 Entretanto, a comparação quando o IO está ligado é injusta, pois a conta do Msamples no flecher-base desconsidera o tempo de IO,
 enqunato essa granularidade é não é possível no caso do star-fletcher devido a sua arquitetura em tarefas. 
 
+
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
-  msamples_plot <- function(io_state, sft, fbt) {
+  msamples_plot <- function(sft, fbt) {
     x_breaks <- sort(unique(sft$Order))
-    max_fb <- fbt |>
+    
+    fb_stats <- fbt |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
-  	filter(WithIO == io_state) |>
-  	group_by(Machine) |>
-  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
+      filter(WithIO == 0) |>
+      group_by(Machine) |>
+      summarize(
+        rep = n(),
+        FB_Mean   = mean(Msamples),
+        FB_Sd     = sd(Msamples),
+        FB_Error  = (3 * FB_Sd) / sqrt(n()),
+        .groups   = "drop" 
+      )
 
     sf_msamples_plot <- sft |>
-      filter(WithIO == io_state) |>
-      mutate(Machine = str_sub(Machine, end = -2))
+      select(-FILE) |>
+      filter(WithIO == 0) |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        rep = n(),
+        Msamples_mean = mean(Msamples),
+        Msamples_sd = sd(Msamples),
+        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+        
+        ExecTime_mean = mean(ExecTime),
+        ExecTime_sd = sd(ExecTime),
+        ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+        .groups = "drop"
+      ) 
 
-    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples, color = Machine)) +
-    geom_point(size = 2, alpha = 0.3) +
-    geom_line(linewidth = 0.8) +
-    geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
-    scale_x_continuous(breaks = x_breaks) +
-    ylim(0,NA)+
-    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
-    labs(
-  	title = paste0("Msamples vs. Block Order with WithIO = ", io_state),
-  	subtitle = "Faceted by Scheduler",
-  	x = "Block Size",
-  	y = "Msamples/s"
-    ) +
-    theme_bw(base_size=15) +
-    theme(legend.position = "bottom")
+    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean, color = Machine)) +
+      
+      geom_point(alpha = 0.8) +
+      geom_errorbar(aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine), width = 0.5) +
+      # Optional line connecting groups
+      # geom_line(linewidth = 0.8) +
+      
+      geom_rect(
+  	data = fb_stats, 
+  	aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Machine),
+	  xmin = -Inf,
+	  xmax = Inf,
+	  inherit.aes = FALSE,
+	  alpha = 0.4
+      ) +
+      geom_hline(data = fb_stats, aes(yintercept = FB_Mean, color = Machine), linetype = "solid", linewidth = 0.8) +
+      scale_x_continuous(breaks = x_breaks) +
+      ylim(0, NA) +
+      facet_grid(Machine ~ Schedulers, scales = "free_y") + 
+      labs(
+    	title = paste0("MSamples vs. Block Order"),
+    	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
+    	x = "Block Size",
+    	y = "Msamples/s"
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom")
   }
 
-  msamples_plot(0, sf_res, fb_res) #/ msamples_plot(1)
-  #msamples_plot(0, sf_res_p, fb_res_p) #/ msamples_plot(1)
+  msamples_plot(sf_res, fb_res)
 
 #+END_SRC
 
@@ -439,13 +518,14 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
       summarize(Max_Time = max(ExecTime, na.rm = TRUE), Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") 
 
    sf_time_plot <- sft |>
-     filter(WithIO == io_state) |>
+    filter(WithIO == io_state) |>
      mutate(Machine = str_sub(Machine, end = -2))
 
     ggplot(sf_time_plot, aes(x = factor(Order), y = ExecTime, fill = Machine)) +
     stat_summary(fun = mean, geom = "bar", position = "dodge", color = "black", linewidth = 0.3) +
     # geom_jitter() +
     geom_hline(data = max_fb_time, aes(yintercept = Min_Time), linewidth = 0.8) +
+    geom_hline(data = max_fb_time, aes(yintercept = Max_Time), linewidth = 0.8) +
     #scale_y_continuous(breaks = sort(unique(c(seq(0, 50, by = 10), max_fb_time$Min_Time))), labels = function(x) round(x, 2), # Rounds to 2 decimal places to keep it tidy) +
     #scale_x_continuous(breaks = x_breaks) +
     coord_cartesian(ylim = c(0, 40)) +
@@ -466,6 +546,50 @@ Mesmo assim, os outros escalonadores também se aproximam desse resultado ao che
 
   time_plot_cmp(1)
     
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  time_plot <- function(sft, fbt) {
+    x_breaks <- c(12, 32, 48, 64, 96)
+    clean_fb <- fbt |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      select(Machine, WithIO, Blocks, ExecTime_fb = ExecTime) |>
+      distinct()
+
+   sf_comb <- sft |>
+     mutate(Machine = str_sub(Machine, end = -2)) |>
+     left_join(clean_fb, by = c("Machine", "WithIO", "Blocks")) |>
+     mutate(Diff = ExecTime - ExecTime_fb)
+
+    ggplot(sf_comb, aes(x = Order, y = Diff, color = factor(WithIO))) +
+      geom_hline(yintercept = 0, linetype = "dashed") +
+      geom_point() +
+      #geom_jitter(position = "dodge", width = "") +
+      geom_line(linewidth = 0.8) +
+      coord_cartesian(ylim = c(-7.5, 7.5)) +
+      scale_x_continuous(breaks = x_breaks) +
+      facet_grid(Machine ~ Schedulers) +
+      scale_color_discrete(
+        name = NULL, # Removes the "factor(WithIO)" title entirely
+        labels = c("0" = "without IO", "1" = "with IO")
+      ) +
+      labs(
+        title = paste0("Execution Time Difference vs. Block Order"),
+        subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
+        x = "Block Size",
+        y = "Execution Time Difference (s)"
+      ) +
+      theme_bw(base_size=15) +
+      theme(
+        legend.position = "bottom",
+        legend.margin = margin(t = -10, b = -10),
+        #plot.title = element_text(margin = margin(b = 2)),
+        #plot.subtitle = element_text(margin = margin(b = 5)),
+        axis.text.x = element_text(size = 10)
+      )
+  }
+
+  time_plot(sf_res, fb_res) 
 #+END_SRC
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
@@ -535,7 +659,7 @@ Extraindo os dados dos experimentos do star-fletcher-fix-order
   sf_order <- machines |> cross_join(ex_star_fletcher_order)
 
   sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -565,7 +689,7 @@ Extraindo os dados dos experimentos do star-fletcher-fix-order-64
   sf_order <- machines |> cross_join(ex_star_fletcher_order)
 
   sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
@@ -597,7 +721,7 @@ Experimento do fletcher-base-fix-order
   fb_order <- machines |> cross_join(ex_fletcher_base_order)
 
   fb_res_order <- fb_order |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order/", Machine ,"/stdout-", Width, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order/", Machine ,"/stdout-", Width, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
     mutate(Data = map(FILE, function(file) {
       if(!dir.exists(dirname(file))){
         return(NULL)
