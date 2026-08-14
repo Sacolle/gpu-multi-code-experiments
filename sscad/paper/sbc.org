@@ -80,7 +80,7 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
 #+BEGIN_EXPORT latex
 \begin{figure}[htbp]
     \centering
-    \scalebox{0.75}{%
+    %\scalebox{0.75}{%
     \begin{tikzpicture}[
         node distance=1.5cm and 2.5cm,
         >=Stealth,
@@ -117,6 +117,7 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
 
     \end{tikzpicture}
     \caption{The project's workflow.}
+    %}
     \label{fig:flowchart}
 \end{figure}
 #+END_EXPORT
