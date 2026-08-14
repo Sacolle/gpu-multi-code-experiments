@@ -75,7 +75,7 @@ This paper is structured as such: Chapter [[sec:methodsandmaterials]] covers the
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
-The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease to execution in any machine, the Nix package manager was used. Not only that, but the experiments were built on top of this tool. All the packages required to execute are version locked and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} showcases the project's process: make an experimental project, execute it using nix on INF/UFRGS's PCAD, gather the data and analyze it using R libraries. All the graphs in this paper are built with the principals of declarative programming, where the paper's source code has the code which generated the graphs.
+The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease to execution in any machine, the Nix package manager was used. Not only that, but the experiments were built on top of it too. All the packages required to execute are version locked and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} showcases the project's process: make an experimental project, execute it using nix on INF/UFRGS's PCAD, gather the data and analyze it using R libraries. All the graphs in this paper are built with the principals of declarative programming, where the paper's source code has the code which generated the graphs.
 
 #+BEGIN_EXPORT latex
 \begin{figure}[htbp]
@@ -107,17 +107,15 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
         \node [block, below=of expproj] (pcad) {Execute on PCAD's infrastructure.};
         \node [block, below=of pcad] (process) {Collect the Data and do data analysis with R.};
 
-
         % Direct Connections
         \draw [line] (expproj) -- (pcad);
         \draw [line] (pcad) -- (process);
 
-        % Feedback Loop from Process back to ExpProj
-        \draw [line] (process.east) -- ++(1.8,0) |- (expproj.east) 
-            node[pos=0.25, right, align=left, font=\sffamily\small] {Validate new hypothesis.};
+        \draw [line] (process.east) -- ++(1.2,0) |- (expproj.east) 
+            node[pos=0.25, fill=white, inner sep=2pt, align=center, font=\sffamily\small] {Validate new\\hypothesis.};
 
     \end{tikzpicture}
-    \caption{This project's workflow.}
+    \caption{The project's workflow.}
     \label{fig:flowchart}
 \end{figure}
 #+END_EXPORT
@@ -125,7 +123,7 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
 
 *** Fletcher's Equations
 
-Fletcher modeling works as a technique for simulating wave propagation over time. This propagation is expressed through the acoustic equation (*Equation \ref{eq:equacao1}*), where the velocity varies according to the specific geological layers (*Equation \ref{eq:equacao2}*). Referring to the equations, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
+Fletcher modeling works as a technique for simulating wave propagation over time in different times of mediums, highlighting the Tilted Transverse Isotopic (TTI) medium. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by  Equation \ref{eq:equacao2}. in them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
 #+BEGIN_EXPORT latex
 \begin{equation}
@@ -140,21 +138,22 @@ Fletcher modeling works as a technique for simulating wave propagation over time
 \end{equation}
 #+END_EXPORT
 
-The algorithms implementation is then based on the numerical solution of these wave equations, which is a differential equation over a three-dimensional grid. The program's loop consist of calculating every point in a volume at time $t$ using itself the volume at time $t-1$ to compute the volume at time $t + 1$. This paper uses an implementation of this algorithm, called /fletcher-base/ cite:fletcher_base, to benchmark its own implementation using the STF paradigm. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forwards propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a latter backwards propagation phase. It can be chosen 3 different parallelization back-ends: CUDA, OpenCL and OpenMP, the latter was used in the benchmarking in this CPU context.
+To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this algorithm, the neighboring points of it from $t$ and $t - 1$ are necessary. This paper uses /fletcher-base/ cite:fletcher_base, an implementation of this algorithm, to benchmark its own implementation using the STF paradigm. In it, two buffers are kept in memory, the /curr/ and the /prev/, to store all points at $t$ and $t - 1$. To compute $t + 1$, the buffer /prev/ ($t - 1$), has its values overriten, after having them read to do the computation. After that, the buffers are swapped to compute the next iteration. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forwards propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a latter backwards propagation phase. It can be chosen 3 different parallelization back-ends: CUDA, OpenCL and OpenMP, the latter was used in the benchmarking in this CPU context.
+
 
 *** Task Based Implementation
 
-/Star-fletcher/'s implementation is based on the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. To deal with the load unbalances inherit with exploring heterogeneous architectures, StarPU is equipped with multiple types of schedulers, with different rules to determine where each task is computed. Each worker has its own task queue and schedulers job is to distribute work between them. Work Stealing schedulers may distribute tasks equally, but then move tasks between queues based on availability. Performance based schedulers measure a task performance on each worker it executes and then distribute the tasks to each worker based on its measured computing capability. It also has more advanced features which were essential to /star-fletcher/'s implementation, such as automatic memory allocations[fn::Chapter 27.2 of StarPU's manual \url{https://files.inria.fr/starpu/doc/html/AdvancedDataManagement.html}].
+/Star-fletcher/'s implementation is uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed between workers, which can represent CPU cores or GPUs and execute the computations. StarPU is equipped with multiple types of schedulers, with different rules to determine to which worker each task goes to. Each worker has its own task queue and its the schedulers job to distribute work between them. Work Stealing schedulers may distribute tasks equally, but then move tasks between queues based on availability. Performance based schedulers measure a task's performance in each worker it executes and then distribute the tasks to them based on the measured computing capability. 
 
-The computed medium had to be segmented in cubes in order for /star-fletcher/ to use task based parallelism in first order, where each computed task is a section of the whole medium. This required a re-implementation of the discrete differential equations present in /fletcher-base/ using meta-programming to reduce the amount of checks to find the points in the neighboring cubes. But this segmentation presented an opportunity in the scheduling of tasks. Instead of using one loop that, for every iteration step alternates between two buffers, pausing the computation to save the IO, each block is an independent unit, detached from the hole. Therefore, to compute a cube $C_{i,j,k,t + 1}$, we need its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved though StarPU, which frees the memory once no other task needs the allocated block. Fundamentally, /fletcher-base/ executes $Prev +\!\!= F(Curr)$, followed by a swap between $Prev$ and $Curr$ buffers, resulting in an arbitrary synchronization point. /Star-fletcher/ then, considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between computations. Not only that, but this pattern mimics time tilling optimizations, allowing for future optimizations that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
+In the implementation process, the computed medium had to be segmented in cubes in order for /star-fletcher/ to use task based parallelism in first order, where each computed task is a section of the whole medium. This presented an opportunity in the scheduling of tasks. Instead of using one loop that, for every iteration step alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the hole. With this, to compute a cube $C_{i,j,k,t + 1}$, it need its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by $prev$ swap $curr$, /star-fletcher/  does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between block computations. Not only that, but this pattern mimics time tilling optimizations, allowing for future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
 
           
 *** Experimental Methodology for Performance Evaluation
 <<sec:methodology>>
 
-Two metrics where used to compare the two applications: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard and measures the efficiency of the computing kernel, therefore it only counts the time where the kernel is actively doing computation, and divides the total computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the swap and IO. /Star-fletcher/ is not able to achieve this level of granularity, so the computed time is measured from the first submitted task up to the ending of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time, measures the kernel time plus the IO time, which means is exactly /star-fletcher/'s measured time, with and without IO. To acquire this time in /fletcher-base/, it is measured from the loop start up to the loops end. This metric allows to check what are the consequences of IO on the code's performance, given that MSamples/s was not made to check that. In order to really stress the IO capabilities, even with comparable small total volumes, the hole volume was saved every computational step. 
+Two metrics where used to compare the two applications: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard and measures the efficiency of the computing kernel. It only counts the time in which the kernel is actively doing computation, and divides the total computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the IO. /Star-fletcher/ is not able to achieve this level of granularity, so the computed time is measured from the first submitted task up to the ending of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time, measures the kernel time plus the IO time, meaning it is exactly /star-fletcher/'s measured time, with and without IO. To acquire this time in /fletcher-base/, it is measured from the execution loop start up to the its end. This metric allows to check what are the consequences of IO on the code's performance, given that MSamples/s was not made to check that. In order to really stress the IO capabilities, even with comparable small total volumes, the whole volume was saved every computational step. 
 
-Due to /Star-fletcher/ segmented space, block order was one of the optimization parameters. A block's order is its width, so a block of order 32 has $32^3 = 32768$ elements, with a total cube volume width of 320 units, totaling $320^3 = 32768000$ elements, there will be $(320/32)^3$ blocks to compute each iteration. For any given total volume and machine architecture, a certain block order and number of blocks will be ideal. For that, the experiments where run in PCAD's infrastructure, which is the high performance park of the institute of informatics of UFRGS [fn::PCAD's page - \url{https://gppd-hpc.inf.ufrgs.br/}]. The machines used are described in table ref{tab:hardware}. The Machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12 respectively). The machine grace is an special case, an /aarch-64/ architecture with core to thread correspondence, being a powerful homogeneous computer. 
+Those where the dependent variables that were measured in the experiments, the independent variables changed where the StarPU scheduler, if it saved the volume and the block order. A block's order is the width of its side (all blocks in this projets are cube shaped), so a block of order 32 has $32^3 = 32768$ elements. With a cube volume with total width of 320 units, totaling $320^3 = 32768000$ elements, there will be $(320/32)^3 = 1000$ tasks to compute each iteration. For this metric, it is expected that one or more order sizes will result in the lowest Execution Time or higest MSamples/s for any machine architecture. To find that, the experiments where run in PCAD's infrastructure, which is the high performance park of the institute of informatics of UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12 respectively). The machine grace is an special case, an /aarch-64/ architecture with core to thread correspondence, being a powerful homogeneous computer. 
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
@@ -167,9 +166,9 @@ Due to /Star-fletcher/ segmented space, block order was one of the optimization 
 | grace     | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
 | tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
 
-*Two experiments* where made to validate some assumptions about /star-fletcher/'s performance. One fixed the total computed volume at $384^3$ points and then varied the block order inside it. With a higher block order, less tasks are submitted per iteration, with each task requiring more computational resources to complete. Both the MSamples/s and Execution Time where measured, with the hypothesis that, at some block order, the /star-fletcher/ implementation will be superior to the /fletcher-base/ implementation. More so when considering Execution Time, because /star-fletcher/ has asynchronous IO. A smaller version of this experiment was also ran to record traces of /star-fletcher/, to see how its tasks where being distributed between the threads. After acquiring the results, another run of the experiments was done to verify its performance specifically on the heterogeneous machines, locking down the CPU usage to only p-cores.
+To execute in all those machines, *an experiments* was made to validate some assumptions about /star-fletcher/'s performance. it fixed the total computed volume at $384^3$ points and then varied the block order inside it. With a higher block order, less tasks are submitted per iteration, with each task requiring more computational resources to complete. Both the MSamples/s and Execution Time where measured, with the hypothesis that, at some block order, the /star-fletcher/ implementation will be superior to the /fletcher-base/ implementation. More so when considering Execution Time, because /star-fletcher/ has asynchronous IO. After initial analysis, more versions of this same experiment where spun, mainly in relation to the exceptional performance of the tupi and poti machines. In them, the execution was done only in the CPUs p-cores, to validate the hypothesis as to why there were a significant speedup in those machines specifically. Also, in one case, the OpenMP scheduler of /fletcher-base/ was changed to dynamic to see if an optimization on that side was the missing factor of this paper's explanation.
 
-The second one measured how the growth of the total volume effected the performance of both applications. For /star-fletcher/, this experiment was ran with both block order of 32 and 64, with 64 presenting superior results. The same total volumes where used to compute the /fletcher-base/ experiments. It was expected that as the size grew, the /star-fletcher/ application would outperform the /fletcher-base/ one due to it's overhead being less significant. But it also had the possibility that for any of the total volume sizes, the fixed chosen block order would not be the best one, degrading /star-fletcher/'s performance.
+# The second one measured how the growth of the total volume effected the performance of both applications. For /star-fletcher/, this experiment was ran with both block order of 32 and 64, with 64 presenting superior results. The same total volumes where used to compute the /fletcher-base/ experiments. It was expected that as the size grew, the /star-fletcher/ application would outperform the /fletcher-base/ one due to it's overhead being less significant. But it also had the possibility that for any of the total volume sizes, the fixed chosen block order would not be the best one, degrading /star-fletcher/'s performance.
 
 
     
@@ -354,13 +353,15 @@ The second one measured how the growth of the total volume effected the performa
 
 *** MSamples/s Plot                                                :ignore:
 
-The Graph [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s as the block order grows. It is faceted by the scheduler on the x axis and by machine on the y axis. The tested schedulers where: Work Stealing (ws), which takes tasks from other filled queues if it is available to do work; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
+The results acquired followed the hypothesis proposed in Chapter [[sec:methodology]]. The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s as the block order grows. It is faceted by the scheduler on the x axis and by machine on the y axis. The tested schedulers where: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
 
-With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
+In Figure [[fig:msamples_plot]] With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 6 :height 8 :session *R*
+#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 12 :height 12 :session *R*
   msamples_plot <- function(sft, fbt) {
-    x_breaks <- sort(unique(sft$Order))
+    #x_breaks <- sort(unique(sft$Order))
+
+    x_breaks <- c(12, 32, 48, 64, 96)
     
     fb_stats <- fbt |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
@@ -421,12 +422,12 @@ With exception of the machine draco, the hypothesis that for every machine there
   msamples_plot(sf_res, fb_res)
 #+END_SRC
 
-#+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the y axis. The continuous line is the /star-fletcher/ growth as the order increasses and the dashed line is the performance of /fletcher-base/ in that machine.
+#+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the x axis. The dots are the /star-fletcher/ values as the order increasses and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
 #+NAME: fig:msamples_plot
 #+ATTR_LATEX: :placement [H] :width 1\textwidth
 [[file:msamples_plot.pdf]]
 
-The draco machine almost matched both program's performance, even with /fletcher-base/ coming on top. The interesting performances com from grace, tupi and poti. With the latter two having multiple configurations in which they surpass the baseline. This was expected as their CPU architecture is heterogeneous, having performance cores share space with economic cores, making OpenMP simple static partitioning not as effective as StarPU's dynamic schedulers. The grace machine's performance was unexpected, as to how much above the baseline it rose, considering it is a homogeneous machine. Considering the most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. One other possibility is that /star-fletcher/ does not need to synchronize after every step, with that, a slow thread does not bottleneck the execution. This is display by a trace of /star-fletcher/ on the grace machine.
+The draco machine almost matched both program's performance, even with /fletcher-base/ coming on top. The interesting performances com from grace, tupi and poti. With the latter two having multiple configurations in which they surpass the baseline. This was expected as their CPU architecture is heterogeneous, having performance cores share space with economic cores, making OpenMP simple static partitioning not as effective as StarPU's dynamic schedulers. The grace machine's performance was unexpected, as to how much above the baseline it rose, considering it is a homogeneous machine. Considering that most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. One other possibility is that /star-fletcher/ does not need to synchronize after every step, with that, a slow thread does not bottleneck the execution. Figure \ref{fig:iteration_plot} displays the iteration overlap of 10 iteration execution in the grace machine. Tasks are represented by vertical lines, with their color telling the kind of task they are and their x coordinate when they executed. The y axis tells which iteration they are a part of. The black lines above and bellow follow the start of the iteration and the end of it, respectively.
 
 #+name: run-starvz
 #+begin_src bash :async yes :exports none  :results silent
@@ -449,35 +450,63 @@ The draco machine almost matched both program's performance, even with /fletcher
 
 *** Time Plot                                                      :ignore:
 
-It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Chapter [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Graph [[fig:msamples_plot]].
+It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Chapter [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$.
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 6 :height 8 :session *R*
+#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 12 :height 12 :session *R*
   time_plot <- function(sft, fbt) {
     x_breaks <- c(12, 32, 48, 64, 96)
-    clean_fb <- fbt |>
+    
+    fb_stats <- fbt |>
+      select(-FILE) |>
       mutate(Machine = str_sub(Machine, end = -2)) |>
-      select(Machine, WithIO, Blocks, ExecTime_fb = ExecTime) |>
-      distinct()
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        fb_n = n(),
+        ExecTime_fb_mean = mean(ExecTime, na.rm = TRUE),
+        ExecTime_fb_sd = sd(ExecTime, na.rm = TRUE),
+        .groups = "drop"
+      )
 
-   sf_comb <- sft |>
-     mutate(Machine = str_sub(Machine, end = -2)) |>
-     left_join(clean_fb, by = c("Machine", "WithIO", "Blocks")) |>
-     mutate(Diff = ExecTime - ExecTime_fb)
+    sf_comb <- sft |>
+      select(-FILE) |>
+      mutate(Machine = str_sub(Machine, end = -2)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        sf_n = n(),
+        ExecTime_sf_mean = mean(ExecTime, na.rm = TRUE),
+        ExecTime_sf_sd = sd(ExecTime, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      left_join(fb_stats, by = c("Machine", "WithIO")) |>
+      mutate(
+        # Difference of Means
+        Diff_mean = ExecTime_sf_mean - ExecTime_fb_mean,
+        
+        # Combined Standard Error for Independent Samples
+        Combined_SE = sqrt((ExecTime_sf_sd^2 / sf_n) + (ExecTime_fb_sd^2 / fb_n)),
+        
+        # 3x Error mapping
+        Diff_error = 3 * Combined_SE
+      )
 
-    ggplot(sf_comb, aes(x = Order, y = Diff, color = factor(WithIO))) +
+    # 3. Plot (Exact same plotting code as above)
+    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = factor(WithIO))) +
       geom_hline(yintercept = 0, linetype = "dashed") +
-      geom_point() +
-      #geom_jitter(position = "dodge", width = "") +
+      geom_point(alpha = 0.8) +
       geom_line(linewidth = 0.8) +
+      geom_errorbar(
+        aes(ymin = Diff_mean - Diff_error, ymax = Diff_mean + Diff_error), 
+        width = 0.5
+      ) +
       coord_cartesian(ylim = c(-7.5, 7.5)) +
       scale_x_continuous(breaks = x_breaks) +
       facet_grid(Machine ~ Schedulers) +
       scale_color_discrete(
-        name = NULL, # Removes the "factor(WithIO)" title entirely
+        name = NULL,
         labels = c("0" = "without IO", "1" = "with IO")
       ) +
       labs(
-        title = paste0("Execution Time Difference vs. Block Order"),
+        title = "Execution Time Difference vs. Block Order",
         subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
         x = "Block Size",
         y = "Execution Time Difference (s)"
@@ -486,8 +515,6 @@ It is visible the overlap of iterations, which help slower workers to not stop c
       theme(
         legend.position = "bottom",
         legend.margin = margin(t = -10, b = -10),
-        #plot.title = element_text(margin = margin(b = 2)),
-        #plot.subtitle = element_text(margin = margin(b = 5)),
         axis.text.x = element_text(size = 10)
       )
   }
@@ -495,39 +522,41 @@ It is visible the overlap of iterations, which help slower workers to not stop c
   time_plot(sf_res, fb_res) 
 #+END_SRC
 
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine.
+#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:time_diff
 #+ATTR_LATEX: :placement [H] :width 1\textwidth
 [[file:time_plot.pdf]]
 
 
-Again, the heterogeneous machines (tupi and poti) had great performances. That is due to StarPU to explore the machine's heterogeneous architecture. Graph [[fig:pcore_time_diff]] show the performance on both machines when restricted to only the p-cores on it. For /star-fletcher/'s case, it was configured only 8 workers, each one for each p-core. For /fletcher-base/'s case, it was configured only 8 threads, each one pinned to one of the CPU's p-cores. The gains from /star-fletcher/ are much meeker when considering Graph [[fig:time_diff]]. 
+Figure [[fig:time_diff]] plots the cases when IO is being used and in that case /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei and tupi machines, although in this last one this effect is marginal. The machines where this trend is not observed (draco and grace) are the ones where the execution time did not show a significant, or no, improvement over the baseline execution. This indicates that the IO optimizations where not effective in machines where the execution time did not improve over the baseline, or in better works, the IO optimizations where not the optimization highlights of the project. The schedulers did not have a significant positive role in the execution times considering that the default scheduler for StarPU is the ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not perform generally better than the simple ones (ws and lws). Which demonstrates that for CPU only applications, schedulers may be only a small source of possible speed up for an application. 
 
-The schedulers did not have a significant role in the execution times. As observed in the previous graph, a poor scheduler, such as random, can ruin the execution times, but a good one may not save a poor performance. The schedulers based on performance models (dm and dmdar) did not perform generally better than the simple ones (ws and lws). Which demonstrates that for CPU only applications, schedulers may be only a small source of possible speed up for an application. But now that IO can be considered, it is evident that /star-fletcher/ has more performance gains over /fletcher-base/ when considering the execution with IO. This can be seen in the poti, cei and tupi machines, although in this last one this effect is marginal. The machines where this trend is not observed (draco and grace) the execution time did not show a significant, or no, improvement over the baseline execution. This indicates that the IO optimizations where not effective in machines where the execution time did not improve over the baseline, or in better works, the IO optimizations where not the optimization highlights of the project. Although in grace's case, there where marginal maximal improvements of -0.217s without IO, and -0.0646 with IO, not as great as its MSamples/s performance. This can be explained by StarPU's execution overhead, which is pronounced due to the short execution time of the runs in the grace machine.
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_time_plot.pdf" :exports none :width 6 :height 4 :session *R*
+Once more, the heterogeneous machines (tupi and poti) had great performances. This is probably due to StarPU ability to use a machine's heterogeneous architecture tom its fullest. To validate that, one experiment was conducted for the tupi and poti machines, where for both applications, only the machine's p-cores where used. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. For /star-fletcher/'s case, it was configured only 8 workers, each one bound to each p-core. For /fletcher-base/'s case, it was configured only 8 threads, each one pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much meeker when considering the ones in Figure [[fig:time_diff]]. 
+
+
+#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_time_plot.pdf" :exports none :width 12 :height 6 :session *R*
   time_plot(sf_res_p, fb_res_p) 
 #+END_SRC
 
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only considering the poti and tupi machines when they are using only it's p-cores.
+#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only the processor's p-cores. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_time_diff
 #+ATTR_LATEX: :placement [H] :width 1\textwidth
 [[file:pcore_time_plot.pdf]]
 
-The Graph [[fig:pcore_time_diff]] shows that the results in Graph [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expected were that there would be no gain when only using p-cores. This is probably related again to the other optimization, the computational overlap of iterations, which can be seen in Graph \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
+The Figure [[fig:pcore_time_diff]] shows that the results in Figure [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expectation was that there would be no gain when only using p-cores. This is probably related to the other optimization, the computational overlap of iterations, which can be seen in Figure \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
 
-We can also consider that the static partitioning was the element that penalized the most the original /fletcher-base/ application. Running the program with the main loop using the \texttt{schedule(dynamic)} directive, we can remake the Graph [[fig:pcore_time_diff]] into Graph [[fig:pcore_dyn_time_diff]].
+Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefor, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure [[fig:pcore_dyn_time_diff]] was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as it was when going from all cores to only p-cores. This does not show that the Fletcher algorithm is not adequate for static partitioning, only that the /star-fletcher/ gains still observed can be atributed to the optimizations of IO and iteration overlapping.
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_dyn_time_plot.pdf" :exports none :width 6 :height 4 :session *R*
+
+#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_dyn_time_plot.pdf" :exports none :width 12 :height 6 :session *R*
   time_plot(sf_res_p, fb_res_p_dyn) 
 #+END_SRC
 
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Using the dynamic runtime in OpenMP for /fletcher-base/.
+#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, only the processor's p-cores and using the dynamic runtime in OpenMP for /fletcher-base/. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_dyn_time_diff
 #+ATTR_LATEX: :placement [H] :width 1\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
-The marginal gains from taking reducing to p-cores only are even greatly reduced, although they still persists on the best configured order. This shows again that the exploration of heterogeneous architectures is a great boost to execution time, but not the only one.
 
 *** Program Scalability                                            :noexport:
 
@@ -578,7 +607,7 @@ The machines where where dominant before, had awful performances because the ord
 ** Conclusion
 <<sec:conclusion>>
 
-The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of the same algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones, with more common HPC architectures, like the one in the grace machine, also showing improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
+The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones, with more common HPC architectures, like the one in the grace machine, also showing some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
 
 For future work, the aim is to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
 
@@ -589,7 +618,7 @@ For future work, the aim is to continue the research into CPU-GPU mixed computat
 :END:
 
  Some experiments in this work used the PCAD infrastructure, \url{http://pcad.inf.ufrgs.br}, at INF/UFRGS. 
-
+ 
 ** References                                                      :ignore:
 
 # See next section to understand how refs.bib file is created.
