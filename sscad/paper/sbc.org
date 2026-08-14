@@ -357,7 +357,7 @@ In both experiments, we have employed the following StarPU scheduling heuristics
 
 *** Text                                                           :ignore:
 
-The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as a function of the growth of block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dotted line represents the MSamples/s of the /fletcher-base/ and the line represents the MSamples/s as the order increases on the /star-fletcher/ application. Dots where chosen to represent the data, and not box plots, due to incredible low variance between execution, in both applications.
+The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as a function of the growth of block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dotted line represents the MSamples/s of the /fletcher-base/ and the line represents the MSamples/s as the order increases on the /star-fletcher/ application. Dots where chosen to represent the data, and not box plots, due to incredible low variance between execution, in both applications, mainly because of our well tailored experimental control using a nix environment.
 #+latex: %
 With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true.
 #+latex: %
