@@ -552,8 +552,12 @@ The execution with tasks of /star-fletcher/ showed an improvement over conventio
 :UNNUMBERED: t
 :END:
 
- Some experiments in this work used the PCAD infrastructure, \url{http://pcad.inf.ufrgs.br}, at INF/UFRGS. 
-
+This study was financed in part by the Coordenação de Aperfeiçoamento
+de Pessoal de Nível Superior (CAPES), Finance Code 001. This work was
+also partially funded by Petrobras under Agreement no.  2020/00182-5 e
+2018/00263-5 with UFRGS. The authors thank PCAD/UFRGS for
+infrastructure access in the prior study's evaluation.
+ 
 ** References                                                      :ignore:
 
 # See next section to understand how refs.bib file is created.
