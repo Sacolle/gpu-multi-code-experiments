@@ -70,8 +70,7 @@ This is relevant when dealing with RTM applications, they are IO bound. The forw
 
 This paper presents /star-fletcher/ an implementation of the /fletcher/ algorithm using the StarPU runtime for its task based implementation. It improves over the base implementation that used OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the space and using tasks as first other parallelism units, where each worker computes one of the segment parts of the medium. With this modification, /star-fletcher/ was able to acquire optimization for IO overlapping and iteration overlapping, which speed it up even more in non-homogeneous execution environments. This claims were demonstrated through comparative analysis of /star-fletcher/ executions with the /fletcher-base/ baseline. Multiple machines were used to show /star-fletcher/'s performance in a plethora of cases.
 
-Section [[ref:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Section [[ref:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Section [[ref:conclusion]] presents this paper's conclusions.
- 
+Section [[sec:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Section [[sec:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Section [[sec:conclusion]] presents this paper's conclusions and future work.
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
@@ -175,7 +174,7 @@ The second one measured how the growth of the total volume effected the performa
     
 
 ** Results
-<<sec.results>>
+<<sec:results>>
 *** Data Parsing                                                         :ignore:
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
@@ -546,7 +545,7 @@ The machines where where dominant before, had awful performances because the ord
 
 
 ** Conclusion
-<<sec.conclusion>>
+<<sec:conclusion>>
 
 The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of the same algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits. The machines that benefit the most most the task model are the heterogeneous ones, which is not common in high performance environments, but with the task based model might as well be. This work aims to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
 
