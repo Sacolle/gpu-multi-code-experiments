@@ -446,9 +446,11 @@ The draco machine nearly matched both programs' performance, even with /fletcher
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
-Figure \ref{fig:iteration_plot} displays the iteration overlap of 10 iterations executed on the grace machine. Tasks are represented by vertical lines, with their color indicating the type of task and their x-coordinate when they were executed. The y-axis tells which iteration they are a part of. The black lines above and below mark the start and end of the iteration, respectively.
+The experiment to verify the absence of global synchronization used a StarPU compiled with options enabling the runtime to generate detailed traces of task execution. The traces have been processed using StarVZ cite:garcia2018visual with a modern data science workflow to generate tabular data for this analysis.
 #+latex: %
-It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points.
+Figure \ref{fig:iteration_plot} displays StarVZ's K-iteration panel depicting ten iterations executed on the grace machine. Tasks are represented by rectangles, with their color indicating the type of task and their x-coordinate spanning the duration during which they execute. The y-axis tells which iteration each task belongs to. The black lines above and below connect the beginning and end of each iteration, respectively. Together, this type of representation serves as a signature of the behavior from the application perspective, as one can tell how many iterations could execute simultaneously.
+#+latex: %
+Because we designed /star-fletcher/ to have no global synchronization between iterations, we can clearly see how the StarPU scheduler can seamlessly overlap iterations. We can see that in about 30% of the run, we have tasks from three different iterations running at the same time; while in the middle of the execution, we can see tasks coming from four iterations executing at the same time. This expected overlap mechanism helps faster workers avoid stopping computation at synchronization points.
 
 #+name: run-starvz
 #+begin_src bash :async yes :exports none  :results silent
