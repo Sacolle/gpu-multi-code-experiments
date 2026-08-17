@@ -633,10 +633,9 @@ The machines where where dominant before, had awful performances because the ord
 ** Conclusion
 <<sec:conclusion>>
 
-The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, like the one in the grace machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
+The execution of /star-fletcher/, based on the task-based paradigm, showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task-based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, such as the one in the grace machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
 
-For future work, the aim is to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
-
+For future work, the aim is to investigate CPU-GPU mixed computation, using the task model to its full extent by computing the main RTM kernel on both CPU and GPU. The next step would be to add support for distributed execution using StarPU's MPI backend to compete directly with existing CUDA+MPI implementations of the /fletcher/ algorithm. 
 
 ** Acknowledgments
 :PROPERTIES:
