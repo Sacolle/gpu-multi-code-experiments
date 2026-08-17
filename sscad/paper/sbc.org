@@ -180,15 +180,7 @@ The tested schedulers were: Work Stealing (ws), which moves tasks from filled qu
 ** Results
 <<sec:results>>
 
-This Section presents the experimental outcomes of comparing
-/star-fletcher/ against /fletcher-base/ across five machines. First,
-MSamples/s is analyzed as a function of block order and StarPU
-scheduler to assess raw computational throughput. Next, execution time
-differences with and without IO are examined to evaluate the impact of
-asynchronous IO overlap. Finally, additional experiments restricted to
-p-cores only and using OpenMP dynamic scheduling are used to
-disentangle the contributions of heterogeneous CPU architecture from
-those of iteration overlap and asynchronous IO.
+This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and StarPU scheduler to assess raw computational throughput. Next, execution time differences with and without IO are examined to evaluate the impact of asynchronous IO overlap. Finally, additional experiments restricted to p-cores only and using OpenMP dynamic scheduling are used to disentangle the contributions of heterogeneous CPU architecture from those of iteration overlap and asynchronous IO.
 #+latex: %
 Taken together, these results supported the hypothesis proposed in Section [[sec:methodology]]. 
 
@@ -375,8 +367,7 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 #+latex: \noindent
 *Performance Overview with Industry Standard Metric.*
 #+latex: %
-The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. 
-It is faceted horizontally by the scheduler and vertically by the machine.  The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.
+The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine.  The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.
 #+latex: %
 With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true.
 #+latex: %
@@ -449,7 +440,7 @@ The draco machine nearly matched both programs' performance, even with /fletcher
 
 #+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted horizontally by machine and vertically by scheduler. The dots are the /star-fletcher/ values as the order grows and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
 #+NAME: fig:msamples_plot
-#+ATTR_LATEX: :placement [!htb] :width .7\linewidth
+#+ATTR_LATEX: :placement [!htb] :width .9\linewidth
 [[file:msamples_plot.pdf]]
 
 #+latex: \noindent
@@ -486,6 +477,7 @@ It is visible the overlap of iterations, which help slower workers to not stop c
 Figure \ref{fig:iteration_plot} also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure [[fig:time_diff]] the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the base line.
 #+latex: %
 Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case, /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei, and tupi machines, though in the last, the effect is marginal. The machines for which this trend is not observed (draco and grace) are those for which execution time did not show a significant improvement over the baseline or showed no improvement at all. This indicates that the IO optimizations were ineffective on machines where execution time did not improve over the baseline. The schedulers did not play a significant positive role in execution times, given that StarPU's default scheduler is ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not generally perform better than the simple ones (ws and lws). This demonstrates that, for CPU-only applications, schedulers may be only a small source of potential speedup. 
+#+latex: %
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 10 :height 10 :session *R*
   time_plot <- function(sft, fbt) {
@@ -559,14 +551,16 @@ Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. It is faceted horizontally by machine and vertically by scheduler. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:time_diff
-#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
 [[file:time_plot.pdf]]
 
 
-
-
-
-Once more, the heterogeneous machines (tupi and poti) had great performances. This is probably due to StarPU ability to use a machine's heterogeneous architecture tom its fullest. To validate that, one experiment was conducted for the tupi and poti machines, where for both applications, only the machine's p-cores were used. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. For /star-fletcher/'s case, it was configured only 8 workers, each one bound to each p-core. For /fletcher-base/'s case, it was configured only 8 threads, each one pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much meeker when considering the ones in Figure [[fig:time_diff]]. 
+#+latex: \noindent
+*Source of Performance Gains on Heterogeneous Machines.*
+#+latex: %
+Over the previous two figures, the heterogeneous machines (tupi and poti) had great performances. This is probably due to StarPU ability to use a machine's heterogeneous architecture to its fullest. To validate that, one experiment was conducted for the tupi and poti machines, where only the machine's p-cores were used for running both applications. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. For /star-fletcher/'s case, it was configured only 8 workers, each one bound to each p-core. For /fletcher-base/'s case, it was configured only 8 threads, each one pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much meeker when considering the ones in Figure [[fig:time_diff]].
+#+latex: %
+The Figure [[fig:pcore_time_diff]] shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain when only using p-cores. The computational overlap of iterations is responsible for the perseverance of the performance gains in the p-core-only environment, which can be seen in Figure \ref{fig:iteration_plot}. The CPU clock speed, which are above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
 
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_time_plot.pdf" :exports none :width 10 :height 5 :session *R*
@@ -575,10 +569,8 @@ Once more, the heterogeneous machines (tupi and poti) had great performances. Th
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only the processor's p-cores. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
 [[file:pcore_time_plot.pdf]]
-
-The Figure [[fig:pcore_time_diff]] shows that the results in Figure [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expectation was that there would be no gain when only using p-cores. This is probably related to the other optimization, the computational overlap of iterations, which can be seen in Figure \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
 
 Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefor, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure [[fig:pcore_dyn_time_diff]] was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as it was when going from all cores to only p-cores. This does not show that the Fletcher algorithm is not adequate for static partitioning, only that the /star-fletcher/ gains still observed can be atributed to the optimizations of IO and iteration overlapping.
 
@@ -589,7 +581,7 @@ Another aspect to consider is that the Fletcher algorithm is not adequate for st
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, only the processor's p-cores and using the dynamic runtime in OpenMP for /fletcher-base/. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_dyn_time_diff
-#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
 
@@ -656,7 +648,7 @@ de Pessoal de Nível Superior (CAPES), Finance Code 001. This work was
 also partially funded by Petrobras under Agreement no.  2020/00182-5 e
 2018/00263-5 with UFRGS. The authors thank PCAD/UFRGS, \url{http://pcad.inf.ufrgs.br}, for
 infrastructure access in the prior study's evaluation.
- 
+
 ** References                                                      :ignore:
 
 # See next section to understand how refs.bib file is created.
