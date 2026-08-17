@@ -81,7 +81,7 @@ The development of /star-fletcher/ was based on the original /fletcher-base/ imp
 #+BEGIN_EXPORT latex
 \begin{figure}[htbp]
     \centering
-    \scalebox{0.75}{%
+    \scalebox{0.65}{%
     \begin{tikzpicture}[
         node distance=1.5cm and 2.5cm,
         >=Stealth,
