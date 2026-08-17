@@ -25,7 +25,7 @@
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
 
-#+PROPERTY: header-args :eval never
+# #  +PROPERTY: header-args :eval never
 
 * *The Paper*                                                       :ignore:
 ** Frontpage                                                        :ignore:
@@ -358,7 +358,7 @@ The results acquired followed the hypothesis proposed in Section [[sec:methodolo
 
 In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 12 :height 12 :session *R*
+#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 10 :height 10 :session *R*
   msamples_plot <- function(sft, fbt) {
     #x_breaks <- sort(unique(sft$Order))
 
@@ -392,21 +392,21 @@ In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypoth
         .groups = "drop"
       ) 
 
-    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean, color = Machine)) +
+    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
       
       geom_point(alpha = 0.8) +
       geom_errorbar(
-        aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine),
+        aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error),
         width = 0.5) +
       geom_rect(
   	data = fb_stats, 
-  	aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Machine),
+  	aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error),
   	  xmin = -Inf,
   	  xmax = Inf,
   	  inherit.aes = FALSE,
   	  alpha = 0.4
       ) +
-      geom_hline(data = fb_stats, aes(yintercept = FB_Mean, color = Machine), linetype = "solid", linewidth = 0.8) +
+      geom_hline(data = fb_stats, aes(yintercept = FB_Mean), linetype = "solid", linewidth = 0.8) +
       scale_x_continuous(breaks = x_breaks) +
       ylim(0, NA) +
       facet_grid(Machine ~ Schedulers, scales = "free_y") + 
