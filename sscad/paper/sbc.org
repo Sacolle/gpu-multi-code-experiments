@@ -178,6 +178,19 @@ It fixed the total number of computed points to $384^3$, and then varied the blo
 
 ** Results
 <<sec:results>>
+
+This Section presents the experimental outcomes of comparing
+/star-fletcher/ against /fletcher-base/ across five machines. First,
+MSamples/s is analyzed as a function of block order and StarPU
+scheduler to assess raw computational throughput. Next, execution time
+differences with and without IO are examined to evaluate the impact of
+asynchronous IO overlap. Finally, additional experiments restricted to
+p-cores only and using OpenMP dynamic scheduling are used to
+disentangle the contributions of heterogeneous CPU architecture from
+those of iteration overlap and asynchronous IO.
+#+latex: %
+Taken together, these results supported the hypothesis proposed in Section [[sec:methodology]]. 
+
 *** Data Parsing                                                         :ignore:
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
@@ -356,7 +369,9 @@ It fixed the total number of computed points to $384^3$, and then varied the blo
 
 *** MSamples/s Plot                                                :ignore:
 
-The results acquired followed the hypothesis proposed in Section [[sec:methodology]]. The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by machine. The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
+#+latex: \linebreak
+
+The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by machine. The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
 
 In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
 
