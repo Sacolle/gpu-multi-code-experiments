@@ -180,7 +180,7 @@ The tested schedulers were: Work Stealing (ws), which moves tasks from filled qu
 ** Results
 <<sec:results>>
 
-This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and the StarPU scheduler to assess raw computational throughput. Next, execution time differences with and without IO are examined to evaluate the impact of asynchronous IO overlap. Finally, additional experiments restricted to p-cores only and using OpenMP dynamic scheduling are used to disentangle the contributions of heterogeneous CPU architecture from those of iteration overlap and asynchronous IO.
+This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and the StarPU scheduler to provide a performance overview with an industry standard metric. Next, StarVZ traces are examined to verify that the elimination of global synchronization enables computational overlap between iterations. Then, execution time differences with and without IO are evaluated to confirm that asynchronous IO further benefits performance. Finally, experiments restricted to p-cores only are used to identify the source of performance gains on heterogeneous machines, disentangling the contributions of CPU architecture heterogeneity from those of iteration overlap and asynchronous IO.
 #+latex: %
 Taken together, these results supported the hypothesis proposed in Section [[sec:methodology]]. 
 
