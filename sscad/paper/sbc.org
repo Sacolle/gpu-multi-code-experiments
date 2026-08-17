@@ -71,7 +71,7 @@ This is relevant when dealing with RTM applications, which are IO-bound. The for
 
 Considering these characteristics, this paper presents /star-fletcher/ an implementation of the /fletcher/ algorithm using the StarPU runtime for its task-based implementation. It improves over a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by using tasks as the primary parallelism units, making each task compute a part of the whole medium. With this modification, /star-fletcher/ was able to acquire optimization for IO and iteration overlapping. This performance claim was demonstrated through comparative analysis of /star-fletcher/ executions with the /fletcher-base/ baseline. Multiple machines were used to show /star-fletcher/'s performance in a plethora of execution environments.
 
-This paper is structured as such: Chapter [[sec:methodsandmaterials]] covers the information about the program's implementation and the research methodology. Chapter [[sec:results]] presents the results obtained, postulating, or proving when possible, why each results ended up the way they did. Chapter [[sec:conclusion]] presents this paper's conclusions.
+This paper is structured as follows: Chapter [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Chapter [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Chapter [[sec:conclusion]] presents this paper's conclusions.
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
