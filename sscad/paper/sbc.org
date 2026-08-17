@@ -659,6 +659,17 @@ bibliographystyle:sbc
 
 Tangle this file with C-c C-v t
 #+begin_src bibtex :tangle refs.bib
+@article{garcia2018visual,
+  title={A visual performance analysis framework for task-based parallel applications running on hybrid clusters},
+  author={Garcia Pinto, Vin{\'\i}cius and Mello Schnorr, Lucas and Stanisic, Luka and Legrand, Arnaud and Thibault, Samuel and Danjean, Vincent},
+  journal={Concurrency and Computation: Practice and Experience},
+  volume={30},
+  number={18},
+  pages={e4472},
+  year={2018},
+  publisher={Wiley Online Library}
+}
+
         @article{orgmode,
           author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
           title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
