@@ -442,7 +442,7 @@ In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypoth
 
 #+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted horizontally by machine and vertically by scheduler. The dots are the /star-fletcher/ values as the order grows and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
 #+NAME: fig:msamples_plot
-#+ATTR_LATEX: :placement [H] :width .7\linewidth
+#+ATTR_LATEX: :placement [!htb] :width .7\linewidth
 [[file:msamples_plot.pdf]]
 
 The draco machine almost matched both program's performance, even with /fletcher-base/ coming on top. The interesting performances com from grace, tupi and poti. With the latter two having multiple configurations in which they surpass the baseline. This was expected as their CPU architecture is heterogeneous, having performance cores share space with economic cores, making OpenMP simple static partitioning not as effective as StarPU's dynamic schedulers. The grace machine's performance was unexpected, as to how much above the baseline it rose, considering it is a homogeneous machine. Considering that most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. One other possibility is that /star-fletcher/ does not need to synchronize after every step, with that, a slow thread does not bottleneck the execution. Figure \ref{fig:iteration_plot} displays the iteration overlap of 10 iteration execution in the grace machine. Tasks are represented by vertical lines, with their color telling the kind of task they are and their x coordinate when they executed. The y axis tells which iteration they are a part of. The black lines above and bellow follow the start of the iteration and the end of it, respectively.
@@ -468,7 +468,12 @@ The draco machine almost matched both program's performance, even with /fletcher
 
 *** Time Plot                                                      :ignore:
 
-It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points. This trace has another element, the /write_block/ task. To look at the performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs from the first experiment, now looking at Execution Time with respect to order size, with machine and scheduler facets, we can observe the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$.
+#+latex: \noindent
+*IO Overlaping.*
+#+latex: %
+Figure \ref{fig:iteration_plot} also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure [[fig:time_diff]] the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the base line.
+#+latex: %
+Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case, /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei, and tupi machines, though in the last, the effect is marginal. The machines for which this trend is not observed (draco and grace) are those for which execution time did not show a significant improvement over the baseline or showed no improvement at all. This indicates that the IO optimizations were ineffective on machines where execution time did not improve over the baseline. The schedulers did not play a significant positive role in execution times, given that StarPU's default scheduler is ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not generally perform better than the simple ones (ws and lws). This demonstrates that, for CPU-only applications, schedulers may be only a small source of potential speedup. 
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 10 :height 10 :session *R*
   time_plot <- function(sft, fbt) {
@@ -542,7 +547,7 @@ It is visible the overlap of iterations, which help slower workers to not stop c
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. It is faceted horizontally by machine and vertically by scheduler. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:time_diff
-#+ATTR_LATEX: :placement [H] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
 [[file:time_plot.pdf]]
 
 
@@ -558,7 +563,7 @@ Once more, the heterogeneous machines (tupi and poti) had great performances. Th
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only the processor's p-cores. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
 [[file:pcore_time_plot.pdf]]
 
 The Figure [[fig:pcore_time_diff]] shows that the results in Figure [[fig:time_diff]] for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. But the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance, which was not expected; the expectation was that there would be no gain when only using p-cores. This is probably related to the other optimization, the computational overlap of iterations, which can be seen in Figure \ref{fig:iteration_plot}. Another contributing factor may be the CPU clock speed, which are above 3 GHz in both computers, which may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
@@ -572,7 +577,7 @@ Another aspect to consider is that the Fletcher algorithm is not adequate for st
 
 #+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, only the processor's p-cores and using the dynamic runtime in OpenMP for /fletcher-base/. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:pcore_dyn_time_diff
-#+ATTR_LATEX: :placement [H] :width .7\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .7\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
 
 
@@ -615,7 +620,7 @@ The best order size may not be the overall best order size for all total volumes
 
 #+CAPTION: Growth of MSamples/s of /star-fletcher/ (filled line) and /fletcher-base/ (dashed-line) over the total volume size when fixing the block order for /star-fletcher/ of 64. 
 #+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [H] :width .65\textwidth
+#+ATTR_LATEX: :placement [!htb] :width .65\textwidth
 [[file:msamples_order_plot.pdf]]
 
 The machines where where dominant before, had awful performances because the order was not proportional to the computed volume. The grace machine also displays how the wrong scheduler can be of great detriment to an execution, with the dm and dmdar schedulers. With this result, LOOK AT THE NUMBER OF TASKS AND SEE IF THAT TELLS A BETTER PICTURE.
