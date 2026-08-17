@@ -601,7 +601,6 @@ The best order size may not be the overall best order size for all total volumes
 #+ATTR_LATEX: :placement [H] :width .65\textwidth
 [[file:msamples_order_plot.pdf]]
 
-
 The machines where where dominant before, had awful performances because the order was not proportional to the computed volume. The grace machine also displays how the wrong scheduler can be of great detriment to an execution, with the dm and dmdar schedulers. With this result, LOOK AT THE NUMBER OF TASKS AND SEE IF THAT TELLS A BETTER PICTURE.
 
 
