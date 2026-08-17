@@ -367,7 +367,7 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 #+latex: \noindent
 *Performance Overview with Industry Standard Metric.*
 #+latex: %
-The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The colored line represents the mean MSamples/s obtained with /fletcher-base/, with the colored band around it being its standard error. The dots show the mean MSamples/s as the order increases in the /star-fletcher/ application, with the lines crossing them being their standard error.
+The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dark horizontal line represents the mean MSamples/s obtained with /fletcher-base/, with the gray band around it being its standard error. The dots show the mean MSamples/s as a function of the block order increase, in the /star-fletcher/ application. The lines crossing them being their standard error.
 #+latex: %
 Except for the draco machine, the hypothesis that, for every machine, there would be an order size at which computation would be faster in /star-fletcher/ than /fletcher-base/ holds.
 #+latex: %
