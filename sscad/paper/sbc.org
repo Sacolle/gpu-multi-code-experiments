@@ -359,7 +359,7 @@ It fixed the total number of computed points to $384^3$, and then varied the blo
 
 *** MSamples/s Plot                                                :ignore:
 
-The results acquired followed the hypothesis proposed in Section [[sec:methodology]]. The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s as the block order grows. It is faceted by the scheduler on the x axis and by machine on the y axis. The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
+The results acquired followed the hypothesis proposed in Section [[sec:methodology]]. The Figure [[fig:msamples_plot]] of the first experiment displays the recorded MSamples/s in the Y-axis as function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by machine. The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. This last two schedulers, the ones based on performance, are better suited when using different kinds of nodes, like CPU plus GPU. It is possible for the performance models to consider each individual CPU core for performance, and not generalize them, but no significant performance gains are extracted from that cite:sscad_perf_model.
 
 In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true. The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.  
 
@@ -428,7 +428,7 @@ In Figure [[fig:msamples_plot]], with exception of the machine draco, the hypoth
   msamples_plot(sf_res, fb_res)
 #+END_SRC
 
-#+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted by machine on the y axis and by scheduler on the x axis. The dots are the /star-fletcher/ values as the order increasses and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
+#+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted horizontally by machine and vertically by scheduler. The dots are the /star-fletcher/ values as the order grows and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
 #+NAME: fig:msamples_plot
 #+ATTR_LATEX: :placement [H] :width .7\linewidth
 [[file:msamples_plot.pdf]]
@@ -528,7 +528,7 @@ It is visible the overlap of iterations, which help slower workers to not stop c
   time_plot(sf_res, fb_res) 
 #+END_SRC
 
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
+#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. It is faceted horizontally by machine and vertically by scheduler. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
 #+NAME: fig:time_diff
 #+ATTR_LATEX: :placement [H] :width .7\textwidth
 [[file:time_plot.pdf]]
@@ -612,7 +612,7 @@ The machines where where dominant before, had awful performances because the ord
 ** Conclusion
 <<sec:conclusion>>
 
-The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones, with more common HPC architectures, like the one in the grace machine, also showing some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
+The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, like the one in the grace machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
 
 For future work, the aim is to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
 
