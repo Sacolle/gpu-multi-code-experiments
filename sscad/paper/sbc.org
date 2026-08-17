@@ -75,7 +75,8 @@ This paper is structured as follows: Section [[sec:methodsandmaterials]] covers 
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
-The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease to execution in any machine, the Nix package manager was used. Not only that, but the experiments were built on top of it too. All the packages required to execute are version locked and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} showcases the project's process: make an experimental project, execute it using nix on INF/UFRGS's PCAD, gather the data and analyze it using R libraries. All the graphs in this paper are built with the principals of declarative programming, where the paper's source code has the code which generated the graphs.
+
+The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease of execution across machines, the Nix package manager was used. Not only that, but the experiments were built on top of it, too. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} illustrates the project's process: develop an experimental project, execute it using nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
 
 #+BEGIN_EXPORT latex
 \begin{figure}[htbp]
