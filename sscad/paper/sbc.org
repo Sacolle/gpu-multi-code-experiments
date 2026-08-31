@@ -69,7 +69,14 @@ This common parallelization approach will not work when nodes' architectures bec
 
 This task-based paradigm is relevant to RTM applications, which are IO-bound. The forward step saves the computed volume every $k$ iterations, which the backward step then reads back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory. Modern research focuses on overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate data transfer between GPUs, leveraging load-balancing capabilities to balance per-node, multi-GPU RTM computation.
 
-Considering these characteristics, this paper presents /star-fletcher/, an implementation of the /fletcher/ algorithm using the StarPU runtime under the Sequential Task Flow (STF) paradigm. It improves on a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the computational domain into blocks and scheduling them as dependent tasks. This eliminates global synchronization points between iteration steps, enabling natural overlap of computation with asynchronous IO. We demonstrate these performance claims by varying the block order and evaluating five StarPU schedulers across multiple machines with different CPU architectures, including hybrid p-core/e-core systems. Additional experiments isolating only p-cores and using OpenMP dynamic scheduling further investigate the sources of the observed speedups.
+Considering these characteristics, this paper presents /star-fletcher/, an implementation of the /fletcher/ algorithm using the StarPU runtime under the Sequential Task Flow (STF) paradigm. It improves on a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the computational domain into blocks and scheduling them as dependent tasks. The contributions of this paper are:
+
+1. The elimination of global synchronization points between iteration steps by adopting a per-block task dependency model, which allows the StarPU scheduler to seamlessly overlap the execution of tasks from different iterations, keeping workers busy and avoiding synchronization bottlenecks.
+2. The natural overlap of computation with asynchronous IO, made possible by the task-based design: write tasks are woven between block computations at fine granularity, so IO does not stall computation, yielding additional execution time gains on machines where computation already improves over the baseline.
+3. A comprehensive performance evaluation varying block order across five StarPU schedulers (ws, lws, random, dm, dmdar) on five machines with distinct CPU architectures, including hybrid p-core/e-core systems (tupi and poti), a homogeneous ARM machine (grace), and dual-socket x86 servers (cei and draco), using MSamples/s and execution time as complementary metrics.
+4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only p-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.
+
+Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid p-core/e-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating p-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.
 
 This paper is structured as follows. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Section [[sec:conclusion]] presents this paper's conclusions.
 
@@ -180,7 +187,7 @@ The tested schedulers were: Work Stealing (ws), which moves tasks from filled qu
 ** Results
 <<sec:results>>
 
-This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and StarPU scheduler to assess raw computational throughput. Next, execution time differences with and without IO are examined to evaluate the impact of asynchronous IO overlap. Finally, additional experiments restricted to p-cores only and using OpenMP dynamic scheduling are used to disentangle the contributions of heterogeneous CPU architecture from those of iteration overlap and asynchronous IO.
+This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and the StarPU scheduler to provide a performance overview with an industry standard metric. Next, StarVZ traces are examined to verify that the elimination of global synchronization enables computational overlap between iterations. Then, execution time differences with and without IO are evaluated to confirm that asynchronous IO further benefits performance. Finally, experiments restricted to p-cores only are used to identify the source of performance gains on heterogeneous machines, disentangling the contributions of CPU architecture heterogeneity from those of iteration overlap and asynchronous IO.
 #+latex: %
 Taken together, these results supported the hypothesis proposed in Section [[sec:methodology]]. 
 
@@ -367,9 +374,9 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 #+latex: \noindent
 *Performance Overview with Industry Standard Metric.*
 #+latex: %
-The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine.  The colored line represents the mean MSamples/s of the /fletcher-base/, with the colored band around it being its standard error. The dots are the mean MSamples/s as the order increases on the /star-fletcher/ application with the lines that cross them being their standard error.
+The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dark horizontal line represents the mean MSamples/s obtained with /fletcher-base/, with the gray band around it being its standard error. The dots show the mean MSamples/s as a function of the block order increase, in the /star-fletcher/ application. The lines crossing them being their standard error.
 #+latex: %
-With exception of the machine draco, the hypothesis that for every machine there would be a order size which the computation would be faster in /star-fletcher/ than /fletcher-base/ is true.
+Except for the draco machine, the hypothesis that, for every machine, there would be an order size at which computation would be faster in /star-fletcher/ than /fletcher-base/ holds.
 #+latex: %
 The draco machine nearly matched both programs' performance, even with /fletcher-base/ coming on top. The interesting performances come from grace, tupi, and poti, with the latter two having multiple configurations that surpass the baseline. This was expected as their CPU architecture is heterogeneous, with performance cores sharing space with energy cores, making OpenMP partitioning less effective than StarPU's schedulers. The grace machine's performance was unexpected, given how much above the baseline it rose, considering it is a homogeneous machine. Considering that most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. Another possibility is that /star-fletcher/ does not need to synchronize after every step. With that, a slow thread does not bottleneck the execution.
 
@@ -446,9 +453,11 @@ The draco machine nearly matched both programs' performance, even with /fletcher
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
-Figure \ref{fig:iteration_plot} displays the iteration overlap of 10 iterations executed on the grace machine. Tasks are represented by vertical lines, with their color indicating the type of task and their x-coordinate when they were executed. The y-axis tells which iteration they are a part of. The black lines above and below mark the start and end of the iteration, respectively.
+The experiment to verify the absence of global synchronization used a StarPU compiled with options enabling the runtime to generate detailed traces of task execution. The traces have been processed using StarVZ cite:garcia2018visual with a modern data science workflow to generate tabular data for this analysis.
 #+latex: %
-It is visible the overlap of iterations, which help slower workers to not stop computation due to synchronization points.
+Figure \ref{fig:iteration_plot} displays StarVZ's K-iteration panel depicting ten iterations executed on the grace machine. Tasks are represented by rectangles, with their color indicating the type of task (wave_insertion, wave_propagation, and write_block) and their x-coordinate spanning the duration during which they execute. The y-axis tells which iteration each task belongs to. The black lines above and below connect the beginning and end of each iteration, respectively. Together, this type of representation serves as a signature of the behavior from the application perspective, as one can tell how many iterations could execute simultaneously.
+#+latex: %
+Because we designed /star-fletcher/ to have no global synchronization between iterations, we can clearly see how the StarPU scheduler can seamlessly overlap iterations. We can see that in about 30% of the run, we have tasks from three different iterations running at the same time; while in the middle of the execution, we can see tasks coming from four iterations executing at the same time. This expected overlap mechanism helps faster workers avoid stopping computation at synchronization points.
 
 #+name: run-starvz
 #+begin_src bash :async yes :exports none  :results silent
@@ -472,9 +481,9 @@ It is visible the overlap of iterations, which help slower workers to not stop c
 *** Time Plot                                                      :ignore:
 
 #+latex: \noindent
-*IO Overlaping.*
+*IO Overlaping Verification.*
 #+latex: %
-Figure \ref{fig:iteration_plot} also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure [[fig:time_diff]] the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the base line.
+Figure \ref{fig:iteration_plot} also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure [[fig:time_diff]] the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the baseline.
 #+latex: %
 Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case, /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei, and tupi machines, though in the last, the effect is marginal. The machines for which this trend is not observed (draco and grace) are those for which execution time did not show a significant improvement over the baseline or showed no improvement at all. This indicates that the IO optimizations were ineffective on machines where execution time did not improve over the baseline. The schedulers did not play a significant positive role in execution times, given that StarPU's default scheduler is ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not generally perform better than the simple ones (ws and lws). This demonstrates that, for CPU-only applications, schedulers may be only a small source of potential speedup. 
 #+latex: %
@@ -558,10 +567,9 @@ Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case
 #+latex: \noindent
 *Source of Performance Gains on Heterogeneous Machines.*
 #+latex: %
-Over the previous two figures, the heterogeneous machines (tupi and poti) had great performances. This is probably due to StarPU ability to use a machine's heterogeneous architecture to its fullest. To validate that, one experiment was conducted for the tupi and poti machines, where only the machine's p-cores were used for running both applications. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. For /star-fletcher/'s case, it was configured only 8 workers, each one bound to each p-core. For /fletcher-base/'s case, it was configured only 8 threads, each one pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much meeker when considering the ones in Figure [[fig:time_diff]].
+In the previous analysis, the heterogeneous machines (tupi and poti) performed well. This is probably due to StarPU ability to use a machine's heterogeneous architecture to its fullest. To validate that, one experiment was conducted on the tupi and poti machines, in which only the machines' p-cores were used to run both applications. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. In/star-fletcher/'s case, it was configured with only 8 workers, each bound to a p-core. In/fletcher-base/'s case, it was configured with only 8 threads, each pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much milder when considering the ones in Figure [[fig:time_diff]].
 #+latex: %
-The Figure [[fig:pcore_time_diff]] shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain when only using p-cores. The computational overlap of iterations is responsible for the perseverance of the performance gains in the p-core-only environment, which can be seen in Figure \ref{fig:iteration_plot}. The CPU clock speed, which are above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast small computations.
-
+The Figure [[fig:pcore_time_diff]] shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain from using only p-cores. The computational overlap among iterations is responsible for the persistence of performance gains in the p-core-only environment, as shown in Figure \ref{fig:iteration_plot}. The CPU clock speed, which is above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast, small computations.
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_time_plot.pdf" :exports none :width 10 :height 5 :session *R*
   time_plot(sf_res_p, fb_res_p) 
@@ -572,8 +580,7 @@ The Figure [[fig:pcore_time_diff]] shows that the results for the tupi and poti 
 #+ATTR_LATEX: :placement [!htb] :width .9\textwidth
 [[file:pcore_time_plot.pdf]]
 
-Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefor, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure [[fig:pcore_dyn_time_diff]] was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as it was when going from all cores to only p-cores. This does not show that the Fletcher algorithm is not adequate for static partitioning, only that the /star-fletcher/ gains still observed can be atributed to the optimizations of IO and iteration overlapping.
-
+Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefore, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure [[fig:pcore_dyn_time_diff]] was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as they were when going from all cores to only p-cores. This does not show that the Fletcher algorithm is inadequate for static partitioning, only that the remaining /star-fletcher/ gains can be attributed to optimizations for IO and iteration overlap.
 
 #+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_dyn_time_plot.pdf" :exports none :width 10 :height 5 :session *R*
   time_plot(sf_res_p, fb_res_p_dyn) 
@@ -633,10 +640,9 @@ The machines where where dominant before, had awful performances because the ord
 ** Conclusion
 <<sec:conclusion>>
 
-The execution with tasks of /star-fletcher/ showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, like the one in the grace machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
+The execution of /star-fletcher/, based on the task-based paradigm, showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task-based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, such as the one in the grace machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
 
-For future work, the aim is to continue the research into CPU-GPU mixed computation, using the task model to its full extent by computing the main kernel of RTM in CPU and in GPU. The continuation of that would be adding MPI, to compete directly with CUDA+MPI implementations of the /fletcher/ algorithm. 
-
+For future work, the aim is to investigate CPU-GPU mixed computation, using the task model to its full extent by computing the main RTM kernel on both CPU and GPU. The next step would be to add support for distributed execution using StarPU's MPI backend to compete directly with existing CUDA+MPI implementations of the /fletcher/ algorithm. 
 
 ** Acknowledgments
 :PROPERTIES:
@@ -659,6 +665,17 @@ bibliographystyle:sbc
 
 Tangle this file with C-c C-v t
 #+begin_src bibtex :tangle refs.bib
+@article{garcia2018visual,
+  title={A visual performance analysis framework for task-based parallel applications running on hybrid clusters},
+  author={Garcia Pinto, Vin{\'\i}cius and Mello Schnorr, Lucas and Stanisic, Luka and Legrand, Arnaud and Thibault, Samuel and Danjean, Vincent},
+  journal={Concurrency and Computation: Practice and Experience},
+  volume={30},
+  number={18},
+  pages={e4472},
+  year={2018},
+  publisher={Wiley Online Library}
+}
+
         @article{orgmode,
           author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
           title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
