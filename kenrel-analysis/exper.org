@@ -1,0 +1,132 @@
+* Plano do Projeto Experimental
+
+Agora precisamos verificar qual a melhor configuração de dados para o kernel atual.
+Quantos blocos e treads.
+Com esse experimentos, a cada otimização, podemos verificar se ela foi efeitiva.
+
+
+** Máquinas
+
+Quais máquinas iremos executar?
+
+| Máquina | Nº GPUS | Local         |
+|---------|---------|---------------|
+| grace   |       1 | PCAD          |
+| cidia   |       2 | PCAD          |
+| tupi    |       1 | PCAD          |
+| poti    |       1 | PCAD          |
+| saude   |       3 | PCAD          |
+
+
+O plano é executar experimentos em todas essas máquinas.
+
+** Parâmetros
+
+Quais parâmetros queremos analisar nos testes.
+Temos as dimensões do bloco, e como distribuir elas.
+Por exemplo, com um bloco de 8 x 8 x 8, temos 512 threads por bloco.
+Se reduzissemos para 8 x 8 x 4, teríamos 256 threads por bloco, mas mais blocos.
+Na nossa análise, idealmente fixariamos o tamanho dos /fletcher-blocks/ e só alteriariamos dentro do CUDA.
+Acho que isso não é possível pois muda muito quantos /CUDA-blocks/ ocorrem por execução, o que afeta o resultado.
+Assim, precisamos manter um número de /fletcher-blocks/ baixo, vide que essa métrica não é tão relevante,
+mas alteramos o tamanho deles e mexemos na distribuição e quantidade de threads.
+Selecionamos sets de threads, 1024, 512, 256, 128, 64 e para cada um deles, geramos uma configuração de bloco.
+
+O número de iterações será sempre fixo.
+
+Preciso ainda instrumentar a leitura desses parâmetros no código fonte.
+
+** Hipóteses
+
+Imagina-se que alguma das configurações usadas será a ideal.
+Minha hipótese atual é que os valores ótimos estarão com um /fletcher-block/ grande.
+Além disso, uma distribuição igual de threads por dimensão provavelmente trará o melhor resultado.
+
+
+** Experimentos
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+     library(DoE.base)
+     library(glue)
+     library(tidyverse)
+     library(numbers)
+  library(purrr)
+
+     #no scientific notation
+     options(scipen = 999)
+
+     num_of_blocks = 3
+     iterations = 10
+     seed = 0
+     replications = 5
+
+     generate_experiment <- function(factors, replications, seed) {
+       DoE.base::fac.design(
+         nfactors = length(factors),
+         replications = replications,
+         repeat.only = FALSE,
+         randomize = TRUE,
+         seed = seed,
+         nlevels = sapply(factors, length),
+         factor.names = factors
+       )
+     }
+
+    # quebra o número de threads em suas possíveis fatorações
+   fatoracoes3 <- function(n) {
+     resultados <- list()
+     for (a in 1:round(n^(1/3))) {
+       if (n %% a == 0) {
+         resto1 <- n %/% a
+         for (b in a:floor(sqrt(resto1))) {
+           if (resto1 %% b == 0) {
+             c <- resto1 %/% b
+             if (c >= b) {
+               resultados[[length(resultados) + 1]] <- c(c, b, a)
+             }
+           }
+         }
+       }
+     }
+     not_half <- \(v) v[[1]] < 2 * (v[[2]] + v[[3]])
+    
+     Filter(\(x) map(x, log2) |> not_half(), resultados)
+   }
+
+     amount_threads <- c(64, 128, 256, 512, 1024)
+   
+    factors <- list(
+      ThreadConfig = amount_threads |>
+        map(\(x) fatoracoes3(x) |> map_chr(\(l) paste(l, collapse = " "))) |>
+        list_c() |>
+        unique(), 
+      BlockSize = c(32, 48, 64, 96, 128, 160)
+    )
+
+    k_ex <- generate_experiment(factors, replications, seed) |> as_tibble() |>
+      mutate(
+    	BlockCount = num_of_blocks,
+    	Iterations = iterations,
+        ThreadConfig = as.character(ThreadConfig),
+        Blocks = str_sub(Blocks, 2, 2)
+      ) |>
+       separate_wider_delim(
+  	ThreadConfig,
+  	delim = " ",
+  	names = c("ThreadX", "ThreadY", "ThreadZ"),
+  	cols_remove = TRUE   # set FALSE if you want to keep the original combined column too
+    ) |>
+    mutate(
+      across(c(ThreadX, ThreadY, ThreadZ), as.integer),
+      TotalThreads = ThreadX * ThreadY * ThreadZ
+    )
+
+  k_ex |> readr::write_csv(glue("./kenrel-analysis/kernel-params.csv"))
+   
+#+END_SRC
+
+** Possibilidades de otimização
+
+O tabalho do fletcher dos outros labs usa uma configuração de threads (32, 16, 1), com cada kernel da GPU
+computando sobre o eixo z. Ou seja, tem um for loop sobre z ali dentro. Podemos implementar isso,
+faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
