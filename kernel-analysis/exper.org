@@ -88,16 +88,16 @@ Além disso, uma distribuição igual de threads por dimensão provavelmente tra
          }
        }
      }
-     not_half <- \(v) v[[1]] < 2 * (v[[2]] + v[[3]])
-    
-     Filter(\(x) map(x, log2) |> not_half(), resultados)
+     resultados
    }
 
-     amount_threads <- c(64, 128, 256, 512, 1024)
+    amount_threads <- c(64, 128, 256, 512)
+
+    not_half <- \(v) v[[1]] < 2 * (v[[2]] + v[[3]])
    
     factors <- list(
       ThreadConfig = amount_threads |>
-        map(\(x) fatoracoes3(x) |> map_chr(\(l) paste(l, collapse = " "))) |>
+        map(\(x) Filter(\(x) map(x, log2) |> not_half(), fatoracoes3(x)) |> map_chr(\(l) paste(l, collapse = " "))) |>
         list_c() |>
         unique(), 
       BlockSize = c(32, 48, 64, 96, 128, 160)
@@ -121,7 +121,7 @@ Além disso, uma distribuição igual de threads por dimensão provavelmente tra
       TotalThreads = ThreadX * ThreadY * ThreadZ
     )
 
-  k_ex |> readr::write_csv(glue("./kenrel-analysis/kernel-params.csv"))
+  k_ex |> readr::write_csv(glue("./kernel-analysis/kernel-params.csv"))
    
 #+END_SRC
 
@@ -130,3 +130,132 @@ Além disso, uma distribuição igual de threads por dimensão provavelmente tra
 O tabalho do fletcher dos outros labs usa uma configuração de threads (32, 16, 1), com cada kernel da GPU
 computando sobre o eixo z. Ou seja, tem um for loop sobre z ali dentro. Podemos implementar isso,
 faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
+
+
+* Análise de dados
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  options(crayon.enabled = FALSE)
+  #library(starvz)
+  library(tidyverse)
+  library(ggplot2)
+  library(dplyr)
+  library(patchwork)
+
+  base_dir = "./kernel-analysis/results"
+
+  machines <- tribble(
+    ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, 
+    "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "tupi5", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
+    "poti1", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "poti4", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "grace1", "2 x Grace A02", 3.4, 144, 144,
+    "cei1", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "cei2", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "cei3", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
+    "draco1", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco2", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco6", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "draco7", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
+    "cidia", "2 x Intel(R) Xeon(R) Silver 4208", 2.1, 32, 16
+  )
+
+  parse_files <- function(tibble, FILE, parse_fn){
+    mutate(tibble, Data = map( {{ FILE }} , function(file) {
+      if(!dir.exists(dirname(file))){
+        return(NULL)
+      }
+      #print(file)
+      lines <- tryCatch({
+        read_lines(file)
+      }, error = function(e){
+        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
+        return(NULL) # Returns NULL instead of breaking the script
+      })
+      if(is.null(lines)) {
+        return(NULL)
+      }
+      parse_fn(lines)
+    })) |>
+    filter(lengths(Data) > 0) |>
+    unnest(Data)
+  }
+#+END_SRC
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  kernel_exp <- read_csv('./kernel-analysis/kernel-params.csv')
+  k <- machines |> cross_join(kernel_exp)
+
+  k_res <- k |>
+    mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
+    parse_files(FILE, \(lines){
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[15]], vals[[14]])
+    }) 
+
+
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  msamples_plot <- function(kt) {
+    kt_msamples_plot <- kt |>
+      select(-FILE) |>
+      mutate(
+        Machine = str_sub(Machine, end = -2),
+        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ)
+      ) |>
+     # group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+     # summarize(
+     #   rep = n(),
+
+    #   Msamples_mean = mean(Msamples),
+    #   Msamples_sd = sd(Msamples),
+    #   Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+    #   
+    #   ExecTime_mean = mean(ExecTime),
+    #   ExecTime_sd = sd(ExecTime),
+    #   ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+    #   .groups = "drop"
+    # ) |>
+      filter(BlockSize == 64)
+
+    ggplot(kt_msamples_plot, aes(x = factor(ThreadName), y = Msamples, color = Machine)) +
+      #geom_point(alpha = 0.8) +
+      geom_jitter(alpha = 0.8, width = 0.1) +  
+      #geom_errorbar(aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine), width = 0.5) +
+     # scale_x_continuous(breaks = x_breaks) +
+      ylim(0, NA) +
+      facet_grid(Machine ~ TotalThreads,  scales = "free_x", space = "free_x") + #, scales = "free_y") + 
+      labs(
+    	title = paste0("MSamples vs. Block Order"),
+    	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
+    	x = "Block Size",
+    	y = "Msamples/s"
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom")
+  }
+
+  msamples_plot(k_res)
+
+#+END_SRC
+
+
+** Hipóteses
+
++ Fazer o fine tunning da chamada do kernel não afeta o resultado do StarPU 
+  - When Faster Kernels Do Not Mean Faster Applications in Exascale GPU Systems [[https://easychair.org/smart-program/Euro-Par2026/2026-08-27.html#talk:320098][abstract]].
+  - Quanto que isso afeta
+    - Observar as curvas dos kernel experimentais (no fine tunning)
+    - Verificar se o StarFletcher acompanha a curva
+
++ O fine tunning é favorável a dimensão que cresce mais devagar, com a melhor configuração distribuindo
+  melhor as threads nas dimensões X e Y.
+  - Isso resulta em um resultado superior no StarFletcher

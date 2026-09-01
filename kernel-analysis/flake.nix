@@ -26,9 +26,8 @@
 
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
         mk-home-folder = name: "~/experimental-results/${name}/$HOSTNAME";
-        tail1 = s: builtins.substring 1 (-1) s;
 
-        kernel-base =  
+        kernel-func = file:  
           let
             program = "${kernel-test}/bin/kernel-test";
             experiment-name = "fletcher-kernel-analysis";
@@ -38,7 +37,7 @@
           experiments.lib.mkExperiment {
             inherit pkgs; 
             
-            csvFile = ./kernel-params.csv;
+            csvFile = file;
 
             preamble = ''
                 mkdir -p ${scratch-folder}
@@ -59,7 +58,8 @@
     in
     {
         packages = {
-          inherit kernel-base;
+          kernel-base = kernel-func ./kernel-params.csv;
+          kernel-full = kernel-func ./kernel-params-full.csv;
         };
     });
 }
