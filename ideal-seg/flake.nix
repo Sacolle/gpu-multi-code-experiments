@@ -10,6 +10,11 @@
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        star-fletcher-main = {
+            url = "github:Sacolle/Star-Fletcher";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         fletcher-base = {
           url = "github:Sacolle/fletcher-base?dir=original";
           inputs.nixpkgs.follows = "nixpkgs";
@@ -22,7 +27,7 @@
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, star-fletcher, fletcher-base, nix-gl-host, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, star-fletcher, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
     let
         system = "x86_64-linux"; 
         pkgs = import nixpkgs { inherit system; };
@@ -33,12 +38,6 @@
         tail1 = s: builtins.substring 1 (-1) s;
 
         nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
-
-        # TODO:
-        # 1. add the fletcher-code
-        #    - [x] insturment the ENABLE_IO
-        #    - [x] get which parameters are used to set name, io and output time
-        #    - [ ] check if it runs on cidia
 
         fletcher-base-experiment =
           let
@@ -268,6 +267,64 @@
             cudaPackages = pkgs24.cudaPackages_12_4;
             stdenv = pkgs24.gcc13Stdenv;
         };
+
+        expOptimizedKernel = file: options: 
+          let
+            my-star-fletcher = star-fletcher-main.packages.${system}.default.override ({
+                cudaPackages = pkgs24.cudaPackages_12_2;
+                stdenv = pkgs24.gcc12Stdenv;
+                enableCUDA = true;
+                enableTrace = false;
+                compileAsRelease = true;
+            } // options);
+            program = "${my-star-fletcher}/bin/star-fletcher";
+
+            experiment-name = "experiment-optimized-kernel";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = file;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { 
+              WithIO, Schedulers, Blocks,
+                ThreadX,ThreadY,ThreadZ,
+                BlockSeg,Width,AbsorbSize,
+                TotalTime,TimeStep,OutputTime,
+                ...
+            }: 
+              let
+                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${ThreadX}-${ThreadY}-${ThreadZ}-${Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+              ''
+                CUDA_THREAD_X=${ThreadX} \
+                CUDA_THREAD_Y=${ThreadY} \
+                CUDA_THREAD_Z=${ThreadZ} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
     in
     {
         packages.${system} = {

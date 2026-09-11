@@ -63,15 +63,9 @@ pois estes são desnecessários. O star-fletcher é dominado por uma única task
 
 ** Experimento para determinar tamanho do bloco
 
-TODO: Ler sobre os escalonadores e adicioná-los no projeto experimental,
-que com GPU eles fazem a diferença.
-
-
-#+BEGIN_SRC R :session *R*
-  library(DoE.base)
-  library(glue)
-  library(tidyverse)
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
   library(numbers)
+  source("./libExp.R")
 
   #no scientific notation
   options(scipen = 999)
@@ -86,18 +80,6 @@ que com GPU eles fazem a diferença.
   iterations = 20
   output = 5 # output every 5 steps
   replications = 5
-
-  generate_experiment <- function(factors, replications, seed) {
-    DoE.base::fac.design(
-      nfactors = length(factors),
-      replications = replications,
-      repeat.only = FALSE,
-      randomize = TRUE,
-      seed = seed,
-      nlevels = sapply(factors, length),
-      factor.names = factors
-    )
-  }
 
   segmentations = divisors(total_width)
 
@@ -125,516 +107,110 @@ que com GPU eles fazem a diferença.
 
 #+END_SRC
 
-#+RESULTS:
-| 1 | 18 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | lws   | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmdar | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmda  | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dm    | 0.1 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmda  | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | lws   | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmdar | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dm    | 0.2 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmda  | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | lws   | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dm    | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmdar | 0.3 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmda  | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dm    | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmdar | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | lws   | 0.4 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  4 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 24 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  8 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 12 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 32 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 32 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  9 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  8 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 12 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  6 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 16 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 18 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 |  6 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 16 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 36 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 0 | 18 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  9 | dmdar | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 24 | lws   | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 |  4 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dmda  | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
-| 1 | 36 | dm    | 0.5 | 552 | 8 | 4 | 0.0002 | 1e-05 | 5e-05 |
+
+Obteve-se, a partir de um projeto experimental a parte, o arquivo =best-config.csv=, que entrega a melhor configuração por máquina
+Essa configuração contém: Machine, BlockSize, TotalThreads, Msamples, ThreadX, ThreadY, ThreadZ
+Msamples é redundante aqui.
+
+Nota-se que a configuração é relativa a máquina em que está executando.
+Nisso, gostaria também de extrair, qual das configurações por tamanho de bloco foi, num geral, melhor.
+
+Isso eu preciso voltar nos dados anteriores e fazer talvez uma média dos Msamples ou algo tipo.
 
 
-** Pendências
+Uma dificuldade encontrada é que os tamanhos de bloco não geram um todo divisível.
+No sentido que, o MMC deles não é um número viável para os experimentos.
 
-Atualmente o Star-Fletcher está quase correto quanto a compilação em CUDA.
-Porém ainda estou tendo alguns erros com o hwloc, que é importante de corrigir
-para que não haja erros na distribuição do problema.
-
-Gepeto fix. É uma configuração correta dada a página do hwloc.
-https://hwloc.readthedocs.io/en/master/doxygen/html/faq.html#faq_cuda_build
-
-there is also the /--enable-cuda/ flag, which fails the build if CUDA is not present.
-
-#+BEGIN_SRC nix
-fixedCudaHwloc = cudaHwloc.overrideAttrs (oldAttrs: {
-    configureFlags = (oldAttrs.configureFlags or []) ++ [
-	"--with-cuda=${cudaPackages.cuda_cudart}"
-    ];
-});
+#+BEGIN_SRC R :session *R* :async yes
+  mLCM(c(32, 48, 64, 96, 128, 160))
 #+END_SRC
 
-Além disso tenho que ver quais são os escalonadores disponíveis e quais seriam interessantes
-de adicionar no projeto experimental.
+#+RESULTS:
+: 1920
 
- - Resolvido: tem que passar o hwloc com gpu para o star-fletcher também.
-   
+Era desejado manter um volume total fixo e simplesmente ir alterando a granularidade dos blocos.
+Isso não é possível com a configuração atual.
+Porém, se o número maior (160) foi aumentado para 192, temos um número trabalhável.
+
+#+BEGIN_SRC R :session *R* :async yes
+  mLCM(c(32, 48, 64, 96, 128, 192))
+#+END_SRC
+
+#+RESULTS:
+: 384
+
+Podendo até multiplicar o resultado final por 2 caso necessário, vide que no maior tamanho de bloco,
+haverá apenas 2^3 tasks, que pode afetar a execução.
+
+#+BEGIN_SRC R :session *R* :async yes
+
+  # fixing the best config table for latter merge
+  best_config <- read_csv("./ideal-seg/best-config.csv") |>
+    as_tibble() |>
+    select(-Msamples) |>
+    mutate(BlockSize = map_int(BlockSize, \(size) if (size == 160) 192 else size))
 
 
-** Experimento para determinar tamanho do bloco sem o kernel de CPU
-
-TODO: Ler sobre os escalonadores e adicioná-los no projeto experimental,
-que com GPU eles fazem a diferença.
-
-
-#+BEGIN_SRC R :session *R*
-  library(DoE.base)
-  library(glue)
-  library(tidyverse)
-  library(numbers)
-
-  #no scientific notation
-  options(scipen = 999)
-
-
-  total_width = 576
+  block_sizes = unique(best_config$BlockSize)
+  total_width = 2 * mLCM(block_sizes)
   border_size = 4
   absorb_size = 8
   width = total_width - 2 * (border_size + absorb_size)
   seed = 0
-  time_step = 0.0001
-  iterations = 10
-  output = 20 # output every 20 steps
-  replications = 1
+  time_step = 0.00001
+  iterations = 20
+  output = 5 # output every 5 steps
+  replications = 6
 
-  generate_experiment <- function(factors, replications, seed) {
-    DoE.base::fac.design(
-      nfactors = length(factors),
-      replications = replications,
-      repeat.only = FALSE,
-      randomize = TRUE,
-      seed = seed,
-      nlevels = sapply(factors, length),
-      factor.names = factors
-    )
-  }
+  # Need to take the block size and calculate how many segmentations it can produce
+  # use divisors
+  # then build the experimental project and cross joint it in the for loop
+  # making one project per machine
 
-  segmentations = divisors(total_width)
-
-  no_cpu_factors <- list(
-    BlockSeg = segmentations[segmentations > 1 & segmentations < 24],
-    Schedulers = c("lws", "dmdar")
+  kernel_factors <- list(
+    WithIO =  c(0, 1),
+    BlockSize = block_sizes,
+    Schedulers = c("lws", "dm", "dmda", "dmdar")
   )
 
-  nc_ex <- generate_experiment(no_cpu_factors, replications, seed) |>
-    as_tibble() |>
-    mutate(
-  	Width = width,
-  	AbsorbSize = absorb_size,
-  	TotalTime = format(time_step * iterations, scientific = FALSE),
-  	TimeStep = format(time_step, scientific = FALSE),
-  	OutputTime = format(time_step * output, scientific = FALSE)
-    )
+
+  ex_kernel_opt <- generate_experiment(kernel_factors, replications, seed) |> as_tibble()
+    #mutate(BlockSize = as.integer(as.character(BlockSize))) |>
+    #left_join(best_config, by = "BlockSize")
 
 
-  #print(dim(ex))
 
-  nc_ex |> readr::write_csv(glue("./ideal-seg/ideal-block-segment-no-cpu-trace.csv"))
+  machs <- best_config$Machine |> unique()
+
+  for(m in machs){
+  	values <- best_config |> filter(Machine == m)
+          mach_name <- sub("\\d+$", "", m)
+
+          res <- ex_kernel_opt |> 
+            mutate(BlockSize = as.integer(as.character(BlockSize))) |>
+            left_join(values, by = "BlockSize") |>
+            mutate(
+              BlockSeg = total_width / BlockSize,
+              Blocks = sub("\\.", "", Blocks),
+              Width = width,
+              AbsorbSize = absorb_size,
+              TotalTime = format(time_step * iterations, scientific = FALSE),
+              TimeStep = format(time_step, scientific = FALSE),
+              OutputTime = format(time_step * output, scientific = FALSE)
+            ) |>
+            select(-c(TotalThreads, Machine, BlockSize))
+          
+          
+          res |> readr::write_csv(glue("./ideal-seg/from-kernel-exp-{mach_name}.csv"))
+  }
+
 
 #+END_SRC
 
 #+RESULTS:
-|  8 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  6 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 12 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  2 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  3 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  6 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 12 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  3 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 18 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  4 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  9 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  8 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  4 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  2 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-|  9 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 16 | dmdar | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 18 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
-| 16 | lws   | 552 | 8 | 0.001 | 0.0001 | 0.002 |
+: ob_comint_async_R_file_/tmp/nix-shell.PWYpOg/babel-cvYsrv/R-DCRn1M
+
+
  
  
 * Análise de Dados
@@ -644,23 +220,7 @@ Dados da execução inicial.
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
    options(crayon.enabled = FALSE)
-   #library(starvz)
-   library(tidyverse)
-   library(ggplot2)
-   library(dplyr)
-   library(patchwork)
-
-   base_dir = "./ideal-seg/results"
-
-   machines <- tribble(
-     ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, ~GPU, ~GPU_count, ~GPU_gb_mem,
-     "cidia", "2 x Intel(R) Xeon(R) Silver 4208", 2.1, 32, 16, "NVIDIA GeForce RTX 2080 Ti", 2, 11,
-     "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
-     "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24, "NVIDIA GeForce RTX 4090", 1, 24,
-     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20, "NVIDIA GeForce RTX 4070", 1, 12,
-     "saude", "Intel(R) Xeon(R) E5-2620 v4", 2.1, 16, 8, "NVIDIA GeForce GTX 1080 Ti", 3, 11,
-     "grace", "2 x Grace A02", 3.4, 144, 144, "NVIDIA L40S", 1,  46
-   )
+   source("libExp.R")
 
    ex_star_fletcher <- read_csv('./ideal-seg/ideal-block-segment.csv')
    ex_fletcher_base <- read_csv('./ideal-seg/base-test.csv')
@@ -669,44 +229,24 @@ Dados da execução inicial.
    fb <- machines |> cross_join(ex_fletcher_base)
 
    sf_res <- sf |>
-     mutate(FILE = paste0(base_dir,"/ideal-block-size-machine/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
-     mutate(Msamples = map_dbl(FILE, function(file) {
-       #print(file)
-       lines <- tryCatch({
-   	read_lines(file)
-       }, error = function(e){
-   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-   	return(NA_real_) # Returns NULL instead of breaking the script
-       })
-        lines |>
-         tail(1) |>
-         str_remove("Msamples/s: ") |>
-         as.numeric()
-     })) |>
-     filter(!is.na(Msamples)) |>
-     mutate(Order = (Width + 2 * (AbsorbSize + BorderSize)) / BlockSeg) 
-
+     mutate(
+       Order = (Width + 2 * (AbsorbSize + BorderSize)) / BlockSeg,
+       FILE = paste0(base_dir,"/ideal-block-size-machine/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", substring(1, Blocks), ".out")) |>
+     parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+     })
 
   fb_res <- fb |>
     mutate(FILE = paste0(base_dir,"/fletcher-base-max-size/", Machine ,"/stdout-",  WithIO, "-", substring(1, Blocks), ".out")) |>
-    mutate(Msamples = map_dbl(FILE, function(file) {
-       lines <- tryCatch({
-   	read_lines(file)
-       }, error = function(e){
-   	#message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-   	return(NA_real_) # Returns NULL instead of breaking the script
-       })
-      res <- lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("[\\d.]+") |> 
-        as.numeric()
-      res[1]
-    })) |>
-    filter(!is.na(Msamples)) 
-  #|>
-   # group_by(across(-c(replication, Msamples, FILE))) |>
-    #summarize(Mean = mean(Msamples), Min = min(Msamples), Max = max(Msamples)) |> print()
-
+     parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tribble(~Msamples, ~ExecTime,
+               msamples[1], exec_time[1])
+     })
 #+END_SRC
 
 #+BEGIN_SRC R :session *R* :async yes

@@ -1,0 +1,42 @@
+Machine,Partition,Processor,GHz,Threads,Cores,RAM,AcceleratorModel,AcceleratorCount,AcceleratorMemory,Disk,Motherboard
+gppd-hpc,-,2 x Intel(R) Xeon(R) E5-2630,2.3,24,12,32 GB DDR3,-,0,-,73.4T HDD,Dell Inc. 0H5J4J
+gppd-hpc-2,-,2 x Intel(R) Xeon(R) E5-2630,2.3,24,12,32 GB DDR3,-,0,-,73.4T HDD,Dell Inc. 0H5J4J
+bali2,bali,2 x Intel(R) Xeon(R) E5-2650,2.0,32,16,32 GB DDR3,-,0,-,931.5G HDD,Silicon Graphics International X9DRG-HF
+beagle,beagle,2 x Intel(R) Xeon(R) E5-2650,2.0,32,16,32 GB DDR3,NVIDIA GeForce GTX 1080 Ti,2,11 GB,931.0G HDD,Dell Inc.
+blaise,blaise,2 x Intel(R) Xeon(R) E5-2699 v4,2.2,88,44,256 GB DDR4,Tesla P100,4,16 GB,"1.8T HDD,1.9T SSD",Supermicro X10DGQ
+cei1,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cei2,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cei3,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cei4,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cei5,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cei6,cei,2 x Intel(R) Xeon(R) Silver 4116,2.1,48,24,96 GB DDR4,-,0,-,"21.8T HDD,894.3G SSD",Supermicro X11DPU
+cidia,cidia,2 x Intel(R) Xeon(R) Silver 4208,2.1,32,16,320 GB DDR4,NVIDIA GeForce RTX 2080 Ti,2,11 GB,"7.3T HDD,1.7T SSD",Supermicro X11DAi-N
+draco1,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,1.8T HDD,Dell Inc. 0KR8W3
+draco2,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,1.8T HDD,Dell Inc. 0KR8W3
+draco3,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,931.0G HDD,Dell Inc. 0KR8W3
+draco4,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,931.0G HDD,Dell Inc. 0KR8W3
+draco5,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,1.8T HDD,Dell Inc. 0KR8W3
+draco6,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,64 GB DDR3,Tesla K20m,1,4 GB,1.8T HDD,Dell Inc. 0KR8W3
+draco7,draco,2 x Intel(R) Xeon(R) E5-2640 v2,2.0,32,16,128 GB DDR3,-,0,-,931.0G HDD,Dell Inc. 0KR8W3
+grace1,grace,2 x Grace A02,3.4,144,144,480 GB LPDDR5,NVIDIA L40S,1,46 GB,4.4T NVME,Supermicro G1SMH
+grace2,grace,2 x Grace A02,3.4,144,144,480 GB LPDDR5,NVIDIA L40S,1,46 GB,4.4T NVME,Supermicro G1SMH
+hype1,hype,2 x Intel(R) Xeon(R) E5-2650 v3,2.3,40,20,128 GB DDR4,-,0,-,558.9G HDD,HP ProLiant DL380 Gen9
+hype2,hype,2 x Intel(R) Xeon(R) E5-2650 v3,2.3,40,20,128 GB DDR4,-,0,-,558.9G HDD,HP ProLiant XL170r Gen9
+hype3,hype,2 x Intel(R) Xeon(R) E5-2650 v3,2.3,40,20,128 GB DDR4,-,0,-,558.9G HDD,HP ProLiant XL170r Gen9
+hype5,hype,2 x Intel(R) Xeon(R) E5-2650 v3,2.3,40,20,128 GB DDR4,Tesla K80,2,12 GB,558.9G HDD,HP ProLiant XL190r Gen9
+lunaris,lunaris,AMD Ryzen Threadripper PRO 5965WX 24-Cores,3.8,48,24,256 GB DDR4,Navi 31 [Radeon RX 7900 XT/7900 XTX],2,21 GB,1.9T NVME,ASUSTeK COMPUTER INC. Pro WS WRX80E-SAGE SE WIFI
+phoenix,phoenix,2 x Intel(R) Xeon(R) Gold 5317,3.0,48,24,128 GB DDR4,-,0,-,223.6G SSD,Supermicro X12DPL-NT6
+poti1,poti,Intel(R) Core(TM) i7-14700KF,3.4,28,20,96 GB DDR5,NVIDIA GeForce RTX 4070,1,12 GB,"119.2G NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+poti2,poti,Intel(R) Core(TM) i7-14700KF,3.4,28,20,96 GB DDR5,NVIDIA GeForce RTX 4070,1,12 GB,"119.2G NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+poti3,poti,Intel(R) Core(TM) i7-14700KF,3.4,28,20,96 GB DDR5,NVIDIA GeForce RTX 4070,1,12 GB,"119.2G NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+poti4,poti,Intel(R) Core(TM) i7-14700KF,3.4,28,20,96 GB DDR5,NVIDIA GeForce RTX 4070,1,12 GB,"119.2G NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+poti5,poti,Intel(R) Core(TM) i7-14700KF,3.4,28,20,96 GB DDR5,NVIDIA GeForce RTX 4070,1,12 GB,"119.2G NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+saude,saude,Intel(R) Xeon(R) E5-2620 v4,2.1,16,8,131 GB DDR4,NVIDIA GeForce GTX 1080 Ti,3,11 GB,7.3T HDD,ASUSTeK COMPUTER INC. X99-E-10G WS
+sirius,sirius,AMD Ryzen 9 3950X 16-Core Processor,3.5,32,16,64 GB DDR4,Navi 31 [Radeon RX 7900 XT/7900 XTX],1,21 GB,"1.8T HDD,223.6G NVME,894.3G SSD","Gigabyte Technology Co., Ltd. X570 AORUS PRO"
+tsubasa,tsubasa,2 x Intel(R) Xeon(R) Gold 6226,2.7,48,24,196 GB DDR4,-,0,-,1.8T SSD,Supermicro X11DGQ
+tupi1,tupi,Intel(R) Xeon(R) E5-2620 v4,2.1,16,8,256 GB DDR4,NVIDIA GeForce RTX 4090,1,24 GB,2.2T SSD,ASUSTeK COMPUTER INC. X99-A II
+tupi2,tupi,Intel(R) Xeon(R) E5-2620 v4,2.1,16,8,224 GB DDR4,NVIDIA GeForce RTX 4090,1,24 GB,"3.6T HDD,1.1T SSD",ASUSTeK COMPUTER INC. X99-DELUXE II
+tupi3,tupi,Intel(R) Core(TM) i9-14900KF,3.2,32,24,128 GB DDR5,NVIDIA GeForce RTX 4090,1,24 GB,1.8T NVME,"Gigabyte Technology Co., Ltd. Z790 UD AX"
+tupi4,tupi,Intel(R) Core(TM) i9-14900KF,3.2,32,24,128 GB DDR5,NVIDIA GeForce RTX 4090,1,24 GB,1.8T NVME,"Gigabyte Technology Co., Ltd. Z790 UD AX"
+tupi5,tupi,Intel(R) Core(TM) i9-14900KF,3.2,32,24,128 GB DDR5,NVIDIA GeForce RTX 4090,1,24 GB,"1.8T NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
+tupi6,tupi,Intel(R) Core(TM) i9-14900KF,3.2,32,24,128 GB DDR5,NVIDIA GeForce RTX 4090,1,24 GB,"1.8T NVME,1.7T SSD","Gigabyte Technology Co., Ltd. Z790 UD AX"
