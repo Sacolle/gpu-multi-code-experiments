@@ -97,13 +97,23 @@ Além disso, uma distribuição igual de threads por dimensão provavelmente tra
    
     factors <- list(
       ThreadConfig = amount_threads |>
-        map(\(x) Filter(\(x) map(x, log2) |> not_half(), fatoracoes3(x)) |> map_chr(\(l) paste(l, collapse = " "))) |>
+        map(\(x) Filter(\(y) map(y, log2) |> not_half(), fatoracoes3(x)) |> map_chr(\(l) paste(l, collapse = " "))) |>
         list_c() |>
         unique(), 
       BlockSize = c(32, 48, 64, 96, 128, 160)
     )
 
-    k_ex <- generate_experiment(factors, replications, seed) |> as_tibble() |>
+
+    factors_full <- list(
+      ThreadConfig = amount_threads |>
+        map(\(x) fatoracoes3(x) |> map_chr(\(l) paste(l, collapse = " "))) |>
+        list_c() |>
+        unique(), 
+      BlockSize = c(32, 48, 64, 96, 128, 160)
+    )
+
+  mk_exp <- function(f) {
+    generate_experiment(f, replications, seed) |> as_tibble() |>
       mutate(
     	BlockCount = num_of_blocks,
     	Iterations = iterations,
@@ -121,7 +131,13 @@ Além disso, uma distribuição igual de threads por dimensão provavelmente tra
       TotalThreads = ThreadX * ThreadY * ThreadZ
     )
 
+  }
+  k_ex <- mk_exp(factors)
   k_ex |> readr::write_csv(glue("./kernel-analysis/kernel-params.csv"))
+
+
+  kfull_ex <- mk_exp(factors_full)
+  kfull_ex |> readr::write_csv("./kernel-analysis/kernel-params-full.csv")
    
 #+END_SRC
 
@@ -151,6 +167,7 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
     "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
     "tupi5", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
     "poti1", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
+    "poti3", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "poti4", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
     "grace1", "2 x Grace A02", 3.4, 144, 144,
@@ -199,8 +216,36 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
               vals[[15]], vals[[14]])
     }) 
 
+  kernel_exp_full <- read_csv('./kernel-analysis/kernel-params-full.csv')
+
+  kfull_res <- machines |>
+    cross_join(kernel_exp_full) |>
+    mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
+    parse_files(FILE, \(lines){
+      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+      tribble(~Msamples, ~ExecTime, 
+              vals[[15]], vals[[14]])
+    }) 
+
 
 #+END_SRC
+
+Encontar quais as 3 melhores configurações de threads para cada bloco
+
+#+BEGIN_SRC R :session *R* :async yes 
+
+  best_perf <- kfull_res |>
+    mutate(ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ)) |>
+    arrange(desc(Msamples)) |>
+    distinct(Machine, BlockSize, ThreadName, .keep_all = TRUE) |>
+    group_by(Machine, BlockSize) |>
+    slice_head(n = 3) |>
+    select(Machine, BlockSize, TotalThreads, Msamples, ThreadX, ThreadY, ThreadZ) |>
+    readr::write_csv(paste0("./kernel-analysis/best-config.csv"))
+
+
+#+END_SRC
+
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
@@ -208,9 +253,13 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
     kt_msamples_plot <- kt |>
       select(-FILE) |>
       mutate(
-        Machine = str_sub(Machine, end = -2),
-        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ)
-      ) |>
+        #Machine = str_sub(Machine, end = -2),
+        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ),
+        ThreadName = factor(
+          ThreadName,
+          levels = unique(ThreadName[order(ThreadZ, ThreadY, ThreadX)])
+        )
+      )
      # group_by(across(-c(Msamples, ExecTime, Blocks))) |>
      # summarize(
      #   rep = n(),
@@ -223,16 +272,15 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
     #   ExecTime_sd = sd(ExecTime),
     #   ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
     #   .groups = "drop"
-    # ) |>
-      filter(BlockSize == 64)
+    # ) 
 
-    ggplot(kt_msamples_plot, aes(x = factor(ThreadName), y = Msamples, color = Machine)) +
+    ggplot(kt_msamples_plot, aes(x = ThreadName, y = Msamples, color = factor(BlockSize))) +
       #geom_point(alpha = 0.8) +
-      geom_jitter(alpha = 0.8, width = 0.1) +  
+      geom_jitter(alpha = 0.8, width = 0.1) +
       #geom_errorbar(aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine), width = 0.5) +
      # scale_x_continuous(breaks = x_breaks) +
       ylim(0, NA) +
-      facet_grid(Machine ~ TotalThreads,  scales = "free_x", space = "free_x") + #, scales = "free_y") + 
+      facet_grid(Machine ~ TotalThreads,  scales = "free", space = "free_x") + #, scales = "free_y") + 
       labs(
     	title = paste0("MSamples vs. Block Order"),
     	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
@@ -243,7 +291,7 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
       theme(legend.position = "bottom")
   }
 
-  msamples_plot(k_res)
+  msamples_plot(kfull_res)
 
 #+END_SRC
 

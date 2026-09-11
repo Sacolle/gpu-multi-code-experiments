@@ -157,7 +157,7 @@ haverá apenas 2^3 tasks, que pode afetar a execução.
   absorb_size = 8
   width = total_width - 2 * (border_size + absorb_size)
   seed = 0
-  time_step = 0.00001
+  time_step = 0.0001
   iterations = 20
   output = 5 # output every 5 steps
   replications = 6
@@ -199,16 +199,14 @@ haverá apenas 2^3 tasks, que pode afetar a execução.
               OutputTime = format(time_step * output, scientific = FALSE)
             ) |>
             select(-c(TotalThreads, Machine, BlockSize))
-          
+          #print(unique(res$BlockSeg))
           
           res |> readr::write_csv(glue("./ideal-seg/from-kernel-exp-{mach_name}.csv"))
   }
 
-
 #+END_SRC
 
 #+RESULTS:
-: ob_comint_async_R_file_/tmp/nix-shell.PWYpOg/babel-cvYsrv/R-DCRn1M
 
 
  
