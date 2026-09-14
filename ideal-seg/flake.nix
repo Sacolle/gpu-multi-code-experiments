@@ -11,8 +11,13 @@
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        StarPU = {
+            url = "github:Sacolle/nix-starpu";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         star-fletcher-main = {
-            url = "github:Sacolle/Star-Fletcher";
+            url = "github:Sacolle/star-fletcher";
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
@@ -28,7 +33,7 @@
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, flake-utils, star-fletcher, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, flake-utils, star-fletcher, StarPU, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
@@ -334,8 +339,10 @@
           exp-optimized-kernel-poti = exp-optimized-kernel ./from-kernel-exp-poti.csv {};
           exp-optimized-kernel-tupi = exp-optimized-kernel ./from-kernel-exp-tupi.csv {};
           exp-optimized-kernel-grace = exp-optimized-kernel ./from-kernel-exp-grace.csv {
-            cudaPackages = pkgs.cudaPackages_13;
+            cudaPackages = pkgs.cudaPackages_12_8;
             stdenv = pkgs.gcc13Stdenv;
+            # disable tests on the aarch machines
+            StarPU = StarPU.packages.${system}.default.overrideAttrs { doCheck = false; } ;
           };
           inherit
             experiment-using-cuda-12-2
