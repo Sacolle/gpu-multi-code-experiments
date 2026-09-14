@@ -4,6 +4,7 @@
     inputs = {
         nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
         experiments.url = "github:Sacolle/experiments-nix"; 
+        flake-utils.url = "github:numtide/flake-utils";
 
         star-fletcher = {
             url = "github:Sacolle/Star-Fletcher?ref=CUDA";
@@ -27,10 +28,10 @@
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, star-fletcher, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, flake-utils, star-fletcher, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
-        system = "x86_64-linux"; 
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
         pkgs24 = import nixpkgs24 { inherit system; config.allowUnfree = true; };
 
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
@@ -268,7 +269,7 @@
             stdenv = pkgs24.gcc13Stdenv;
         };
 
-        expOptimizedKernel = file: options: 
+        exp-optimized-kernel = file: options: 
           let
             my-star-fletcher = star-fletcher-main.packages.${system}.default.override ({
                 cudaPackages = pkgs24.cudaPackages_12_2;
@@ -289,6 +290,7 @@
             csvFile = file;
 
             preamble = ''
+                nvidia-smi
                 mkdir -p ${scratch-folder}
                 mkdir -p ${home-folder}
             '';
@@ -327,9 +329,21 @@
           };
     in
     {
-        packages.${system} = {
-            default = experiment-using-cuda-12-2;
-            inherit experiment-using-cuda-12-2 experiment-using-cuda-12-4 fletcher-base-experiment trace-no-cpu no-cpu-msamples;
+        packages = {
+          exp-optimized-kernel-cidia = exp-optimized-kernel ./from-kernel-exp-cidia.csv {};
+          exp-optimized-kernel-poti = exp-optimized-kernel ./from-kernel-exp-poti.csv {};
+          exp-optimized-kernel-tupi = exp-optimized-kernel ./from-kernel-exp-tupi.csv {};
+          exp-optimized-kernel-grace = exp-optimized-kernel ./from-kernel-exp-grace.csv {
+            cudaPackages = pkgs.cudaPackages_13;
+            stdenv = pkgs.gcc13Stdenv;
+          };
+          inherit
+            experiment-using-cuda-12-2
+            experiment-using-cuda-12-4
+            fletcher-base-experiment
+            trace-no-cpu
+            no-cpu-msamples
+          ;
         };
-    };
+    });
 }
