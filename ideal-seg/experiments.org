@@ -220,6 +220,8 @@ Dados da execução inicial.
    options(crayon.enabled = FALSE)
    source("libExp.R")
 
+  base_dir = "./gpu-multi-code-experiments/ideal-seg/results"
+
    ex_star_fletcher <- read_csv('./ideal-seg/ideal-block-segment.csv')
    ex_fletcher_base <- read_csv('./ideal-seg/base-test.csv')
 

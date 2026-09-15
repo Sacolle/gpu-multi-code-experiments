@@ -336,7 +336,9 @@
     {
         packages = {
           exp-optimized-kernel-cidia = exp-optimized-kernel ./from-kernel-exp-cidia.csv {};
-          exp-optimized-kernel-poti = exp-optimized-kernel ./from-kernel-exp-poti.csv {};
+          exp-optimized-kernel-poti = exp-optimized-kernel ./from-kernel-exp-poti.csv {
+            StarPU = StarPU.packages.${system}.default.overrideAttrs { doCheck = false; } ;
+          };
           exp-optimized-kernel-tupi = exp-optimized-kernel ./from-kernel-exp-tupi.csv {};
           exp-optimized-kernel-grace = exp-optimized-kernel ./from-kernel-exp-grace.csv {
             cudaPackages = pkgs.cudaPackages_12_8;
