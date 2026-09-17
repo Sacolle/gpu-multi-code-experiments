@@ -22,6 +22,14 @@
         pkgs = import nixpkgs { inherit system; };
     
         kernel-test = star-fletcher.packages.${system}.kernel-test.overrideAttrs { doCheck = false; } ;
+        kernel-test-z-axis = star-fletcher.packages.${system}.kernel-test
+          .overrideAttrs (old: {
+            doCheck = false;
+            patches = (old.patches or []) ++ [
+                ./iter-z.patch
+            ];
+            patchFlags = [ "-p2" ];
+          });
         nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
 
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
@@ -51,6 +59,35 @@
             in
             ''
                 ${nixglhost} ${program} ${BlockCount} ${BlockSize} ${Iterations} ${ThreadX} ${ThreadY} ${ThreadZ} 2>&1 > ${stdout-file}
+                cat ${stdout-file}
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
+        kernel-func-z =   
+          let
+            program = "${kernel-test-z-axis}/bin/kernel-test";
+            experiment-name = "fletcher-kernel-analysis-z-axis";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./kenrel-params-full-2.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { ThreadX, ThreadY, BlockSize, Blocks, BlockCount, Iterations, TotalThreads }: 
+              let
+                filename = "${ThreadX}-${ThreadY}-${BlockSize}-${Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+            in
+            ''
+                ${nixglhost} ${program} ${BlockCount} ${BlockSize} ${Iterations} ${ThreadX} ${ThreadY} 1 2>&1 > ${stdout-file}
                 cat ${stdout-file}
                 cp ${stdout-file} ${home-folder}
             '';
