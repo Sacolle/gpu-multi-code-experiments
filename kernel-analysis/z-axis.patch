@@ -1,0 +1,46 @@
+diff --git a/tests/kernel-opt/kernel.cu b/tests/kernel-opt/kernel.cu
+index 70e6e55..ad9f3e1 100644
+--- a/tests/kernel-opt/kernel.cu
++++ b/tests/kernel-opt/kernel.cu
+@@ -96,15 +96,16 @@ __global__ void rtm_cuda_kernel_impl(struct rtm_kernel_params p) {
+     #define qwip0jp1kp1 ((const FP*) STARPU_BLOCK_GET_PTR(p.ptrs[50]))
+     #define qwcentralt2 ((const FP*) STARPU_BLOCK_GET_PTR(p.ptrs[51]))
+ 
++    for(size_t z = 0; z < p.cube_width_z; z++){
+ 
+ 
+     // 1. Calculate thread's 3D coordinate
+     const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
+     const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
+-    const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
++    // const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+ 
+     // 2. Bounds check against the total cube dimension
+-    if (x >= p.cube_width_x || y >= p.cube_width_y || z >= p.cube_width_z) {
++    if (x >= p.cube_width_x || y >= p.cube_width_y) {
+         return;
+     }
+ 
+@@ -201,6 +202,8 @@ __global__ void rtm_cuda_kernel_impl(struct rtm_kernel_params p) {
+     // new p and q
+     pwwrite[idx] = FP_LIT(2.0) * pwcentralt1[idx] - pwcentralt2[idx] + rhsp * p.dt * p.dt;
+     qwwrite[idx] = FP_LIT(2.0) * qwcentralt1[idx] - qwcentralt2[idx] + rhsq * p.dt * p.dt;
++
++    }
+ }
+ 
+ 
+@@ -208,11 +211,10 @@ extern "C" void rtm_kernel_cuda(struct rtm_kernel_params* p){
+ 
+     // Define CUDA Grid and Block Dimensions
+     // A 3D block of 8x8x8 is 512 threads, which is a standard starting point for 3D stencils.
+-    dim3 threads_per_block(thread_x, thread_y, thread_z); 
++    dim3 threads_per_block(thread_x, thread_y); 
+     dim3 num_blocks(
+         (p->cube_width_x + threads_per_block.x - 1) / threads_per_block.x,
+-        (p->cube_width_y + threads_per_block.y - 1) / threads_per_block.y,
+-        (p->cube_width_z + threads_per_block.z - 1) / threads_per_block.z
++        (p->cube_width_y + threads_per_block.y - 1) / threads_per_block.y
+     );
+ 
+     // Launch the kernel asynchronously on StarPU's managed stream

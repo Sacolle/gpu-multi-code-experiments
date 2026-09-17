@@ -26,9 +26,9 @@
           .overrideAttrs (old: {
             doCheck = false;
             patches = (old.patches or []) ++ [
-                ./iter-z.patch
+                ./z-axis.patch
             ];
-            patchFlags = [ "-p2" ];
+            #patchFlags = [ "-p2" ];
           });
         nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
 
@@ -74,7 +74,7 @@
           experiments.lib.mkExperiment {
             inherit pkgs; 
             
-            csvFile = ./kenrel-params-full-2.csv;
+            csvFile = ./kernel-params-full-2.csv;
 
             preamble = ''
                 mkdir -p ${scratch-folder}
@@ -97,6 +97,7 @@
         packages = {
           kernel-base = kernel-func ./kernel-params.csv;
           kernel-full = kernel-func ./kernel-params-full.csv;
+		inherit kernel-func-z;
         };
     });
 }
