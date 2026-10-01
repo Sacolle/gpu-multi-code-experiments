@@ -160,7 +160,7 @@ haverá apenas 2^3 tasks, que pode afetar a execução.
   time_step = 0.0001
   iterations = 20
   output = 5 # output every 5 steps
-  replications = 6
+  replications = 3
 
   # Need to take the block size and calculate how many segmentations it can produce
   # use divisors
@@ -208,9 +208,40 @@ haverá apenas 2^3 tasks, que pode afetar a execução.
 
 #+RESULTS:
 
+#+BEGIN_SRC  R :session *R* :async yes
+  ex_kernel_opt |>
+    mutate(
+      BlockSeg = total_width / as.numeric(BlockSize),
+      Width = width,
+      AbsorbSize = absorb_size,
+      TotalTime = format(time_step * iterations, scientific = FALSE),
+      TimeStep = format(time_step, scientific = FALSE),
+      OutputTime = format(time_step * output, scientific = FALSE)
+    ) |>
+    #select(-across(Blocks, BlockSize)) |>
+    unique() |>
+    readr::write_csv(glue("./ideal-seg/trace-partition.csv"))
+  
+
+#+END_SRC
+
+#+RESULTS:
+: ob_comint_async_R_file_/tmp/nix-shell.4vBxre/babel-ONESeD/R-zrDaKt
+
+
+
+
+** Kernel versions
+
+| machine | CUDA version | driver version | Model                            |
+|---------+--------------+----------------+----------------------------------|
+| cidia   |         12.3 |      545.23.08 | NVIDIA GeForce RTX 2080 Ti 11 GB |
+| tupi    |         13.1 |      590.44.01 | NVIDIA GeForce RTX 4090 24 GB    |
+| poti    |         13.1 |      590.44.01 | NVIDIA GeForce RTX 4070 12 GB    |
+| grace   |         13.1 |      590.44.01 | NVIDIA L40S 46 GB                |
 
  
- 
+
 * Análise de Dados
 
 
@@ -220,7 +251,7 @@ Dados da execução inicial.
    options(crayon.enabled = FALSE)
    source("libExp.R")
 
-  base_dir = "./gpu-multi-code-experiments/ideal-seg/results"
+  base_dir = "./ideal-seg/results"
 
    ex_star_fletcher <- read_csv('./ideal-seg/ideal-block-segment.csv')
    ex_fletcher_base <- read_csv('./ideal-seg/base-test.csv')
@@ -255,15 +286,18 @@ Dados da execução inicial.
       x_breaks <- sort(unique(sf_res$Order))
 
       max_fb <- fb_res |>
-  	filter(WithIO == io_state) |>
-  	group_by(Processor) |>
-  	summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
-  	# Join back to machines so the hline can inherit the exact Machine color
-  	#left_join(machines |> select(Machine, Processor), by = "Processor")
+        filter(WithIO == io_state) |>
+        mutate(Machine = sub("\\d+$", "", Machine)) |>
+        group_by(Machine) |>
+        summarize(Max_Msamples = max(Msamples, na.rm = TRUE), Min_Msamples = min(Msamples, na.rm = TRUE), .groups = "drop") #|>
+
+      sf_plot <- sf_res |>
+        mutate(Machine = sub("\\d+$", "", Machine)) |>
+	filter(WithIO == io_state)
       
-      ggplot(sf_res |> filter(WithIO == io_state) |> filter(Schedulers == "dmdar" | Schedulers == "lws"), aes(x = Order, y = Msamples, color = Processor)) +
+      ggplot(sf_plot, aes(x = Order, y = Msamples, color = Machine)) +
       geom_jitter(width = 2, alpha = 0.3) +
-      geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Processor), linetype = "dashed", linewidth = 0.8) +
+      geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
       #geom_hline(yintercept = max_samples, color = "red", linewidth = 0.5) +
       scale_x_continuous(breaks = x_breaks) +
       #scale_y_continuous(trans='log2') +
@@ -284,4 +318,63 @@ Dados da execução inicial.
       
 #+END_SRC
 
-#+RESULTS:
+
+** Análise do kernel optimizado
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+   options(crayon.enabled = FALSE)
+   source("libExp.R")
+
+  base_dir = "./ideal-seg/results"
+
+  tables <- c("grace2", "tupi6", "poti5") |> map(function(mach){
+    mach_name <- sub("\\d+$", "", mach)
+    ex <- read_csv(glue('./ideal-seg/from-kernel-exp-{mach_name}.csv'))
+    
+    ex |>
+      mutate(
+        Machine = mach_name,
+        Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg,
+        FILE = glue("{base_dir}/experiment-optimized-kernel/{mach}/stdout-{Schedulers}-{BlockSeg}-{WithIO}-{ThreadX}-{ThreadY}-{ThreadZ}-{Blocks}.out")
+      ) |>
+    parse_files(FILE, function(lines){
+      msamples <-  lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+      exec_time <-  lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+      tribble(~Msamples, ~ExecTime,
+              msamples[1], exec_time[1])
+    })
+  }) |> list_rbind()
+
+#+END_SRC
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+    plot_msamples <- function(table, io_state){
+      x_breaks <- sort(unique(table$Order))
+
+
+      sf_plot <- table |>
+        mutate(ThreadName = factor(glue("{ThreadX}-{ThreadY}-{ThreadZ}"))) |>
+	filter(WithIO == io_state)
+      
+      ggplot(sf_plot, aes(x = Order, y = Msamples, color = factor(ThreadName))) +
+      geom_jitter(width = 2, alpha = 0.3) +
+      scale_x_continuous(breaks = x_breaks) +
+      #scale_y_continuous(trans='log2') +
+      ylim(0,NA)+
+      facet_grid(Machine ~ Schedulers) + 
+      labs(
+  	title = paste0("Msamples vs. Block Order when WithIO = ", io_state),
+  	subtitle = "Faceted by Scheduler",
+  	x = "Block Size",
+  	y = "Msamples/s"
+      ) +
+      theme_bw(base_size=15) +
+      theme(legend.position = "bottom")
+  }
+
+  plot_msamples(tables, 0)
+      
+#+END_SRC

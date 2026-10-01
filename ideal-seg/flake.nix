@@ -21,6 +21,11 @@
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        star-fletcher-optimized = {
+            url = "github:Sacolle/star-fletcher?ref=segmentacao";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         fletcher-base = {
           url = "github:Sacolle/fletcher-base?dir=original";
           inputs.nixpkgs.follows = "nixpkgs";
@@ -33,7 +38,7 @@
 
         nixpkgs24.url = "github:nixos/nixpkgs/1da52dd49a127ad74486b135898da2cef8c62665";
     };
-    outputs = { self, nixpkgs, experiments, flake-utils, star-fletcher, StarPU, star-fletcher-main, fletcher-base, nix-gl-host, nixpkgs24 }: 
+    outputs = { self, nixpkgs, experiments, flake-utils, star-fletcher, StarPU, star-fletcher-main, star-fletcher-optimized, fletcher-base, nix-gl-host, nixpkgs24 }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
@@ -47,9 +52,7 @@
 
         fletcher-base-experiment =
           let
-            my-fletcher-base = fletcher-base.packages.${system}.default.override {
-              
-            };
+            my-fletcher-base = fletcher-base.packages.${system}.default.override { };
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-max-size";
             scratch-folder = mk-scratch-folder experiment-name;
@@ -332,6 +335,121 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+
+        exp-partition = file: options: name:
+          let
+            my-star-fletcher = star-fletcher-optimized.packages.${system}.default.override ({
+                cudaPackages = pkgs.cudaPackages_13_0;
+                stdenv = pkgs.gcc13Stdenv;
+                enableCUDA = true;
+                enableTrace = false;
+                compileAsRelease = true;
+            } // options);
+            program = "${my-star-fletcher}/bin/star-fletcher";
+
+            experiment-name = name;
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = file;
+
+            preamble = ''
+                nvidia-smi
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { 
+              WithIO, Schedulers, Blocks,
+                ThreadX,ThreadY,ThreadZ,
+                BlockSeg,Width,AbsorbSize,
+                TotalTime,TimeStep,OutputTime,
+                ...
+            }: 
+              let
+                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${ThreadX}-${ThreadY}-${ThreadZ}-${Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+            in
+              ''
+                CUDA_THREAD_X=${ThreadX} \
+                CUDA_THREAD_Y=${ThreadY} \
+                CUDA_THREAD_Z=${ThreadZ} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
+        trace-partition = 
+          let
+            my-star-fletcher = star-fletcher-optimized.packages.${system}.default.override ({
+                cudaPackages = pkgs.cudaPackages_13_0;
+                stdenv = pkgs.gcc13Stdenv;
+                enableCUDA = true;
+                enableTrace = true;
+                compileAsRelease = true;
+            } // options);
+            program = "${my-star-fletcher}/bin/star-fletcher";
+            experiment-name = "partition-trace";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./trace-partition.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = { WithIO, Schedulers, BlockSeg, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, ... }: 
+              let
+
+                filename = "${WithIO}-${Schedulers}-${BlockSeg}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+                prof-name = "prof_file_${filename}";
+		        prof-file = "${scratch-folder}/${prof-name}_0";
+            in
+            ''
+                STARPU_TRACE_BUFFER_SIZE=4096 \
+                STARPU_FXT_TRACE=1 \
+                STARPU_FXT_PREFIX=${scratch-folder} \
+                STARPU_FXT_SUFFIX=${prof-name} \
+                STARPU_SCHED=${Schedulers} \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=0 \
+                ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+
+                cat ${stdout-file}
+
+                rm ${rsf-file} ${rsf-at-file}
+
+                cp ${stdout-file} ${home-folder}
+                cp ${prof-file} ${home-folder}
+            '';
+          };
     in
     {
         packages = {
@@ -346,11 +464,30 @@
             # disable tests on the aarch machines
             StarPU = StarPU.packages.${system}.default.overrideAttrs { doCheck = false; } ;
           };
+
+          exp-partition-cidia = exp-partition ./from-kernel-exp-cidia.csv {
+            cudaPackages = pkgs24.cudaPackages_12_2;
+            stdenv = pkgs24.gcc12Stdenv;
+          } "experiment-partition";
+          exp-partition-poti = exp-partition ./from-kernel-exp-poti.csv {} "experiment-partition";
+          exp-partition-tupi = exp-partition ./from-kernel-exp-tupi.csv {} "experiment-partition";
+          exp-partition-grace = exp-partition ./from-kernel-exp-grace.csv {} "experiment-partition";
+
+          exp-partition-nocpu-cidia = exp-partition ./from-kernel-exp-cidia.csv {
+            cudaPackages = pkgs24.cudaPackages_12_2;
+            stdenv = pkgs24.gcc12Stdenv;
+            disableCPUKernel = true;
+          } "experiment-partition-no-cpu";
+          exp-partition-nocpu-poti = exp-partition ./from-kernel-exp-poti.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
+          exp-partition-nocpu-tupi = exp-partition ./from-kernel-exp-tupi.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
+          exp-partition-nocpu-grace = exp-partition ./from-kernel-exp-grace.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
+
           inherit
             experiment-using-cuda-12-2
             experiment-using-cuda-12-4
             fletcher-base-experiment
             trace-no-cpu
+            trace-partition
             no-cpu-msamples
           ;
         };
