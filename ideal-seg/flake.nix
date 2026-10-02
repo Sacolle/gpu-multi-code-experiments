@@ -344,6 +344,7 @@
                 enableCUDA = true;
                 enableTrace = false;
                 compileAsRelease = true;
+                cuda_arch = "sm_89";
             } // options);
             program = "${my-star-fletcher}/bin/star-fletcher";
 
@@ -395,7 +396,7 @@
             '';
           };
 
-        trace-partition = 
+        trace-partition = options: 
           let
             my-star-fletcher = star-fletcher-optimized.packages.${system}.default.override ({
                 cudaPackages = pkgs.cudaPackages_13_0;
@@ -403,6 +404,7 @@
                 enableCUDA = true;
                 enableTrace = true;
                 compileAsRelease = true;
+                cuda_arch = "sm_89";
             } // options);
             program = "${my-star-fletcher}/bin/star-fletcher";
             experiment-name = "partition-trace";
@@ -468,6 +470,7 @@
           exp-partition-cidia = exp-partition ./from-kernel-exp-cidia.csv {
             cudaPackages = pkgs24.cudaPackages_12_2;
             stdenv = pkgs24.gcc12Stdenv;
+            cuda_arch = "sm_75";
           } "experiment-partition";
           exp-partition-poti = exp-partition ./from-kernel-exp-poti.csv {} "experiment-partition";
           exp-partition-tupi = exp-partition ./from-kernel-exp-tupi.csv {} "experiment-partition";
@@ -477,17 +480,27 @@
             cudaPackages = pkgs24.cudaPackages_12_2;
             stdenv = pkgs24.gcc12Stdenv;
             disableCPUKernel = true;
+            cuda_arch = "sm_75";
           } "experiment-partition-no-cpu";
           exp-partition-nocpu-poti = exp-partition ./from-kernel-exp-poti.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
           exp-partition-nocpu-tupi = exp-partition ./from-kernel-exp-tupi.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
           exp-partition-nocpu-grace = exp-partition ./from-kernel-exp-grace.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
+
+          trace-partition-13 = trace-partition {};
+          trace-partition-12-2 = trace-partition {
+                cudaPackages = pkgs24.cudaPackages_12_2;
+                stdenv = pkgs24.gcc12Stdenv;
+                enableCUDA = true;
+                enableTrace = true;
+                compileAsRelease = true;
+                cuda_arch = "sm_75";
+          };
 
           inherit
             experiment-using-cuda-12-2
             experiment-using-cuda-12-4
             fletcher-base-experiment
             trace-no-cpu
-            trace-partition
             no-cpu-msamples
           ;
         };
