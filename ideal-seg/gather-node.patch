@@ -1,0 +1,63 @@
+diff --git a/src/main.c b/src/main.c
+index d538967..5fda377 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -66,6 +66,14 @@ static inline void rotate_children_for_next_iter(starpu_data_handle_t (*children
+     children[0] = tmp;
+ }
+ 
++// O gathering node é onde o StarPU executa a partição/despartição read-only. Para handles com
++// home_node = -1 o padrão é a STARPU_MAIN_RAM, o que faria cada cubo escrito na GPU ir inteiro
++// para a RAM só para as faces voltarem para a GPU. -1 mantém o padrão do StarPU.
++static inline void plan_cube_partition(starpu_data_handle_t handle, starpu_data_handle_t children[CUBE_FACE_NPARTS], int gathering_node){
++    if(gathering_node >= 0)
++        starpu_data_set_gathering_node(handle, (unsigned) gathering_node);
++    starpu_data_partition_plan(handle, &g_cube_face_filter, children);
++}
+ 
+ typedef struct dump_block_args {
+     size_t i;
+@@ -421,6 +429,21 @@ int main(int argc, char **argv){
+     int ret = starpu_init(NULL);
+     STARPU_CHECK_RETURN_VALUE(ret, "starpu_init");
+ 
++    // Com exatamente uma GPU, ela vira o gathering node das ondas (as partições acontecem no lugar,
++    // na memória da GPU). Sem GPU ou com várias, fica o padrão do StarPU.
++    int gathering_node = -1;
++#ifdef CUDA_BACKEND
++    if(starpu_memory_nodes_get_count_by_kind(STARPU_CUDA_RAM) == 1){
++        unsigned cuda_node;
++        starpu_memory_node_get_ids_by_type(STARPU_CUDA_RAM, &cuda_node, 1);
++        gathering_node = (int) cuda_node;
++    }
++#endif
++    if(gathering_node >= 0)
++        printf("Gathering node: %d (GPU)\n", gathering_node);
++    else
++        printf("Gathering node: StarPU default\n");
++
+     //init the IO here
+     TRY(io_state_init(bin_filename, 4096, total_saved_moments, g_volume_width * g_volume_width * g_volume_width));
+ 
+@@ -561,8 +584,8 @@ int main(int argc, char **argv){
+             }
+             BLOCK_REGISTER(p_wave_iter[iteration] + idx, p_buf);
+             BLOCK_REGISTER(q_wave_iter[iteration] + idx, q_buf);
+-            starpu_data_partition_plan(p_wave_iter[iteration][idx], &g_cube_face_filter, p_wave_children[iteration][idx]);
+-            starpu_data_partition_plan(q_wave_iter[iteration][idx], &g_cube_face_filter, q_wave_children[iteration][idx]);
++            plan_cube_partition(p_wave_iter[iteration][idx], p_wave_children[iteration][idx], gathering_node);
++            plan_cube_partition(q_wave_iter[iteration][idx], q_wave_children[iteration][idx], gathering_node);
+         }
+     }
+ 
+@@ -620,8 +643,8 @@ int main(int argc, char **argv){
+                 g_cube_width, g_cube_width, g_cube_width, sizeof(FP)
+             );
+ 
+-            starpu_data_partition_plan(p_wave_iter[0][idx], &g_cube_face_filter, p_wave_children[0][idx]);
+-            starpu_data_partition_plan(q_wave_iter[0][idx], &g_cube_face_filter, q_wave_children[0][idx]);
++            plan_cube_partition(p_wave_iter[0][idx], p_wave_children[0][idx], gathering_node);
++            plan_cube_partition(q_wave_iter[0][idx], q_wave_children[0][idx], gathering_node);
+ 
+             struct starpu_task* task = starpu_task_create();
+             task->name = "wave_propagation";
