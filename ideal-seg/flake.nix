@@ -396,7 +396,7 @@
             '';
           };
 
-        trace-partition = options: attrs-opts: 
+        trace-partition = name: options: attrs-opts: 
           let
             my-star-fletcher = (star-fletcher-optimized.packages.${system}.default.overrideAttrs attrs-opts).override ({
                 cudaPackages = pkgs.cudaPackages_13_0;
@@ -407,7 +407,7 @@
                 cuda_arch = "sm_89";
             } // options);
             program = "${my-star-fletcher}/bin/star-fletcher";
-            experiment-name = "partition-trace";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -421,10 +421,10 @@
                 mkdir -p ${home-folder}
             '';
             
-            bashRunFn = { WithIO, Schedulers, BlockSeg, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, ... }: 
+            bashRunFn = { Schedulers, BlockSeg, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, ... }: 
               let
 
-                filename = "${WithIO}-${Schedulers}-${BlockSeg}";
+                filename = "${Schedulers}-${BlockSeg}";
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
@@ -448,8 +448,10 @@
 
                 rm ${rsf-file} ${rsf-at-file}
 
+                gzip -f ${prof-file}
+
                 cp ${stdout-file} ${home-folder}
-                cp ${prof-file} ${home-folder}
+                cp ${prof-file}.gz ${home-folder}
             '';
           };
     in
@@ -486,13 +488,13 @@
           exp-partition-nocpu-tupi = exp-partition ./from-kernel-exp-tupi.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
           exp-partition-nocpu-grace = exp-partition ./from-kernel-exp-grace.csv { disableCPUKernel = true; } "experiment-partition-no-cpu";
 
-          trace-partition-13 = trace-partition {} {};
-          trace-partition-13-gpu = trace-partition {} (old: {
+          trace-partition-13 = trace-partition "trace-partition" {} {};
+          trace-partition-13-gpu = trace-partition "trace-partition-gpu" {} (old: {
             patches = (old.patches or []) ++ [
               ./gather-node.patch
             ];
           });
-            
+           /* 
           trace-partition-12-2 = trace-partition {
                 cudaPackages = pkgs24.cudaPackages_12_2;
                 stdenv = pkgs24.gcc12Stdenv;
@@ -500,7 +502,7 @@
                 enableTrace = true;
                 compileAsRelease = true;
                 cuda_arch = "sm_75";
-          } {};
+          } {};*/
 
           inherit
             experiment-using-cuda-12-2
