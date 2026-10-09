@@ -208,25 +208,23 @@ haverá apenas 2^3 tasks, que pode afetar a execução.
 
 #+RESULTS:
 
-#+BEGIN_SRC  R :session *R* :async yes
+#+BEGIN_SRC  R :session *R* :async yes :results output silent
+  local_width = total_width / 2
+  local_iterations = 10
+
   ex_kernel_opt |>
     mutate(
-      BlockSeg = total_width / as.numeric(BlockSize),
-      Width = width,
+      BlockSeg =  local_width / (as.numeric(as.character(BlockSize)) / 2),
+      Width = local_width - 2 * (absorb_size + border_size),
       AbsorbSize = absorb_size,
-      TotalTime = format(time_step * iterations, scientific = FALSE),
+      TotalTime = format(time_step * local_iterations, scientific = FALSE),
       TimeStep = format(time_step, scientific = FALSE),
       OutputTime = format(time_step * output, scientific = FALSE)
     ) |>
-    #select(-across(Blocks, BlockSize)) |>
+    select(-c(Blocks, BlockSize)) |>
     unique() |>
     readr::write_csv(glue("./ideal-seg/trace-partition.csv"))
-  
-
 #+END_SRC
-
-#+RESULTS:
-: ob_comint_async_R_file_/tmp/nix-shell.4vBxre/babel-ONESeD/R-zrDaKt
 
 
 
