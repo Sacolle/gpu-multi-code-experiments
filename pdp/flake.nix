@@ -69,8 +69,6 @@
               csvFile = ./fletcher-base-exp.csv;
 
               preamble = ''
-
-                TODO: add the layout stuff
                 mkdir -p ${scratch-folder}
                 mkdir -p ${home-folder}
                 '';
@@ -345,6 +343,28 @@
               preamble = ''
                 mkdir -p ${scratch-folder}
                 mkdir -p ${home-folder}
+                mkdir -p ${target-folder}
+
+                {
+                  echo "== lscpu"
+                  ${pkgs.util-linux}/bin/lscpu
+
+                  echo "== lscpu -e (one line per logical CPU)"
+                  ${pkgs.util-linux}/bin/lscpu -e=CPU,CORE,SOCKET,NODE,MAXMHZ,MINMHZ
+
+                  echo "== hybrid Intel: P-core / E-core CPU ids"
+                  echo "P-cores: $(cat /sys/devices/cpu_core/cpus 2>/dev/null || echo none)"
+                  echo "E-cores: $(cat /sys/devices/cpu_atom/cpus 2>/dev/null || echo none)"
+
+                  echo "== hwloc cpukinds"
+                  ${pkgs.hwloc}/bin/lstopo-no-graphics --cpukinds
+
+                  echo "== hwloc topology"
+                  ${pkgs.hwloc}/bin/lstopo-no-graphics --no-io
+
+                  echo "== NUMA"
+                  ${pkgs.numactl}/bin/numactl --hardware
+                } > ${home-folder}/cpu-info.txt 2>&1 || true
               '';
 
             bashRunFn = {
