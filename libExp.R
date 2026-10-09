@@ -1,11 +1,12 @@
 library(DoE.base)
 library(glue)
 library(tidyverse)
-library(tidyverse)
 library(ggplot2)
 library(dplyr)
 library(patchwork)
 library(stringr)
+library(numbers)
+library(purrr)
 
 
 # function to make the experiments
