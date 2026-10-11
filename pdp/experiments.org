@@ -111,6 +111,7 @@ Experimento de escalabilidade
      as_tibble() |>
      mutate(
        WithIO = if_else(OutputTime == 0, 0, 1),
+       OutputTime = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))),
        Width = width,
        AbsorbSize = absorb_size,
        TotalTime = format(time_step * iterations, scientific = FALSE),
