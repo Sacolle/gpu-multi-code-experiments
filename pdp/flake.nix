@@ -100,6 +100,54 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+
+        fletcher-base-cpu-bind =
+          let
+            program = "${my-fletcher-base}/bin/fletcher-base";
+            experiment-name = "fletcher-base-pdp-exp-bind";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+            experiments.lib.mkExperiment {
+              inherit pkgs;
+
+              csvFile = ./fletcher-base-exp.csv;
+
+              preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+                '';
+
+              bashRunFn = {
+                WithIO, Blocks, Width, AbsorbSize, TotalTime, TimeStep, OutputTime, Schedulers
+              }: 
+                let
+                  tt = amountWritten OutputTime TimeStep;
+                  filename = "${Schedulers}-${tt}-${Blocks}";
+                  stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                  rsf-file = "${scratch-folder}/${filename}.rsf";
+                  rsf-at-file = "${rsf-file}@";
+                in
+                  ''
+                NCORES=$(${pkgs.util-linux}/bin/lscpu -p=core,socket | grep -v '^#' | sort -u | wc -l) \
+                env -u OMP_NUM_THREADS -u OMP_PLACES -u GOMP_CPU_AFFINITY -u KMP_AFFINITY \
+                OMP_SCHEDULE=${Schedulers} \
+                OMP_PROC_BIND=close \
+                OMP_PLACES=cores \
+                OMP_NUM_THREADS=$NCORES \
+                OMP_DISPLAY_ENV=true \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${OutputTime} > ${stdout-file} 2>&1 
+
+                cat ${stdout-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
         /*
         fletcher-base-cpu-p-core = name: config:
           let
