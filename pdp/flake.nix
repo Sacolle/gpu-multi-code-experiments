@@ -54,7 +54,7 @@
         mk-scratch-folder = name: "$SCRATCH/${name}/$HOSTNAME";
         mk-home-folder = name: "~/experimental-results/${name}/$HOSTNAME";
 
-        amountWritten = time: base: toString ((builtins.fromJSON time) / (builtins.fromJSON base));
+        amountWritten = time: base: toString (builtins.floor ((builtins.fromJSON time) / (builtins.fromJSON base)));
 
         fletcher-base-cpu =
           let
@@ -460,7 +460,9 @@
     in
     {
         packages = {
+            # test = my-star-fletcher.override { compileAsRelease = false; };
           inherit
+            # my-star-fletcher
             fletcher-base-cpu
             star-fletcher-cpu
             star-fletcher-cpu-trace
