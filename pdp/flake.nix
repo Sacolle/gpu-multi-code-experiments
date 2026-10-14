@@ -129,7 +129,7 @@
                   rsf-at-file = "${rsf-file}@";
                 in
                   ''
-                NCORES=$(${pkgs.util-linux}/bin/lscpu -p=core,socket | grep -v '^#' | sort -u | wc -l) \
+                NCORES=$(${pkgs.util-linux}/bin/lscpu -p=core,socket | grep -v '^#' | sort -u | wc -l)
                 env -u OMP_NUM_THREADS -u OMP_PLACES -u GOMP_CPU_AFFINITY -u KMP_AFFINITY \
                 OMP_SCHEDULE=${Schedulers} \
                 OMP_PROC_BIND=close \
@@ -148,90 +148,56 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        /*
-        fletcher-base-cpu-p-core = name: config:
+
+        fletcher-base-cpu-scalability = file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
-            experiment-name = name;
+            experiment-name = "fletcher-base-pdp-exp-scale";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
             experiments.lib.mkExperiment {
               inherit pkgs;
 
-              csvFile = ./fletcher-base-fix-size.csv;
+              csvFile = file;
 
               preamble = ''
                 mkdir -p ${scratch-folder}
                 mkdir -p ${home-folder}
                 '';
 
-              bashRunFn = { WithIO, Blocks, Width, AbsorbSize, TotalTime, TimeStep, OutputTime }: 
-              let
-                filename = "${WithIO}-${tail1 Blocks}";
-                stdout-file = "${scratch-folder}/stdout-${filename}.out";
-                rsf-file = "${scratch-folder}/${filename}.rsf";
-                rsf-at-file = "${rsf-file}@";
-            in
-              ''
-                ${config} \
+              bashRunFn = {
+                NumCPUs, OutputTime, Blocks, WithIO, Width, AbsorbSize, TotalTime, TimeStep, SMT, CpuList, Schedulers
+              }:
+                let
+                  tt = amountWritten OutputTime TimeStep;
+                  filename = "${NumCPUs}-${Schedulers}-${tt}-${Blocks}";
+                  stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                  rsf-file = "${scratch-folder}/${filename}.rsf";
+                  rsf-at-file = "${rsf-file}@";
+                  # "0 2 4" -> "{0},{2},{4}": one place per CPU, in the order of the csv
+                  places = "{" + pkgs.lib.concatStringsSep "},{" (pkgs.lib.splitString " " CpuList) + "}";
+                in
+                  ''
+                env -u OMP_NUM_THREADS -u OMP_PLACES -u GOMP_CPU_AFFINITY -u KMP_AFFINITY \
+                OMP_SCHEDULE=${Schedulers} \
+                OMP_PROC_BIND=close \
+                OMP_PLACES="${places}" \
+                OMP_NUM_THREADS=${NumCPUs} \
+                OMP_DISPLAY_ENV=true \
+                OMP_DISPLAY_AFFINITY=true \
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
                 ENABLE_IO=${WithIO} \
                 ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
+                ${TimeStep} ${TotalTime} ${OutputTime} > ${stdout-file} 2>&1 
 
                 cat ${stdout-file}
                 ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
                 cp ${stdout-file} ${home-folder}
             '';
-            };
-        fletcher-base-cpu-tupi = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-tupi" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
-        fletcher-base-cpu-poti = fletcher-base-cpu-p-core "fletcher-base-cpu-fix-size-p-core-poti" ''OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" OMP_PROC_BIND=true OMP_NUM_THREADS=8''; 
-
-        fletcher-base-cpu-p-core-dynamic =
-          let
-            program = "${my-fletcher-base-dynamic}/bin/fletcher-base";
-            experiment-name = "fletcher-base-cpu-fix-size-p-core-dynamic";
-            scratch-folder = mk-scratch-folder experiment-name;
-            home-folder = mk-home-folder experiment-name;
-          in
-            experiments.lib.mkExperiment {
-              inherit pkgs;
-
-              csvFile = ./fletcher-base-fix-size.csv;
-
-              preamble = ''
-                mkdir -p ${scratch-folder}
-                mkdir -p ${home-folder}
-                '';
-
-              bashRunFn = { WithIO, Blocks, Width, AbsorbSize, TotalTime, TimeStep, OutputTime }: 
-              let
-                filename = "${WithIO}-${tail1 Blocks}";
-                stdout-file = "${scratch-folder}/stdout-${filename}.out";
-                rsf-file = "${scratch-folder}/${filename}.rsf";
-                rsf-at-file = "${rsf-file}@";
-            in
-              ''
-                OMP_PLACES="{0},{2},{4},{6},{8},{10},{12},{14}" \
-                OMP_PROC_BIND=true \
-                OMP_NUM_THREADS=8 \
-                OUTPUT_FOLDER=${scratch-folder} \
-                OUTPUT_FILE=${filename} \
-                ENABLE_IO=${WithIO} \
-                ${program} TTI ${Width} ${Width} ${Width} \
-                ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${OutputTime} 2>&1 > ${stdout-file}
-
-                cat ${stdout-file}
-                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
-                cp ${stdout-file} ${home-folder}
-            '';
-            };
-         */
-
+          };
         
         star-fletcher-cpu =  
           let
@@ -266,58 +232,70 @@
                 ENABLE_IO=${WithIO} \
                 ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} > ${stdout-file} 2>&1 
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} > ${stdout-file} 2>&1
                 cat ${stdout-file}
                 rm ${rsf-file} ${rsf-at-file}
                 cp ${stdout-file} ${home-folder}
             '';
           };
 
-        /*
-        star-fletcher-cpu-p-cores =  name: config:
+        star-fletcher-cpu-scalability = file:
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
-            experiment-name = name;
+            experiment-name = "star-fletcher-cpu-pdp-exp-scale";
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
           experiments.lib.mkExperiment {
-            inherit pkgs; 
-            
-            csvFile = ./star-fletcher-fix-size.csv;
+            inherit pkgs;
+
+            csvFile = file;
 
             preamble = ''
                 mkdir -p ${scratch-folder}
                 mkdir -p ${home-folder}
             '';
-            
+
             bashRunFn = {
-              WithIO, BlockSeg, Schedulers, Blocks, Width,
-              AbsorbSize, TotalTime, TimeStep, OutputTime
-            }: 
+                NumCPUs, OutputTime, Blocks, WithIO, BlockSeg, Width, AbsorbSize, TotalTime, TimeStep, SMT, StarpuCpuList, ...
+            }:
               let
-                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${tail1 Blocks}";
+                tt = amountWritten OutputTime TimeStep;
+                filename = "${NumCPUs}-${BlockSeg}-${tt}-${Blocks}";
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
                 rsf-file = "${scratch-folder}/out-${filename}.rsf";
                 rsf-at-file = "${rsf-file}@";
             in
-              ''
-                ${config} \
-                STARPU_SCHED=${Schedulers} \
+            ''
+                STARPU_NCPU=${NumCPUs} \
+                STARPU_NCUDA=0 \
+                STARPU_NOPENCL=0 \
+                STARPU_WORKERS_CPUID="${StarpuCpuList}" \
                 OUTPUT_FOLDER=${scratch-folder} \
                 OUTPUT_FILE=${filename} \
                 ENABLE_IO=${WithIO} \
                 ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} > ${stdout-file} 2>&1
                 cat ${stdout-file}
                 rm ${rsf-file} ${rsf-at-file}
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        star-fletcher-cpu-tupi = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-tupi" ''STARPU_NCPU=8 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14"'';
-        star-fletcher-cpu-poti = star-fletcher-cpu-p-cores "star-fletcher-cpu-fix-size-p-core-poti" ''STARPU_NCPU=8 STARPU_NCUDA=0 STARPU_NOPENCL=0 STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14"'';
-        */
+
+        # one package per machine for the scalability experiment, each with its own csv
+        scalability-machines = [ "cei" "draco" "grace" "lunaris" "poti" "tupi" ];
+        scalability-pkgs = pkgs.lib.listToAttrs (pkgs.lib.concatMap (m: [
+          {
+            name = "fletcher-base-cpu-scalability-${m}";
+            value = fletcher-base-cpu-scalability (./scalability + "/fletcher-base-scal-${m}.csv");
+          }
+          {
+            name = "star-fletcher-cpu-scalability-${m}";
+            value = star-fletcher-cpu-scalability (./scalability + "/star-fletcher-scal-${m}.csv");
+          }
+        ]) scalability-machines);
+
         star-fletcher-cpu-trace =  
           let
             program = "${my-star-fletcher-trace}/bin/star-fletcher";
@@ -443,67 +421,6 @@
             '';
 
             };
-/*
-        star-fletcher-cpu-trace-p-core =  
-          let
-            trace-star-fletcher = star-fletcher.packages.${system}.default.override {
-                enableCUDA = false;
-                enableTrace = true;
-                compileAsRelease = true;
-                enableVerbose = false;
-                stdenv = pkgs.gcc13Stdenv;
-                StarPU = starpu-no-check;
-            };
-            program = "${trace-star-fletcher}/bin/star-fletcher";
-            experiment-name = "star-fletcher-cpu-fix-size-p-core-trace";
-            scratch-folder = mk-scratch-folder experiment-name;
-            home-folder = mk-home-folder experiment-name;
-          in
-          experiments.lib.mkExperiment {
-            inherit pkgs; 
-            
-            csvFile = ./star-fletcher-fix-size-traces.csv;
-
-            preamble = ''
-                mkdir -p ${scratch-folder}
-                mkdir -p ${home-folder}
-            '';
-            
-            bashRunFn = {
-              WithIO, BlockSeg, Schedulers, Width,
-              AbsorbSize, TotalTime, TimeStep, OutputTime
-            }: 
-              let
-                filename = "${Schedulers}-${BlockSeg}-${WithIO}";
-                stdout-file = "${scratch-folder}/stdout-${filename}.out";
-                rsf-file = "${scratch-folder}/out-${filename}.rsf";
-                rsf-at-file = "${rsf-file}@";
-                prof-name = "prof_file_${filename}";
-                prof-file = "${scratch-folder}/${prof-name}_0";
-            in
-              ''
-                STARPU_NCPU=8 \
-                STARPU_NCUDA=0 \
-                STARPU_NOPENCL=0 \
-                STARPU_WORKERS_CPUID="0 2 4 6 8 10 12 14 \
-                STARPU_TRACE_BUFFER_SIZE=4096 \
-                STARPU_FXT_TRACE=1 \
-                STARPU_FXT_PREFIX=${scratch-folder} \
-                STARPU_FXT_SUFFIX=${prof-name} \
-                STARPU_SCHED=${Schedulers} \
-                OUTPUT_FOLDER=${scratch-folder} \
-                OUTPUT_FILE=${filename} \
-                ENABLE_IO=${WithIO} \
-                ${program} TTI ${Width} ${Width} ${Width} \
-                ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
-                cat ${stdout-file}
-                rm ${rsf-file} ${rsf-at-file}
-                cp ${stdout-file} ${home-folder}
-                cp ${prof-file} ${home-folder}
-            '';
-          };
-*/
 
     in
     {
@@ -516,6 +433,10 @@
             star-fletcher-cpu-trace
             fio-exp
           ;
-        };
+          # pkgs 
+          # fletcher-base-cpu-scalability-${machine}
+          # star-fletcher-cpu-scalability-${machine}
+          # with machines [ "cei" "draco" "grace" "lunaris" "poti" "tupi" ]
+        } // scalability-pkgs;
     });
 }
