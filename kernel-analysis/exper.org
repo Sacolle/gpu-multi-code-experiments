@@ -225,27 +225,63 @@ faremos uma branch separada e adicionaremos ela no flake propriamente anotada.
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
-  kernel_exp <- read_csv('./kernel-analysis/kernel-params.csv')
-  k <- machines |> cross_join(kernel_exp)
+    kernel_exp <- read_csv('./kernel-analysis/kernel-params.csv')
+    k <- machines |> cross_join(kernel_exp)
 
-  k_res <- k |>
-    mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
+    k_res <- k |>
+      mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
+      parse_files(FILE, \(lines){
+        vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+        tribble(~Msamples, ~ExecTime, 
+                vals[[15]], vals[[14]])
+      }) |>
+      select(-FILE) |>
+      mutate(
+        #Machine = str_sub(Machine, end = -2),
+        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ),
+        ThreadName = factor(
+          ThreadName,
+          levels = unique(ThreadName[order(ThreadZ, ThreadY, ThreadX)])
+        )
+      )
+
+    kernel_exp_full <- read_csv('./kernel-analysis/kernel-params-full.csv')
+
+    kfull_res <- machines |>
+      cross_join(kernel_exp_full) |>
+      mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
+      parse_files(FILE, \(lines){
+        vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
+        tribble(~Msamples, ~ExecTime, 
+                vals[[15]], vals[[14]])
+      }) |>
+      select(-FILE) |>
+      mutate(
+        #Machine = str_sub(Machine, end = -2),
+        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ),
+        ThreadName = factor(
+          ThreadName,
+          levels = unique(ThreadName[order(ThreadZ, ThreadY, ThreadX)])
+        )
+      )
+
+
+  k2d_res <- machines |>
+    cross_join(read_csv("./kernel-analysis/kernel-params-full-2.csv")) |>
+    mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis-z-axis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", BlockSize, "-", Blocks, ".out")) |>
     parse_files(FILE, \(lines){
       vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
       tribble(~Msamples, ~ExecTime, 
               vals[[15]], vals[[14]])
-    }) 
-
-  kernel_exp_full <- read_csv('./kernel-analysis/kernel-params-full.csv')
-
-  kfull_res <- machines |>
-    cross_join(kernel_exp_full) |>
-    mutate(FILE = paste0(base_dir,"/fletcher-kernel-analysis/", Machine ,"/stdout-", ThreadX, "-", ThreadY, "-", ThreadZ, "-", BlockSize, "-", Blocks, ".out")) |>
-    parse_files(FILE, \(lines){
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[15]], vals[[14]])
-    }) 
+    }) |>
+    select(-FILE) |>
+    mutate(
+      ThreadName = paste0(ThreadX, "-", ThreadY),
+        ThreadName = factor(
+          ThreadName,
+          levels = unique(ThreadName[order(ThreadY, ThreadX)])
+        )
+    )
 
 
 #+END_SRC
@@ -270,16 +306,6 @@ Encontar quais as 3 melhores configurações de threads para cada bloco
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
   msamples_plot <- function(kt) {
-    kt_msamples_plot <- kt |>
-      select(-FILE) |>
-      mutate(
-        #Machine = str_sub(Machine, end = -2),
-        ThreadName = paste0(ThreadX, "-", ThreadY, "-", ThreadZ),
-        ThreadName = factor(
-          ThreadName,
-          levels = unique(ThreadName[order(ThreadZ, ThreadY, ThreadX)])
-        )
-      )
      # group_by(across(-c(Msamples, ExecTime, Blocks))) |>
      # summarize(
      #   rep = n(),
@@ -294,7 +320,7 @@ Encontar quais as 3 melhores configurações de threads para cada bloco
     #   .groups = "drop"
     # ) 
 
-    ggplot(kt_msamples_plot, aes(x = ThreadName, y = Msamples, color = factor(BlockSize))) +
+    ggplot(kt, aes(x = ThreadName, y = Msamples, color = factor(BlockSize))) +
       #geom_point(alpha = 0.8) +
       geom_jitter(alpha = 0.8, width = 0.1) +
       #geom_errorbar(aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error, color = Machine), width = 0.5) +
@@ -311,7 +337,7 @@ Encontar quais as 3 melhores configurações de threads para cada bloco
       theme(legend.position = "bottom")
   }
 
-  msamples_plot(kfull_res)
+  msamples_plot(k2d_res)
 
 #+END_SRC
 
@@ -327,3 +353,9 @@ Encontar quais as 3 melhores configurações de threads para cada bloco
 + O fine tunning é favorável a dimensão que cresce mais devagar, com a melhor configuração distribuindo
   melhor as threads nas dimensões X e Y.
   - Isso resulta em um resultado superior no StarFletcher
+
+
+
+Os resultados do experimento 2d demonstram que na versão atual do kernel,
+a versão em que cada kernel faz uma passada sobre o eixo Z é extremamente inferior a versão
+em que cada ponto do kernel é uma coordenada própria.

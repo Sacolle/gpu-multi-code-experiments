@@ -429,6 +429,7 @@
           inherit
             # my-star-fletcher
             fletcher-base-cpu
+            fletcher-base-cpu-bind
             star-fletcher-cpu
             star-fletcher-cpu-trace
             fio-exp
