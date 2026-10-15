@@ -575,350 +575,112 @@ Experimento do fletcher-base considerando o bind de cores
     
 #+END_SRC
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-  time_plot <- function(sft, fbt) {
-    x_breaks <- c(12, 32, 48, 64, 96)
-    clean_fb <- fbt |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      select(Machine, WithIO, Blocks, ExecTime_fb = ExecTime) |>
-      distinct()
 
-   sf_comb <- sft |>
-     mutate(Machine = str_sub(Machine, end = -2)) |>
-     left_join(clean_fb, by = c("Machine", "WithIO", "Blocks")) |>
-     mutate(Diff = ExecTime - ExecTime_fb)
+** Análise dos traces
 
-    ggplot(sf_comb, aes(x = Order, y = Diff, color = factor(WithIO))) +
-      geom_hline(yintercept = 0, linetype = "dashed") +
-      geom_point() +
-      #geom_jitter(position = "dodge", width = "") +
-      geom_line(linewidth = 0.8) +
-      coord_cartesian(ylim = c(-7.5, 7.5)) +
-      scale_x_continuous(breaks = x_breaks) +
-      facet_grid(Machine ~ Schedulers) +
-      scale_color_discrete(
-        name = NULL, # Removes the "factor(WithIO)" title entirely
-        labels = c("0" = "without IO", "1" = "with IO")
-      ) +
-      labs(
-        title = paste0("Execution Time Difference vs. Block Order"),
-        subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
-        x = "Block Size",
-        y = "Execution Time Difference (s)"
-      ) +
-      theme_bw(base_size=15) +
-      theme(
-        legend.position = "bottom",
-        legend.margin = margin(t = -10, b = -10),
-        #plot.title = element_text(margin = margin(b = 2)),
-        #plot.subtitle = element_text(margin = margin(b = 5)),
-        axis.text.x = element_text(size = 10)
-      )
-  }
+Os traces foram organizados por máquina, OutputTime e BlockSeg e convertidos com a fase 1 do StarVZ
+pelo script =organize-traces.sh=. Estatísticas de um trace do tupi com ordem 24 (BlockSeg 16) e IO a cada passo:
+duração das tarefas, propagação nos p-cores e e-cores, ocupação dos workers, tempo do runtime e
+sobreposição do IO com a computação.
 
-  time_plot(sf_res, fb_res) 
-#+END_SRC
+#+BEGIN_SRC R :session *R* :async yes :results output
+  library(starvz)
+  options(width = 200)
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-  time_plot <- function(sft, fbt) {
-    x_breaks <- c(12, 32, 48, 64, 96)
-    
-    fb_stats <- fbt |>
-      select(-FILE) |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
-        fb_n = n(),
-        ExecTime_fb_mean = mean(ExecTime, na.rm = TRUE),
-        ExecTime_fb_sd = sd(ExecTime, na.rm = TRUE),
-        .groups = "drop"
-      )
+  # ordem 24 = BlockSeg 16 (384 / 24), com IO a cada passo
+  trace_dir <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree/tupi6/OutputTime-0.0001/BlockSeg-16"
+  trace <- starvz_read(trace_dir, selective = FALSE)
 
-    sf_comb <- sft |>
-      select(-FILE) |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
-        sf_n = n(),
-        ExecTime_sf_mean = mean(ExecTime, na.rm = TRUE),
-        ExecTime_sf_sd = sd(ExecTime, na.rm = TRUE),
-        .groups = "drop"
-      ) |>
-      left_join(fb_stats, by = c("Machine", "WithIO")) |>
-      mutate(
-        # Difference of Means
-        Diff_mean = ExecTime_sf_mean - ExecTime_fb_mean,
-        
-        # Combined Standard Error for Independent Samples
-        Combined_SE = sqrt((ExecTime_sf_sd^2 / sf_n) + (ExecTime_fb_sd^2 / fb_n)),
-        
-        # 3x Error mapping
-        Diff_error = 3 * Combined_SE
-      )
-
-    # 3. Plot (Exact same plotting code as above)
-    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = factor(WithIO))) +
-      geom_hline(yintercept = 0, linetype = "dashed") +
-      geom_point(alpha = 0.8) +
-      geom_line(linewidth = 0.8) +
-      geom_errorbar(
-        aes(ymin = Diff_mean - Diff_error, ymax = Diff_mean + Diff_error), 
-        width = 0.5
-      ) +
-      coord_cartesian(ylim = c(-7.5, 7.5)) +
-      scale_x_continuous(breaks = x_breaks) +
-      facet_grid(Machine ~ Schedulers) +
-      scale_color_discrete(
-        name = NULL,
-        labels = c("0" = "without IO", "1" = "with IO")
-      ) +
-      labs(
-        title = "Execution Time Difference vs. Block Order",
-        subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
-        x = "Block Size",
-        y = "Execution Time Difference (s)"
-      ) +
-      theme_bw(base_size=15) +
-      theme(
-        legend.position = "bottom",
-        legend.margin = margin(t = -10, b = -10),
-        axis.text.x = element_text(size = 10)
-      )
-  }
-
-  time_plot(sf_res, fb_res) 
-#+END_SRC
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-
-  max_fb_time <- fb_res |>
+  # Os tempos do StarVZ estão em ms. No tupi o worker k fica no CPU k (ver o stdout do StarPU):
+  # CPUs 0-15 são os p-cores (2 threads por core) e 16-31 os e-cores.
+  tasks <- trace$Application |>
     mutate(
-      Machine = str_sub(Machine, end = -2),
-      WithIO = factor(WithIO, levels = c(0, 1), labels = c("Without IO", "With IO"))
+      Worker = as.integer(str_remove(ResourceId, "CPU")),
+      CoreKind = if_else(Worker < 16, "P-core", "E-core")
+    )
+  makespan <- max(tasks$End) - min(tasks$Start)
+  n_workers <- n_distinct(tasks$Worker)
+
+  # 1. Duração de cada tipo de tarefa
+  task_stats <- tasks |>
+    group_by(Task = Value) |>
+    summarize(
+      n         = n(),
+      mean_ms   = mean(Duration),
+      sd_ms     = sd(Duration),
+      median_ms = median(Duration),
+      p95_ms    = quantile(Duration, 0.95),
+      total_s   = sum(Duration) / 1000,
+      .groups   = "drop"
     ) |>
-    group_by(Machine, WithIO) |>
-    summarize(Min_Time = min(ExecTime, na.rm = TRUE), .groups = "drop") 
+    mutate(share_pct = 100 * total_s / sum(total_s))
 
-  sf_time_plot <- sf_res |>
-    mutate(
-      Machine = str_sub(Machine, end = -2),
-      WithIO = factor(WithIO, levels = c(0, 1), labels = c("Without IO", "With IO"))
+  # 2. A mesma tarefa de propagação nos p-cores e nos e-cores
+  kind_stats <- tasks |>
+    filter(Value == "wave_propagation") |>
+    group_by(CoreKind) |>
+    summarize(
+      workers   = n_distinct(Worker),
+      n         = n(),
+      tasks_per_worker = n / workers,
+      mean_ms   = mean(Duration),
+      sd_ms     = sd(Duration),
+      median_ms = median(Duration),
+      .groups   = "drop"
     )
 
-  ggplot(sf_time_plot, aes(x = factor(Order), y = ExecTime, fill = WithIO)) +
-    
-    stat_summary(fun = mean, geom = "bar", position = "dodge", color = "black", linewidth = 0.3) +
+  # 3. Ocupação de cada worker: tempo executando tarefas / makespan
+  worker_stats <- tasks |>
+    group_by(Worker, CoreKind) |>
+    summarize(
+      n         = n(),
+      compute_s = sum(Duration[Value == "wave_propagation"]) / 1000,
+      write_s   = sum(Duration[Value == "write_block"]) / 1000,
+      busy_s    = sum(Duration) / 1000,
+      .groups   = "drop"
+    ) |>
+    mutate(util_pct = 100 * busy_s / (makespan / 1000))
 
-    geom_hline(
-      data = max_fb_time, 
-      aes(yintercept = Min_Time), 
-      linetype = "solid", color = "black", linewidth = 1
-    ) +
+  util_by_kind <- worker_stats |>
+    group_by(CoreKind) |>
+    summarize(across(c(n, compute_s, write_s, util_pct), list(mean = mean, min = min, max = max)), .groups = "drop")
 
-    geom_hline(
-      data = max_fb_time, 
-      aes(yintercept = Min_Time, color = WithIO), 
-      linetype = "solid", linewidth = 0.8
-    ) +
-    
-    
-    coord_cartesian(ylim = c(0, 40)) +
-    facet_grid(Machine ~ Schedulers, scales = "free_y") + 
-    
-    labs(
-      title = "Execution Time vs. Block Order",
-      subtitle = "Faceted by Machine and Scheduler",
-      x = "Block Size",
-      y = "Execution Time (s)",
-      fill = "I/O State",
-      color = "I/O State"  # Matching legend labels combines fill and color into 1 legend
-    ) +
-    theme_bw(base_size = 15) +
-    theme(legend.position = "bottom")
-      
+  # 4. Tempo gasto pelo runtime (estados do StarPU nos workers)
+  runtime_stats <- trace$Starpu |>
+    group_by(State = Value) |>
+    summarize(n = n(), total_s = sum(Duration) / 1000, mean_us = 1000 * mean(Duration), .groups = "drop") |>
+    mutate(pct_worker_time = 100 * total_s / (n_workers * makespan / 1000))
+
+  # 5. Sobreposição do IO com a computação: a linha do tempo é amostrada a cada 1 ms e em cada
+  # instante conta-se quantos workers estão escrevendo e quantos estão propagando
+  grid <- seq(min(tasks$Start), max(tasks$End), by = 1)
+  active <- function(task) {
+    t <- filter(tasks, Value == task)
+    findInterval(grid, sort(t$Start)) - findInterval(grid, sort(t$End))
+  }
+  timeline <- tibble(t = grid, writing = active("write_block"), computing = active("wave_propagation"))
+
+  io_overlap <- timeline |>
+    summarize(
+      pct_time_writing           = 100 * mean(writing > 0),
+      pct_time_only_writing      = 100 * mean(writing > 0 & computing == 0),
+      workers_computing          = mean(computing),
+      workers_computing_if_write = mean(computing[writing > 0])
+    )
+
+  cat("Makespan:", round(makespan / 1000, 3), "s com", n_workers, "workers\n\n")
+  print(task_stats)
+  print(kind_stats)
+  print(util_by_kind)
+  print(runtime_stats)
+  print(io_overlap)
 #+END_SRC
 
-
-Now, considering just the p-cores
-
-
-
-
-
-
-
-** Experimentos de Ordem fixa, variando o tamanho
-
-Extraindo os dados dos experimentos do star-fletcher-fix-order
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent 
-  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order.csv')
-  sf_order <- machines |> cross_join(ex_star_fletcher_order)
-
-  sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    mutate(Data = map(FILE, function(file) {
-      if(!dir.exists(dirname(file))){
-        return(NULL)
-      }
-      
-      lines <- tryCatch({
-        read_lines(file)
-      }, error = function(e){
-        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-        return(NULL) # Returns NULL instead of breaking the script
-      })
-      if(is.null(lines)) {
-        return(NULL)
-      }
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[6]], vals[[5]])
-    })) |>
-    filter(lengths(Data) > 0) |>
-    unnest(Data)
-#+END_SRC
-
-Extraindo os dados dos experimentos do star-fletcher-fix-order-64
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent 
-  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order-64.csv')
-  sf_order <- machines |> cross_join(ex_star_fletcher_order)
-
-  sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    mutate(Data = map(FILE, function(file) {
-      if(!dir.exists(dirname(file))){
-        return(NULL)
-      }
-      
-      lines <- tryCatch({
-        read_lines(file)
-      }, error = function(e){
-        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-        return(NULL) # Returns NULL instead of breaking the script
-      })
-      if(is.null(lines)) {
-        return(NULL)
-      }
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[6]], vals[[5]])
-    })) |>
-    filter(lengths(Data) > 0) |>
-    unnest(Data)
-#+END_SRC
-
-
-Experimento do fletcher-base-fix-order
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent 
-
-  ex_fletcher_base_order <- read_csv('./sscad/fletcher-base-fix-order.csv')
-  fb_order <- machines |> cross_join(ex_fletcher_base_order)
-
-  fb_res_order <- fb_order |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order/", Machine ,"/stdout-", Width, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    mutate(Data = map(FILE, function(file) {
-      if(!dir.exists(dirname(file))){
-        return(NULL)
-      }
-      
-       lines <- tryCatch({
-   	read_lines(file) 
-       }, error = function(e){
-   	 message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-         return(NULL) # Returns NULL instead of breaking the script
-       })
-       if(is.null(lines)) {
-         return(NULL)
-       }
-       msamples <-  lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
-
-       exec_time <-  lines |>
-        str_subset("Total execution time") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
-
-       tribble(~Msamples, ~ExecTime,
-               msamples[1], exec_time[1])
-    })) |>
-    filter(lengths(Data) > 0) |>
-    unnest(Data)
-#+END_SRC
-
-*** Gráficos
-
-
-Gráficos do aumento do tamanho pelos Msamples
+Painel de iterações do StarVZ (o mesmo da figura 3 do artigo do SSCAD): cada linha é uma iteração,
+cada retângulo uma tarefa, e as linhas pretas ligam o início e o fim de cada iteração, mostrando
+quantas iterações executam ao mesmo tempo. Usa o =trace= lido no bloco acima.
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
-
-  x_breaks <- sort(unique(sf_res_order$Width))
-  msamples_plot <- function(io_state) {
-    fb_msamples <- fb_res_order |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      filter(WithIO == io_state)
-
-   sf_msamples_order_plot <- sf_res_order |>
-     filter(WithIO == io_state) |>
-     mutate(Machine = str_sub(Machine, end = -2))
-
-    ggplot(sf_msamples_order_plot, aes(x = Width, y = Msamples, color = Machine)) +
-    geom_point() +
-    geom_line(linewidth = 0.8) +
-    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 0.8) +
-    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
-    scale_x_continuous(breaks = x_breaks) +
-    #ylim(0,NA)+
-    facet_grid(Machine ~ Schedulers) + 
-    labs(
-  	title = paste0("Msamples vs. Volume Size with WithIO = ", io_state),
-  	subtitle = "Faceted by Scheduler",
-  	x = "Block Size",
-  	y = "Msamples/s"
-    ) +
-    theme_bw(base_size=15) +
-    theme(legend.position = "bottom")
-  }
-
-  msamples_plot(0) #/ msamples_plot(1)
-#+END_SRC
-
-Gráficos do aumento do tamanho pelo tempo de execução
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-
-  x_breaks <- sort(unique(sf_res_order$Width))
-  msamples_plot <- function(io_state) {
-    fb_msamples <- fb_res_order |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      filter(WithIO == io_state)
-
-   sf_msamples_order_plot <- sf_res_order |>
-     filter(WithIO == io_state) |>
-     mutate(Machine = str_sub(Machine, end = -2))
-
-    ggplot(sf_msamples_order_plot, aes(x = Width, y = ExecTime, color = Machine)) +
-    geom_point() +
-    geom_line(linewidth = 0.8) +
-    stat_summary(data = fb_msamples, fun = mean, geom = "line",  linetype = "dotted", linewidth = 1) +
-    #geom_hline(data = max_fb, aes(yintercept = Max_Msamples, color = Machine), linetype = "dashed", linewidth = 0.8) +
-    scale_x_continuous(breaks = x_breaks) +
-    #ylim(0,NA)+
-    facet_grid(Machine ~ Schedulers) + 
-    labs(
-  	title = paste0("Execution Time vs. Volume Size with WithIO = ", io_state),
-  	subtitle = "Faceted by Scheduler",
-  	x = "Block Size",
-  	y = "Time (s)"
-    ) +
-    theme_bw(base_size=15) +
-    theme(legend.position = "bottom")
-  }
-
-  msamples_plot(1) #/ msamples_plot(1)
+  panel_kiteration(trace, legend = TRUE) +
+    labs(title = "star-fletcher no tupi, ordem 24 com IO a cada passo")
 #+END_SRC
