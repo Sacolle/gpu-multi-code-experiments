@@ -56,7 +56,7 @@
 
         amountWritten = time: base: toString (builtins.floor ((builtins.fromJSON time) / (builtins.fromJSON base)));
 
-        fletcher-base-cpu =
+        base-fletcher-base-cpu = file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-pdp-exp";
@@ -66,7 +66,7 @@
             experiments.lib.mkExperiment {
               inherit pkgs;
 
-              csvFile = ./fletcher-base-exp.csv;
+              csvFile = file;
 
               preamble = ''
                 mkdir -p ${scratch-folder}
@@ -100,8 +100,10 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+        fletcher-base-cpu = base-fletcher-base-cpu ./fletcher-base-exp.csv;
+        fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv;
 
-        fletcher-base-cpu-bind =
+        base-fletcher-base-cpu-bind = file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
             experiment-name = "fletcher-base-pdp-exp-bind";
@@ -111,7 +113,7 @@
             experiments.lib.mkExperiment {
               inherit pkgs;
 
-              csvFile = ./fletcher-base-exp.csv;
+              csvFile = file;
 
               preamble = ''
                 mkdir -p ${scratch-folder}
@@ -148,6 +150,9 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+
+        fletcher-base-cpu-bind = base-fletcher-base-cpu-bind ./fletcher-base-exp.csv;
+        fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv;
 
         fletcher-base-cpu-scalability = file:
           let
@@ -199,7 +204,7 @@
             '';
           };
         
-        star-fletcher-cpu =  
+        base-star-fletcher-cpu =  file:
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
             experiment-name = "star-fletcher-cpu-pdp-exp";
@@ -209,7 +214,7 @@
           experiments.lib.mkExperiment {
             inherit pkgs; 
             
-            csvFile = ./star-fletcher-exp.csv;
+            csvFile = file;
 
             preamble = ''
                 mkdir -p ${scratch-folder}
@@ -238,6 +243,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
+        star-fletcher-cpu = base-star-fletcher-cpu ./star-fletcher-exp.csv;
+        star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv;
 
         star-fletcher-cpu-scalability = file:
           let
@@ -433,6 +440,9 @@
             fletcher-base-cpu
             fletcher-base-cpu-bind
             star-fletcher-cpu
+            fletcher-base-cpu-big
+            fletcher-base-cpu-bind-big
+            star-fletcher-cpu-big
             star-fletcher-cpu-trace
             fio-exp
           ;

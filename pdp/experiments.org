@@ -126,6 +126,47 @@ Experimento de escalabilidade
   fb_ex |> readr::write_csv(glue("./pdp/fletcher-base-exp.csv"))
 #+END_SRC
 
+**** Experimentos com o tamanho incrementado
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+   source("./libExp.R")
+   options(scipen = 999)
+
+
+   segmentations = c(6, 8, 10, 12, 16, 20, 24, 30, 36)
+   total_width = mLCM(segmentations)
+
+   border_size = 4
+   absorb_size = 8
+   width = total_width - 2 * (border_size + absorb_size)
+   seed = 0
+   time_step = 0.0001
+   iterations = 50
+   replications = 10
+
+   sf_cpu_factors <- list(
+     BlockSeg = segmentations,
+     OutputTime = c(0, 1, 5) * time_step
+   )
+
+   sf_ex <- generate_experiment(sf_cpu_factors, replications, seed) |>
+     as_tibble() |>
+     mutate(
+       WithIO = if_else(OutputTime == 0, 0, 1),
+       Width = width,
+       AbsorbSize = absorb_size,
+       TotalTime = format(time_step * iterations, scientific = FALSE),
+       TimeStep = format(time_step, scientific = FALSE),
+       Blocks = str_sub(Blocks, 2, 3)
+     )
+   # for the fletcher-base, remove all non-relevant parameters and add the new ones
+  fb_ex <- sf_ex |> select(-BlockSeg) |> unique() |>
+    cross_join(tibble(Schedulers = c("static", "dynamic", "guided")))
+
+  sf_ex |> readr::write_csv(glue("./pdp/star-fletcher-exp-big.csv"))
+  fb_ex |> readr::write_csv(glue("./pdp/fletcher-base-exp-big.csv"))
+#+END_SRC
+
 *** Cógido de geração dos traces
 
 Nisso, precisamos também de fazer um projeto do /star-flecther/ para os traces.
@@ -297,7 +338,11 @@ O número de CPUs segue potências de 2 mais os pontos de transição (socket in
     select(-Blocks) |>
     unique() |>
     cross_join(tibble(Blocks = c(1:10 + max(grace_scale$Blocks)))) |>
-    slice_sample(prop = 1)
+    slice_sample(prop = 1) |>
+    mutate(
+        TimeStep = format(TimeStep, scientific = FALSE),
+        OutputTime = format(OutputTime, scientific = FALSE)
+    )
 
   grace_extra |> readr::write_csv("./pdp/scalability/star-fletcher-scal-grace-extra.csv")
 #+END_SRC
@@ -616,137 +661,309 @@ pelo script =organize-traces.sh=. Estatísticas de um trace do tupi com ordem 24
 duração das tarefas, propagação nos p-cores e e-cores, ocupação dos workers, tempo do runtime e
 sobreposição do IO com a computação.
 
-#+BEGIN_SRC R :session *R* :async yes :results output
-  library(starvz)
-  options(width = 200)
+*** Comparação entre máquinas
 
-  # ordem 24 = BlockSeg 16 (384 / 24), com IO a cada passo
-  trace_dir <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree/grace1/OutputTime-1/BlockSeg-8"
-  trace <- starvz_read(trace_dir, selective = FALSE)
+As mesmas estatísticas para todos os traces convertidos (todas as máquinas, BlockSeg de 3 a 16 e os
+três níveis de IO; os BlockSeg 24 e 32 ainda não foram convertidos). O número de tarefas de propagação
+por iteração é BlockSeg³, e =TasksPerWorker= é quantas delas cada worker recebe por iteração.
 
-  # Os tempos do StarVZ estão em ms. No tupi o worker k fica no CPU k (ver o stdout do StarPU):
-  # CPUs 0-15 são os p-cores (2 threads por core) e 16-31 os e-cores.
-  tasks <- trace$Application |>
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Lê a tabela de tarefas (application.parquet) de todos os traces já convertidos pelo StarVZ.
+  # Só essa tabela é lida, o que é bem mais rápido do que o starvz_read completo. Tempos em ms.
+  trace_root <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree"
+
+  all_tasks <- list.files(trace_root, pattern = "^\\.phase1-done$", all.files = TRUE, recursive = TRUE) |>
+    dirname() |>
+    map(\(leaf) {
+      parts <- str_split_1(leaf, "/")  # <nó>/OutputTime-<x>/BlockSeg-<n>
+      arrow::read_parquet(
+        file.path(trace_root, leaf, "application.parquet"),
+        col_select = c(ResourceId, Start, End, Duration, Value, Iteration)
+      ) |>
+        mutate(
+          Machine = sub("\\d+$", "", parts[1]),
+          OutputTime = as.numeric(str_remove(parts[2], "OutputTime-")),
+          BlockSeg = as.integer(str_remove(parts[3], "BlockSeg-"))
+        )
+    }) |>
+    list_rbind() |>
     mutate(
-      Worker = as.integer(str_remove(ResourceId, "CPU")),
-      CoreKind = if_else(Worker < 16, "P-core", "E-core")
-    )
-  makespan <- max(tasks$End) - min(tasks$Start)
-  n_workers <- n_distinct(tasks$Worker)
-
-  # 1. Duração de cada tipo de tarefa
-  task_stats <- tasks |>
-    group_by(Task = Value) |>
-    summarize(
-      n         = n(),
-      mean_ms   = mean(Duration),
-      sd_ms     = sd(Duration),
-      median_ms = median(Duration),
-      p95_ms    = quantile(Duration, 0.95),
-      total_s   = sum(Duration) / 1000,
-      .groups   = "drop"
+      Value = as.character(Value),
+      Order = 384 / BlockSeg,
+      TasksPerIter = BlockSeg^3,  # tarefas de propagação por iteração
+      IO = case_when(
+        OutputTime >= 1 ~ "Without IO",
+        near(OutputTime, 1e-4) ~ "IO every step",
+        TRUE ~ "IO every 5 steps"
+      ),
+      IO = factor(IO, levels = c("Without IO", "IO every step", "IO every 5 steps"))
     ) |>
-    mutate(share_pct = 100 * total_s / sum(total_s))
+    group_by(Machine, BlockSeg, IO) |>
+    mutate(Workers = n_distinct(ResourceId)) |>
+    ungroup()
+#+END_SRC
 
-  # 2. A mesma tarefa de propagação nos p-cores e nos e-cores
-  kind_stats <- tasks |>
-    filter(Value == "wave_propagation") |>
-    group_by(CoreKind) |>
-    summarize(
-      workers   = n_distinct(Worker),
-      n         = n(),
-      tasks_per_worker = n / workers,
-      mean_ms   = mean(Duration),
-      sd_ms     = sd(Duration),
-      median_ms = median(Duration),
-      .groups   = "drop"
-    )
+Uma linha por execução: makespan, ocupação, sobreposição do IO e =busy_last25=, a média de workers
+propagando no último quarto do makespan. Quando ela fica bem abaixo de =busy_mean=, faltam tarefas
+no fim da execução, como no grace: com 512 tarefas por iteração para 144 workers (3,6 por worker),
+as últimas iterações não têm outras iterações com que se sobrepor e rodam uma depois da outra.
 
-  # 3. Ocupação de cada worker: tempo executando tarefas / makespan
-  worker_stats <- tasks |>
-    group_by(Worker, CoreKind) |>
-    summarize(
-      n         = n(),
-      compute_s = sum(Duration[Value == "wave_propagation"]) / 1000,
-      write_s   = sum(Duration[Value == "write_block"]) / 1000,
-      busy_s    = sum(Duration) / 1000,
-      .groups   = "drop"
-    ) |>
-    mutate(util_pct = 100 * busy_s / (makespan / 1000))
+#+BEGIN_SRC R :session *R* :async yes :results value :colnames yes
+  # número de tarefas em execução em cada instante de `grid` (a linha do tempo amostrada a cada 1 ms)
+  active_count <- function(start, end, grid) findInterval(grid, sort(start)) - findInterval(grid, sort(end))
 
-  util_by_kind <- worker_stats |>
-    group_by(CoreKind) |>
-    summarize(across(c(n, compute_s, write_s, util_pct), list(mean = mean, min = min, max = max)), .groups = "drop")
+  # Uma linha por execução. busy_last25 é a média de workers propagando no último quarto do
+  # makespan: quando ela fica bem abaixo de busy_mean, faltam tarefas no fim da execução.
+  trace_overview <- all_tasks |>
+    group_by(Machine, Order, BlockSeg, TasksPerIter, Workers, IO) |>
+    group_modify(\(t, key) {
+      makespan <- max(t$End) - min(t$Start)
+      grid <- seq(min(t$Start), max(t$End), by = 1)
+      prop <- filter(t, Value == "wave_propagation")
+      wr <- filter(t, Value == "write_block")
+      computing <- active_count(prop$Start, prop$End, grid)
+      writing <- active_count(wr$Start, wr$End, grid)
+      last25 <- grid >= min(t$Start) + 0.75 * makespan
+      tibble(
+        makespan_s            = makespan / 1000,
+        # duração das tarefas de propagação (as de escrita estão na tabela de duração abaixo)
+        task_min_ms           = min(prop$Duration),
+        task_mean_ms          = mean(prop$Duration),
+        task_max_ms           = max(prop$Duration),
+        util_pct              = 100 * sum(t$Duration) / (key$Workers * makespan),
+        write_share_pct       = 100 * sum(wr$Duration) / sum(t$Duration),
+        busy_mean             = mean(computing),
+        busy_last25           = mean(computing[last25]),
+        pct_time_writing      = if (nrow(wr) > 0) 100 * mean(writing > 0) else NA,
+        pct_time_only_writing = if (nrow(wr) > 0) 100 * mean(writing > 0 & computing == 0) else NA
+      )
+    }) |>
+    ungroup() |>
+    mutate(TasksPerWorker = TasksPerIter / Workers, .after = Workers) |>
+    arrange(Machine, IO, BlockSeg) |>
+    mutate(across(where(is.double), \(x) round(x, 2)))
 
-  # 4. Tempo gasto pelo runtime (estados do StarPU nos workers)
-  runtime_stats <- trace$Starpu |>
-    group_by(State = Value) |>
-    summarize(n = n(), total_s = sum(Duration) / 1000, mean_us = 1000 * mean(Duration), .groups = "drop") |>
-    mutate(pct_worker_time = 100 * total_s / (n_workers * makespan / 1000))
-
-  # 5. Sobreposição do IO com a computação: a linha do tempo é amostrada a cada 1 ms e em cada
-  # instante conta-se quantos workers estão escrevendo e quantos estão propagando
-  grid <- seq(min(tasks$Start), max(tasks$End), by = 1)
-  active <- function(task) {
-    t <- filter(tasks, Value == task)
-    findInterval(grid, sort(t$Start)) - findInterval(grid, sort(t$End))
-  }
-  timeline <- tibble(t = grid, writing = active("write_block"), computing = active("wave_propagation"))
-
-  io_overlap <- timeline |>
-    summarize(
-      pct_time_writing           = 100 * mean(writing > 0),
-      pct_time_only_writing      = 100 * mean(writing > 0 & computing == 0),
-      workers_computing          = mean(computing),
-      workers_computing_if_write = mean(computing[writing > 0])
-    )
-
-  cat("Makespan:", round(makespan / 1000, 3), "s com", n_workers, "workers\n\n")
-  print(task_stats)
-  print(kind_stats)
-  print(util_by_kind)
-  print(runtime_stats)
-  print(io_overlap)
+  trace_overview |> filter(Machine == "grace" & BlockSeg == 8)
 #+END_SRC
 
 #+RESULTS:
-#+begin_example
-Makespan: 2.835 s com 144 workers
+| Machine | Order | BlockSeg | TasksPerIter | Workers | TasksPerWorker | IO               | makespan_s | task_min_ms | task_mean_ms | task_max_ms | util_pct | write_share_pct | busy_mean | busy_last25 | pct_time_writing | pct_time_only_writing |
+|---------+-------+----------+--------------+---------+----------------+------------------+------------+-------------+--------------+-------------+----------+-----------------+-----------+-------------+------------------+-----------------------|
+| grace   |    48 |        8 |          512 |     144 |           3.56 | Without IO       |       2.83 |       11.95 |        31.26 |      153.96 |    82.34 |               0 |    118.55 |       64.61 |                  |                       |
+| grace   |    48 |        8 |          512 |     144 |           3.56 | IO every step    |       8.81 |       11.75 |        29.19 |      413.79 |    94.03 |            73.7 |     35.61 |       22.17 |            94.64 |                  8.44 |
+| grace   |    48 |        8 |          512 |     144 |           3.56 | IO every 5 steps |       4.21 |       11.95 |        30.77 |      182.97 |    96.88 |            43.7 |     78.53 |       60.33 |             57.8 |                 15.97 |
 
-# A tibble: 2 × 8
-  Task                 n mean_ms   sd_ms median_ms  p95_ms    total_s  share_pct
-  <fct>            <int>   <dbl>   <dbl>     <dbl>   <dbl>      <dbl>      <dbl>
-1 wave_insertion      21  0.0189  0.0155    0.0138  0.0479   0.000396   0.000118
-2 wave_propagation 10752 31.3    26.6      17.5    95.8    336.       100.0     
-# A tibble: 2 × 7
-  CoreKind workers     n tasks_per_worker mean_ms sd_ms median_ms
-  <chr>      <int> <int>            <dbl>   <dbl> <dbl>     <dbl>
-1 E-core       128  9583             74.9    31.2  26.3      17.5
-2 P-core        16  1169             73.1    32.0  29.0      17.0
-# A tibble: 2 × 13
-  CoreKind n_mean n_min n_max compute_s_mean compute_s_min compute_s_max write_s_mean write_s_min write_s_max util_pct_mean util_pct_min util_pct_max
-  <chr>     <dbl> <int> <int>          <dbl>         <dbl>         <dbl>        <dbl>       <dbl>       <dbl>         <dbl>        <dbl>        <dbl>
-1 E-core     75.0    70    79           2.33          2.25          2.41            0           0           0          82.3         79.3         84.9
-2 P-core     73.2    72    75           2.34          2.31          2.36            0           0           0          82.4         81.4         83.4
-# A tibble: 3 × 5
-  State               n total_s mean_us pct_worker_time
-  <fct>           <int>   <dbl>   <dbl>           <dbl>
-1 Callback        16774  5.13    306.           1.26   
-2 Scheduling       8610  0.0292    3.39         0.00716
-3 Submitting task 16774  1.60     95.5          0.392  
-# A tibble: 1 × 4
-  pct_time_writing pct_time_only_writing workers_computing workers_computing_if_write
-             <dbl>                 <dbl>             <dbl>                      <dbl>
-1                0                     0              119.                        NaN
-#+end_example
-Painel de iterações do StarVZ (o mesmo da figura 3 do artigo do SSCAD): cada linha é uma iteração,
-cada retângulo uma tarefa, e as linhas pretas ligam o início e o fim de cada iteração, mostrando
-quantas iterações executam ao mesmo tempo. Usa o =trace= lido no bloco acima.
+Estatísticas da duração das tarefas por máquina, segmentação (tarefas por iteração), IO e tipo de tarefa.
+=mean_ms_last25= é a duração média das tarefas que começam no último quarto do makespan.
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-  panel_st(trace) +
-    labs(title = "star-fletcher no tupi, ordem 24 com IO a cada passo")
+#+BEGIN_SRC R :session *R* :async yes :results value :colnames yes
+  # Duração das tarefas por máquina, segmentação (tarefas por iteração), IO e tipo de tarefa.
+  # mean_ms_last25 é a duração média das tarefas que começam no último quarto do makespan.
+  task_duration_stats <- all_tasks |>
+    filter(Value != "wave_insertion") |>
+    group_by(Machine, BlockSeg, IO) |>
+    mutate(Last25 = Start >= min(Start) + 0.75 * (max(End) - min(Start))) |>
+    group_by(Machine, Order, BlockSeg, TasksPerIter, Workers, IO, Task = Value) |>
+    summarize(
+      n              = n(),
+      mean_ms        = mean(Duration),
+      sd_ms          = sd(Duration),
+      cv_pct         = 100 * sd_ms / mean_ms,
+      median_ms      = median(Duration),
+      p95_ms         = quantile(Duration, 0.95),
+      max_ms         = max(Duration),
+      mean_ms_last25 = mean(Duration[Last25]),
+      .groups        = "drop"
+    ) |>
+    arrange(Machine, Task, IO, BlockSeg) |>
+    mutate(across(where(is.double), \(x) round(x, 2)))
+
+  task_duration_stats
 #+END_SRC
+
+#+RESULTS:
+| Machine | Order | BlockSeg | TasksPerIter | Workers | IO               | Task             |     n | mean_ms |  sd_ms | cv_pct | median_ms |  p95_ms |  max_ms | mean_ms_last25 |
+|---------+-------+----------+--------------+---------+------------------+------------------+-------+---------+--------+--------+-----------+---------+---------+----------------|
+| cei     |   128 |        3 |           27 |      24 | Without IO       | wave_propagation |   567 | 1015.74 |  166.2 |  16.36 |    966.23 | 1240.18 | 1900.38 |        1039.57 |
+| cei     |    96 |        4 |           64 |      24 | Without IO       | wave_propagation |  1344 |  369.76 |  35.68 |   9.65 |    364.08 |  451.59 |  605.16 |         368.15 |
+| cei     |    64 |        6 |          216 |      24 | Without IO       | wave_propagation |  4536 |  112.21 |  14.93 |   13.3 |     111.5 |  126.13 |  227.86 |          112.9 |
+| cei     |    48 |        8 |          512 |      24 | Without IO       | wave_propagation | 10752 |   42.31 |   7.98 |  18.87 |     40.82 |   45.22 |  125.94 |          43.14 |
+| cei     |    32 |       12 |         1728 |      24 | Without IO       | wave_propagation | 36288 |   13.79 |   3.87 |  28.04 |     13.73 |   15.22 |    81.9 |          13.91 |
+| cei     |    24 |       16 |         4096 |      24 | Without IO       | wave_propagation | 86016 |    5.64 |    1.6 |  28.35 |      5.79 |    6.02 |   47.03 |           5.71 |
+| cei     |   128 |        3 |           27 |      24 | IO every step    | wave_propagation |   567 |  1089.4 | 219.89 |  20.18 |    1097.5 | 1502.35 | 1943.36 |        1064.77 |
+| cei     |    96 |        4 |           64 |      24 | IO every step    | wave_propagation |  1344 |  392.84 |  61.65 |  15.69 |    376.94 |   495.6 |  879.89 |         373.01 |
+| cei     |    64 |        6 |          216 |      24 | IO every step    | wave_propagation |  4536 |  110.62 |  14.53 |  13.13 |    109.37 |  124.58 |  215.59 |         110.21 |
+| cei     |    48 |        8 |          512 |      24 | IO every step    | wave_propagation | 10752 |   49.53 |  13.58 |  27.42 |     45.85 |   60.97 |  197.89 |          57.39 |
+| cei     |    32 |       12 |         1728 |      24 | IO every step    | wave_propagation | 36288 |   16.85 |    5.6 |  33.21 |     16.35 |   19.97 |  123.79 |          17.98 |
+| cei     |    24 |       16 |         4096 |      24 | IO every step    | wave_propagation | 86016 |    6.34 |   2.16 |  34.16 |      5.86 |    8.23 |   46.63 |           7.63 |
+| cei     |   128 |        3 |           27 |      24 | IO every 5 steps | wave_propagation |   567 | 1085.87 |  196.7 |  18.11 |   1154.14 |    1336 | 1920.37 |        1086.13 |
+| cei     |    96 |        4 |           64 |      24 | IO every 5 steps | wave_propagation |  1344 |  373.13 |  35.62 |   9.55 |    368.19 |  454.55 |  640.13 |         373.35 |
+| cei     |    64 |        6 |          216 |      24 | IO every 5 steps | wave_propagation |  4536 |  112.34 |  16.42 |  14.61 |    110.41 |  134.95 |  281.61 |         110.38 |
+| cei     |    48 |        8 |          512 |      24 | IO every 5 steps | wave_propagation | 10752 |   43.31 |   9.27 |  21.41 |     41.14 |   54.52 |  196.62 |          42.95 |
+| cei     |    32 |       12 |         1728 |      24 | IO every 5 steps | wave_propagation | 36288 |   14.17 |    4.1 |  28.93 |     13.89 |   17.57 |  104.75 |          14.94 |
+| cei     |    24 |       16 |         4096 |      24 | IO every 5 steps | wave_propagation | 86016 |    5.77 |   1.74 |  30.16 |      5.81 |    7.67 |    46.1 |           5.64 |
+| cei     |   128 |        3 |           27 |      24 | IO every step    | write_block      |   594 |   63.16 |  51.02 |  80.78 |      54.4 |  167.11 |  251.93 |          47.45 |
+| cei     |    96 |        4 |           64 |      24 | IO every step    | write_block      |  1408 |    20.7 |  20.33 |  98.23 |      9.51 |   62.88 |  107.72 |          14.85 |
+| cei     |    64 |        6 |          216 |      24 | IO every step    | write_block      |  4752 |    5.42 |   6.81 | 125.59 |      2.54 |   21.19 |   40.67 |           3.93 |
+| cei     |    48 |        8 |          512 |      24 | IO every step    | write_block      | 11264 |    2.59 |   3.79 | 146.66 |      1.08 |   10.72 |   38.36 |           2.48 |
+| cei     |    32 |       12 |         1728 |      24 | IO every step    | write_block      | 38016 |    0.88 |   1.47 | 167.17 |      0.31 |    3.84 |   24.97 |           0.73 |
+| cei     |    24 |       16 |         4096 |      24 | IO every step    | write_block      | 90112 |     0.3 |   0.73 | 241.79 |       0.1 |    1.75 |    22.1 |           0.19 |
+| cei     |   128 |        3 |           27 |      24 | IO every 5 steps | write_block      |   135 |   79.94 |  75.29 |  94.19 |     56.03 |  238.51 |   239.2 |          42.09 |
+| cei     |    96 |        4 |           64 |      24 | IO every 5 steps | write_block      |   320 |   30.27 |  32.58 | 107.63 |       9.6 |  106.88 |  112.13 |          14.57 |
+| cei     |    64 |        6 |          216 |      24 | IO every 5 steps | write_block      |  1080 |    9.05 |   11.2 | 123.79 |      2.66 |   38.19 |   39.63 |           3.79 |
+| cei     |    48 |        8 |          512 |      24 | IO every 5 steps | write_block      |  2560 |    3.98 |   5.27 | 132.18 |      1.01 |   14.97 |   23.12 |           1.49 |
+| cei     |    32 |       12 |         1728 |      24 | IO every 5 steps | write_block      |  8640 |    1.42 |   2.31 |    162 |      0.25 |     5.3 |   11.61 |           0.43 |
+| cei     |    24 |       16 |         4096 |      24 | IO every 5 steps | write_block      | 20480 |    0.55 |   1.11 | 201.08 |      0.09 |     2.2 |    7.59 |           0.16 |
+| draco   |   128 |        3 |           27 |      16 | Without IO       | wave_propagation |   567 | 1337.89 | 194.03 |   14.5 |   1274.33 | 1611.66 | 2311.88 |        1337.98 |
+| draco   |    96 |        4 |           64 |      16 | Without IO       | wave_propagation |  1344 |  486.45 |  46.53 |   9.56 |    479.35 |  583.94 |  847.53 |         490.56 |
+| draco   |    64 |        6 |          216 |      16 | Without IO       | wave_propagation |  4536 |  143.69 |  17.88 |  12.45 |     142.2 |  164.42 |  264.11 |         143.08 |
+| draco   |    48 |        8 |          512 |      16 | Without IO       | wave_propagation | 10752 |    65.7 |   9.97 |  15.17 |     64.47 |   72.17 |  158.95 |          66.39 |
+| draco   |    32 |       12 |         1728 |      16 | Without IO       | wave_propagation | 36288 |   18.28 |   4.43 |  24.23 |     18.11 |   20.67 |   93.34 |          18.14 |
+| draco   |    24 |       16 |         4096 |      16 | Without IO       | wave_propagation | 86016 |    7.56 |   1.92 |  25.47 |      7.78 |    8.57 |   46.25 |           7.53 |
+| draco   |   128 |        3 |           27 |      16 | IO every step    | wave_propagation |   567 |  1363.2 | 225.66 |  16.55 |   1280.92 | 1792.07 | 2332.51 |        1454.23 |
+| draco   |    96 |        4 |           64 |      16 | IO every step    | wave_propagation |  1344 |  509.48 |  69.08 |  13.56 |    494.48 |  633.07 |  1005.9 |         476.64 |
+| draco   |    64 |        6 |          216 |      16 | IO every step    | wave_propagation |  4536 |  161.36 |  26.65 |  16.52 |    157.87 |     203 |  369.41 |         160.77 |
+| draco   |    48 |        8 |          512 |      16 | IO every step    | wave_propagation | 10752 |   72.04 |  14.51 |  20.14 |     70.03 |      91 |  302.32 |          70.43 |
+| draco   |    32 |       12 |         1728 |      16 | IO every step    | wave_propagation | 36288 |   19.99 |    5.8 |  29.01 |     19.37 |    26.3 |  119.09 |          19.97 |
+| draco   |    24 |       16 |         4096 |      16 | IO every step    | wave_propagation | 86016 |    8.31 |   2.67 |  32.09 |      8.01 |   10.86 |   75.22 |           8.74 |
+| draco   |   128 |        3 |           27 |      16 | IO every 5 steps | wave_propagation |   567 | 1325.35 | 193.97 |  14.64 |   1267.29 | 1639.59 | 2249.78 |        1320.34 |
+| draco   |    96 |        4 |           64 |      16 | IO every 5 steps | wave_propagation |  1344 |   486.8 |  51.84 |  10.65 |    477.21 |  590.74 | 1003.45 |         484.95 |
+| draco   |    64 |        6 |          216 |      16 | IO every 5 steps | wave_propagation |  4536 |  145.72 |  19.45 |  13.35 |    143.47 |  174.71 |  308.36 |         148.08 |
+| draco   |    48 |        8 |          512 |      16 | IO every 5 steps | wave_propagation | 10752 |   67.52 |  11.81 |  17.49 |     65.06 |   80.87 |  204.38 |          71.45 |
+| draco   |    32 |       12 |         1728 |      16 | IO every 5 steps | wave_propagation | 36288 |   18.68 |   4.72 |  25.29 |     18.26 |   22.95 |  110.46 |          18.35 |
+| draco   |    24 |       16 |         4096 |      16 | IO every 5 steps | wave_propagation | 86016 |    7.63 |   1.93 |  25.28 |      7.85 |    8.62 |   50.31 |           7.54 |
+| draco   |   128 |        3 |           27 |      16 | IO every step    | write_block      |   594 |    73.2 |   54.1 |   73.9 |     61.58 |  158.92 |  344.11 |          62.97 |
+| draco   |    96 |        4 |           64 |      16 | IO every step    | write_block      |  1408 |   21.45 |  14.33 |  66.81 |     13.53 |   54.18 |  206.69 |          17.08 |
+| draco   |    64 |        6 |          216 |      16 | IO every step    | write_block      |  4752 |    7.04 |   9.77 | 138.85 |      4.34 |    19.7 |  222.73 |           6.68 |
+| draco   |    48 |        8 |          512 |      16 | IO every step    | write_block      | 11264 |    2.53 |   6.91 | 272.88 |       1.1 |    7.07 |  259.06 |           1.71 |
+| draco   |    32 |       12 |         1728 |      16 | IO every step    | write_block      | 38016 |    0.64 |   1.69 |  262.6 |      0.26 |     2.7 |    91.5 |           0.47 |
+| draco   |    24 |       16 |         4096 |      16 | IO every step    | write_block      | 90112 |    0.31 |   1.29 | 416.64 |      0.11 |    1.59 |  194.89 |           0.22 |
+| draco   |   128 |        3 |           27 |      16 | IO every 5 steps | write_block      |   135 |   93.47 |   86.7 |  92.76 |     62.57 |  331.25 |  335.63 |          58.97 |
+| draco   |    96 |        4 |           64 |      16 | IO every 5 steps | write_block      |   320 |   27.22 |  20.45 |  75.13 |     14.04 |   67.33 |    72.7 |          17.76 |
+| draco   |    64 |        6 |          216 |      16 | IO every 5 steps | write_block      |  1080 |    7.46 |   6.88 |  92.22 |      3.56 |   25.16 |   29.33 |           4.87 |
+| draco   |    48 |        8 |          512 |      16 | IO every 5 steps | write_block      |  2560 |    3.48 |   9.24 | 265.47 |       1.1 |   12.09 |   235.8 |           3.88 |
+| draco   |    32 |       12 |         1728 |      16 | IO every 5 steps | write_block      |  8640 |    0.87 |   1.52 | 173.67 |      0.26 |    3.27 |   40.86 |           0.42 |
+| draco   |    24 |       16 |         4096 |      16 | IO every 5 steps | write_block      | 20480 |    0.52 |   0.81 | 155.69 |      0.11 |    1.73 |    5.97 |           0.17 |
+| grace   |   128 |        3 |           27 |     133 | Without IO       | wave_propagation |   567 |  381.27 |  18.23 |   4.78 |    379.36 |  415.74 |  445.75 |            377 |
+| grace   |    96 |        4 |           64 |     143 | Without IO       | wave_propagation |  1344 |  137.18 |   18.2 |  13.27 |    132.53 |  178.11 |  350.24 |         129.83 |
+| grace   |    64 |        6 |          216 |     144 | Without IO       | wave_propagation |  4536 |   66.97 |  28.58 |  42.67 |     55.02 |  131.65 |  436.98 |          53.51 |
+| grace   |    48 |        8 |          512 |     144 | Without IO       | wave_propagation | 10752 |   31.26 |  26.58 |  85.01 |     17.47 |   95.75 |  153.96 |          16.14 |
+| grace   |    32 |       12 |         1728 |     144 | Without IO       | wave_propagation | 36288 |   12.16 |  13.75 | 113.02 |      5.33 |   42.69 |    96.6 |              5 |
+| grace   |    24 |       16 |         4096 |     144 | Without IO       | wave_propagation | 86016 |    3.24 |   4.06 | 125.27 |      2.21 |    11.8 |   45.78 |            2.1 |
+| grace   |   128 |        3 |           27 |     142 | IO every step    | wave_propagation |   567 |  383.21 |  20.75 |   5.41 |    381.02 |  421.23 |  481.33 |         377.89 |
+| grace   |    96 |        4 |           64 |     144 | IO every step    | wave_propagation |  1344 |  136.84 |  15.87 |   11.6 |    133.26 |   165.7 |  256.58 |          129.2 |
+| grace   |    64 |        6 |          216 |     144 | IO every step    | wave_propagation |  4536 |   67.12 |  31.38 |  46.75 |     53.34 |  138.06 |   303.1 |          51.89 |
+| grace   |    48 |        8 |          512 |     144 | IO every step    | wave_propagation | 10752 |   29.19 |  31.11 | 106.59 |      16.7 |   87.45 |  413.79 |          18.33 |
+| grace   |    32 |       12 |         1728 |     144 | IO every step    | wave_propagation | 36288 |   12.51 |  15.92 | 127.29 |      6.01 |   38.25 |  243.33 |           7.22 |
+| grace   |    24 |       16 |         4096 |     144 | IO every step    | wave_propagation | 86016 |    5.54 |   7.01 | 126.54 |      3.41 |   16.23 |  145.54 |           3.54 |
+| grace   |   128 |        3 |           27 |     138 | IO every 5 steps | wave_propagation |   567 |   383.5 |  21.19 |   5.53 |    380.26 |  424.26 |  486.32 |         379.03 |
+| grace   |    96 |        4 |           64 |     144 | IO every 5 steps | wave_propagation |  1344 |  137.55 |  14.92 |  10.85 |    133.72 |  165.35 |  237.57 |         130.55 |
+| grace   |    64 |        6 |          216 |     144 | IO every 5 steps | wave_propagation |  4536 |   66.53 |  28.45 |  42.76 |      54.4 |     129 |  233.94 |          52.43 |
+| grace   |    48 |        8 |          512 |     144 | IO every 5 steps | wave_propagation | 10752 |   30.77 |   28.2 |  91.65 |     17.41 |   93.51 |  182.97 |          16.88 |
+| grace   |    32 |       12 |         1728 |     144 | IO every 5 steps | wave_propagation | 36288 |   11.53 |  13.45 | 116.63 |       5.9 |   43.31 |  164.05 |           5.06 |
+| grace   |    24 |       16 |         4096 |     144 | IO every 5 steps | wave_propagation | 86016 |    4.97 |    7.8 | 156.89 |      2.38 |   19.39 |  139.13 |           2.11 |
+| grace   |   128 |        3 |           27 |     142 | IO every step    | write_block      |   594 |   96.22 |  70.84 |  73.62 |     80.98 |  263.59 |  290.41 |          73.09 |
+| grace   |    96 |        4 |           64 |     144 | IO every step    | write_block      |  1408 |   175.1 | 150.71 |  86.07 |    127.36 |   555.8 |  602.04 |         108.08 |
+| grace   |    64 |        6 |          216 |     144 | IO every step    | write_block      |  4752 |  169.27 | 137.45 |   81.2 |    143.08 |  409.98 |  549.05 |         171.41 |
+| grace   |    48 |        8 |          512 |     144 | IO every step    | write_block      | 11264 |   78.09 |  98.45 | 126.08 |     27.12 |  269.97 |  593.28 |          74.17 |
+| grace   |    32 |       12 |         1728 |     144 | IO every step    | write_block      | 38016 |   36.73 |   73.8 | 200.92 |      0.12 |   169.5 |   701.4 |          38.57 |
+| grace   |    24 |       16 |         4096 |     144 | IO every step    | write_block      | 90112 |   18.45 |  26.77 |  145.1 |      0.32 |    71.2 |  272.42 |          14.68 |
+| grace   |   128 |        3 |           27 |     138 | IO every 5 steps | write_block      |   135 |  250.47 |  59.91 |  23.92 |    265.23 |  329.47 |  336.28 |         309.89 |
+| grace   |    96 |        4 |           64 |     144 | IO every 5 steps | write_block      |   320 |  286.11 |  46.78 |  16.35 |    286.17 |  350.19 |  357.66 |         299.82 |
+| grace   |    64 |        6 |          216 |     144 | IO every 5 steps | write_block      |  1080 |  247.83 | 177.65 |  71.68 |    254.87 |  575.79 |  603.35 |         201.55 |
+| grace   |    48 |        8 |          512 |     144 | IO every 5 steps | write_block      |  2560 |  100.31 | 112.52 | 112.18 |     35.09 |  294.57 |  342.14 |          81.49 |
+| grace   |    32 |       12 |         1728 |     144 | IO every 5 steps | write_block      |  8640 |   57.99 |  47.43 |  81.78 |     76.95 |  109.32 |  249.53 |          99.42 |
+| grace   |    24 |       16 |         4096 |     144 | IO every 5 steps | write_block      | 20480 |   37.98 |   21.8 |  57.41 |     38.11 |   70.41 |  175.79 |          39.54 |
+| lunaris |   128 |        3 |           27 |      24 | Without IO       | wave_propagation |   567 |  802.57 |  53.99 |   6.73 |    794.43 |  914.54 |  996.62 |         796.99 |
+| lunaris |    96 |        4 |           64 |      24 | Without IO       | wave_propagation |  1344 |  167.49 |  14.53 |   8.67 |    167.31 |  192.66 |  211.06 |          163.3 |
+| lunaris |    64 |        6 |          216 |      24 | Without IO       | wave_propagation |  4536 |    51.8 |   5.25 |  10.14 |     52.06 |   59.41 |   88.59 |          50.94 |
+| lunaris |    48 |        8 |          512 |      24 | Without IO       | wave_propagation | 10752 |   18.22 |    1.5 |   8.26 |      18.1 |    20.1 |    31.7 |          18.15 |
+| lunaris |    32 |       12 |         1728 |      24 | Without IO       | wave_propagation | 36288 |    6.53 |   0.77 |  11.78 |      6.57 |    7.47 |   12.15 |           6.36 |
+| lunaris |    24 |       16 |         4096 |      24 | Without IO       | wave_propagation | 86016 |    2.41 |   0.36 |  15.13 |      2.46 |    2.74 |    4.72 |           2.41 |
+| lunaris |   128 |        3 |           27 |      24 | IO every step    | wave_propagation |   567 |  843.17 |  75.35 |   8.94 |    831.88 |  985.58 |    1160 |         821.15 |
+| lunaris |    96 |        4 |           64 |      24 | IO every step    | wave_propagation |  1344 |  166.12 |  15.11 |    9.1 |    166.78 |  190.55 |  207.16 |         162.96 |
+| lunaris |    64 |        6 |          216 |      24 | IO every step    | wave_propagation |  4536 |   50.28 |   5.17 |  10.29 |     50.08 |    58.3 |   78.92 |          49.31 |
+| lunaris |    48 |        8 |          512 |      24 | IO every step    | wave_propagation | 10752 |   18.54 |   1.77 |   9.52 |     18.51 |   21.14 |   31.71 |          19.22 |
+| lunaris |    32 |       12 |         1728 |      24 | IO every step    | wave_propagation | 36288 |    6.59 |    0.8 |  12.09 |      6.64 |    7.71 |   12.65 |           6.44 |
+| lunaris |    24 |       16 |         4096 |      24 | IO every step    | wave_propagation | 86016 |    2.42 |   0.36 |  14.99 |      2.48 |    2.76 |    6.91 |           2.42 |
+| lunaris |   128 |        3 |           27 |      24 | IO every 5 steps | wave_propagation |   567 |   827.1 |  55.92 |   6.76 |    823.65 |  922.55 | 1015.28 |         828.61 |
+| lunaris |    96 |        4 |           64 |      24 | IO every 5 steps | wave_propagation |  1344 |  171.04 |  14.67 |   8.57 |    171.08 |  195.87 |  244.32 |         166.65 |
+| lunaris |    64 |        6 |          216 |      24 | IO every 5 steps | wave_propagation |  4536 |   50.96 |   5.32 |  10.44 |     50.77 |   58.98 |   86.73 |          50.21 |
+| lunaris |    48 |        8 |          512 |      24 | IO every 5 steps | wave_propagation | 10752 |   18.26 |   1.53 |   8.35 |     18.15 |   20.22 |   31.61 |          18.23 |
+| lunaris |    32 |       12 |         1728 |      24 | IO every 5 steps | wave_propagation | 36288 |    6.59 |   0.76 |   11.6 |      6.65 |    7.47 |   12.25 |           6.42 |
+| lunaris |    24 |       16 |         4096 |      24 | IO every 5 steps | wave_propagation | 86015 |    2.38 |   0.35 |  14.65 |      2.44 |    2.71 |    4.61 |           2.38 |
+| lunaris |   128 |        3 |           27 |      24 | IO every step    | write_block      |   594 |   99.32 |  36.38 |  36.63 |     94.02 |  147.25 |  253.18 |          88.91 |
+| lunaris |    96 |        4 |           64 |      24 | IO every step    | write_block      |  1408 |   14.19 |  12.73 |  89.73 |      8.64 |   43.12 |   69.75 |          11.45 |
+| lunaris |    64 |        6 |          216 |      24 | IO every step    | write_block      |  4752 |    3.74 |   4.43 | 118.21 |      2.07 |   13.44 |   27.66 |           3.01 |
+| lunaris |    48 |        8 |          512 |      24 | IO every step    | write_block      | 11264 |    1.56 |   2.22 | 142.08 |      0.78 |    6.68 |   15.62 |           1.16 |
+| lunaris |    32 |       12 |         1728 |      24 | IO every step    | write_block      | 38016 |     0.5 |   0.96 | 193.12 |      0.18 |    2.45 |    18.6 |           0.31 |
+| lunaris |    24 |       16 |         4096 |      24 | IO every step    | write_block      | 90112 |     0.3 |   0.87 | 292.57 |      0.06 |    1.33 |   18.37 |           0.16 |
+| lunaris |   128 |        3 |           27 |      24 | IO every 5 steps | write_block      |   135 |  117.39 |  63.09 |  53.75 |     95.51 |  251.86 |  255.75 |             87 |
+| lunaris |    96 |        4 |           64 |      24 | IO every 5 steps | write_block      |   320 |   18.31 |  20.53 | 112.15 |      4.89 |   67.76 |   69.71 |           8.22 |
+| lunaris |    64 |        6 |          216 |      24 | IO every 5 steps | write_block      |  1080 |     6.1 |   6.95 | 114.05 |      2.42 |   23.46 |   26.93 |            2.8 |
+| lunaris |    48 |        8 |          512 |      24 | IO every 5 steps | write_block      |  2560 |    2.49 |   3.16 | 126.54 |      0.86 |    9.04 |   13.48 |           1.06 |
+| lunaris |    32 |       12 |         1728 |      24 | IO every 5 steps | write_block      |  8640 |    0.95 |   1.55 | 163.89 |      0.24 |    3.13 |    8.27 |           0.31 |
+| lunaris |    24 |       16 |         4096 |      24 | IO every 5 steps | write_block      | 20480 |    0.57 |   1.05 | 185.54 |       0.1 |    1.86 |   13.77 |           0.27 |
+| poti    |   128 |        3 |           27 |      28 | Without IO       | wave_propagation |   567 |  609.48 | 375.93 |  61.68 |    577.02 |  723.96 | 4088.18 |         680.33 |
+| poti    |    96 |        4 |           64 |      28 | Without IO       | wave_propagation |  1344 |  248.02 |  76.45 |  30.82 |    234.04 |  306.17 |     736 |         247.14 |
+| poti    |    64 |        6 |          216 |      28 | Without IO       | wave_propagation |  4536 |   77.41 |  40.64 |   52.5 |     73.02 |   91.08 |  548.45 |          78.02 |
+| poti    |    48 |        8 |          512 |      28 | Without IO       | wave_propagation | 10752 |      29 |  29.82 | 102.86 |     26.42 |   30.96 |  496.12 |          30.32 |
+| poti    |    32 |       12 |         1728 |      28 | Without IO       | wave_propagation | 36288 |    9.68 |  14.09 | 145.57 |      9.17 |      11 |  422.04 |          10.17 |
+| poti    |    24 |       16 |         4096 |      28 | Without IO       | wave_propagation | 86016 |    4.02 |   5.94 | 147.76 |      3.92 |    4.17 |  215.39 |           4.17 |
+| poti    |   128 |        3 |           27 |      28 | IO every step    | wave_propagation |   567 |  634.08 | 440.18 |  69.42 |    585.73 |  757.74 | 3994.99 |         638.83 |
+| poti    |    96 |        4 |           64 |      28 | IO every step    | wave_propagation |  1344 |  249.32 |   78.7 |  31.56 |    234.73 |  316.84 |  747.08 |         250.62 |
+| poti    |    64 |        6 |          216 |      28 | IO every step    | wave_propagation |  4536 |   73.41 |  42.73 |   58.2 |      68.9 |   84.91 |  571.31 |          79.52 |
+| poti    |    48 |        8 |          512 |      28 | IO every step    | wave_propagation | 10752 |   30.47 |  35.54 | 116.61 |     27.75 |   32.59 |  549.98 |          36.53 |
+| poti    |    32 |       12 |         1728 |      28 | IO every step    | wave_propagation | 36288 |   10.38 |  14.15 | 136.33 |      9.73 |   12.61 |  474.19 |          10.79 |
+| poti    |    24 |       16 |         4096 |      28 | IO every step    | wave_propagation | 86016 |    3.95 |   6.43 | 162.87 |      3.74 |    4.65 |  203.67 |            4.7 |
+| poti    |   128 |        3 |           27 |      28 | IO every 5 steps | wave_propagation |   567 |  601.97 | 387.34 |  64.35 |    572.16 |  729.02 |  3948.6 |         623.71 |
+| poti    |    96 |        4 |           64 |      28 | IO every 5 steps | wave_propagation |  1344 |  254.14 |  82.84 |   32.6 |    239.88 |  334.43 |  735.71 |         252.19 |
+| poti    |    64 |        6 |          216 |      28 | IO every 5 steps | wave_propagation |  4536 |   79.45 |  47.06 |  59.23 |     73.42 |    92.5 |  565.22 |          80.13 |
+| poti    |    48 |        8 |          512 |      28 | IO every 5 steps | wave_propagation | 10752 |   29.02 |  30.97 |  106.7 |     26.47 |   30.91 |  509.96 |          31.25 |
+| poti    |    32 |       12 |         1728 |      28 | IO every 5 steps | wave_propagation | 36288 |   10.65 |  19.63 | 184.29 |      9.79 |    11.6 |  457.06 |          11.41 |
+| poti    |    24 |       16 |         4096 |      28 | IO every 5 steps | wave_propagation | 86016 |    3.87 |   5.82 | 150.32 |      3.76 |    4.02 |   206.9 |           4.34 |
+| poti    |   128 |        3 |           27 |      28 | IO every step    | write_block      |   594 |   32.37 |  34.86 | 107.69 |     23.08 |   69.03 |  198.14 |          22.47 |
+| poti    |    96 |        4 |           64 |      28 | IO every step    | write_block      |  1408 |    9.35 |   6.61 |  70.62 |      6.54 |   22.18 |   45.86 |           7.58 |
+| poti    |    64 |        6 |          216 |      28 | IO every step    | write_block      |  4752 |    2.66 |   3.27 |    123 |      1.62 |    8.65 |  109.46 |           2.21 |
+| poti    |    48 |        8 |          512 |      28 | IO every step    | write_block      | 11264 |    1.06 |   1.27 | 120.47 |       0.6 |    3.69 |   15.59 |           0.87 |
+| poti    |    32 |       12 |         1728 |      28 | IO every step    | write_block      | 38016 |    0.33 |   0.63 | 190.04 |      0.17 |     1.3 |    32.9 |           0.24 |
+| poti    |    24 |       16 |         4096 |      28 | IO every step    | write_block      | 90112 |    0.17 |   0.47 | 277.04 |      0.06 |    0.67 |   21.88 |            0.1 |
+| poti    |   128 |        3 |           27 |      28 | IO every 5 steps | write_block      |   135 |   58.77 |  65.85 | 112.03 |     30.62 |  196.71 |   201.1 |          21.33 |
+| poti    |    96 |        4 |           64 |      28 | IO every 5 steps | write_block      |   320 |   12.47 |   9.89 |  79.31 |      6.71 |   33.61 |   36.99 |           7.44 |
+| poti    |    64 |        6 |          216 |      28 | IO every 5 steps | write_block      |  1080 |    3.57 |   3.26 |  91.33 |      1.88 |   11.34 |   15.42 |           2.11 |
+| poti    |    48 |        8 |          512 |      28 | IO every 5 steps | write_block      |  2560 |    1.51 |   1.78 | 117.61 |      0.64 |    6.14 |    9.05 |           0.83 |
+| poti    |    32 |       12 |         1728 |      28 | IO every 5 steps | write_block      |  8640 |    0.49 |   0.72 | 146.42 |      0.18 |    1.97 |   12.18 |           0.24 |
+| poti    |    24 |       16 |         4096 |      28 | IO every 5 steps | write_block      | 20480 |    0.22 |   0.48 | 214.23 |      0.06 |    0.73 |   41.43 |            0.1 |
+| tupi    |   128 |        3 |           27 |      32 | Without IO       | wave_propagation |   567 |   502.4 | 341.26 |  67.93 |    460.85 |   647.5 | 3625.59 |         495.86 |
+| tupi    |    96 |        4 |           64 |      32 | Without IO       | wave_propagation |  1344 |  218.87 |  69.74 |  31.86 |    205.66 |  285.91 |  637.98 |         211.38 |
+| tupi    |    64 |        6 |          216 |      32 | Without IO       | wave_propagation |  4536 |    67.3 |   40.9 |  60.77 |     62.34 |    81.5 |  474.99 |          69.83 |
+| tupi    |    48 |        8 |          512 |      32 | Without IO       | wave_propagation | 10752 |    24.3 |   26.6 | 109.48 |     22.41 |    25.8 |  438.13 |          26.63 |
+| tupi    |    32 |       12 |         1728 |      32 | Without IO       | wave_propagation | 36288 |    8.72 |  12.59 | 144.35 |      8.19 |   10.13 |   374.9 |           9.12 |
+| tupi    |    24 |       16 |         4096 |      32 | Without IO       | wave_propagation | 86016 |    3.52 |   6.45 | 183.26 |       3.3 |    3.63 |  183.71 |           3.58 |
+| tupi    |   128 |        3 |           27 |      32 | IO every step    | wave_propagation |   567 |  537.05 | 319.59 |  59.51 |    499.13 |  693.93 | 3763.23 |         580.48 |
+| tupi    |    96 |        4 |           64 |      32 | IO every step    | wave_propagation |  1344 |   228.2 |  87.73 |  38.44 |    207.02 |  348.34 |  839.27 |         212.76 |
+| tupi    |    64 |        6 |          216 |      32 | IO every step    | wave_propagation |  4536 |   69.71 |  43.45 |  62.33 |     63.32 |    90.7 |  756.93 |          69.98 |
+| tupi    |    48 |        8 |          512 |      32 | IO every step    | wave_propagation | 10752 |   25.39 |  31.39 | 123.64 |     22.75 |   29.08 |  606.72 |           32.5 |
+| tupi    |    32 |       12 |         1728 |      32 | IO every step    | wave_propagation | 36288 |    8.76 |  14.11 | 160.96 |      8.13 |   10.01 |  374.68 |           9.45 |
+| tupi    |    24 |       16 |         4096 |      32 | IO every step    | wave_propagation | 86016 |    3.46 |   6.15 | 177.94 |      3.26 |    3.62 |  181.62 |            3.6 |
+| tupi    |   128 |        3 |           27 |      32 | IO every 5 steps | wave_propagation |   567 |  512.86 | 400.95 |  78.18 |    465.33 |  650.43 | 4803.03 |         510.36 |
+| tupi    |    96 |        4 |           64 |      32 | IO every 5 steps | wave_propagation |  1344 |  219.83 |  74.62 |  33.94 |       206 |  287.71 |  640.77 |         217.96 |
+| tupi    |    64 |        6 |          216 |      32 | IO every 5 steps | wave_propagation |  4536 |   67.37 |  40.77 |  60.51 |     62.71 |   79.14 |  481.33 |          69.22 |
+| tupi    |    48 |        8 |          512 |      32 | IO every 5 steps | wave_propagation | 10752 |   24.52 |  26.57 | 108.35 |     22.52 |   26.82 |  451.42 |          27.16 |
+| tupi    |    32 |       12 |         1728 |      32 | IO every 5 steps | wave_propagation | 36288 |    8.66 |  11.35 | 131.06 |      8.23 |   10.03 |  383.66 |           8.64 |
+| tupi    |    24 |       16 |         4096 |      32 | IO every 5 steps | wave_propagation | 86016 |    3.45 |   5.54 | 160.53 |      3.27 |    3.93 |  182.88 |           4.03 |
+| tupi    |   128 |        3 |           27 |      32 | IO every step    | write_block      |   594 |   28.64 |  29.88 | 104.34 |     20.08 |   54.85 |  169.74 |          17.97 |
+| tupi    |    96 |        4 |           64 |      32 | IO every step    | write_block      |  1408 |     9.6 |   9.31 |  97.01 |      5.73 |   25.36 |  188.35 |           6.89 |
+| tupi    |    64 |        6 |          216 |      32 | IO every step    | write_block      |  4752 |    2.45 |   2.69 | 109.54 |      1.33 |    9.18 |   29.62 |           1.86 |
+| tupi    |    48 |        8 |          512 |      32 | IO every step    | write_block      | 11264 |    0.99 |   1.29 | 130.45 |       0.5 |    4.19 |   11.12 |           0.71 |
+| tupi    |    32 |       12 |         1728 |      32 | IO every step    | write_block      | 38016 |    0.29 |    0.5 | 170.59 |      0.14 |    1.25 |    19.4 |           0.18 |
+| tupi    |    24 |       16 |         4096 |      32 | IO every step    | write_block      | 90112 |    0.28 |    0.8 |  282.5 |      0.05 |    1.49 |   30.42 |           0.25 |
+| tupi    |   128 |        3 |           27 |      32 | IO every 5 steps | write_block      |   135 |   51.75 |  63.25 | 122.24 |     23.05 |  187.43 |  190.04 |          21.08 |
+| tupi    |    96 |        4 |           64 |      32 | IO every 5 steps | write_block      |   320 |   13.77 |   13.7 |  99.45 |       5.6 |   41.84 |    44.7 |           6.62 |
+| tupi    |    64 |        6 |          216 |      32 | IO every 5 steps | write_block      |  1080 |    3.64 |   4.05 |  111.2 |      1.46 |   13.24 |   15.51 |           1.93 |
+| tupi    |    48 |        8 |          512 |      32 | IO every 5 steps | write_block      |  2560 |    1.51 |   1.81 | 119.63 |      0.54 |    5.76 |    8.13 |           0.74 |
+| tupi    |    32 |       12 |         1728 |      32 | IO every 5 steps | write_block      |  8640 |     0.5 |   0.77 | 153.75 |      0.15 |    2.08 |    4.55 |           0.21 |
+| tupi    |    24 |       16 |         4096 |      32 | IO every 5 steps | write_block      | 20480 |    0.36 |   0.76 |  211.9 |      0.05 |    1.79 |    19.5 |           0.23 |
 
 ** Análise da Escalabilidade
 
@@ -860,7 +1077,9 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
           labels = ticks$Label
         ) +
         scale_color_manual(values = program_colors, limits = names(program_colors)) +
-        facet_grid(IO ~ Machine, scales = "free_y") +
+        facet_grid(
+          (if(unique(d$IO) |> length() == 1) ~ Machine else IO ~ Machine),
+          scales = "free_y") +
         labs(x = "Number of cores/threads", y = y_label, color = NULL) +
         theme_bw(base_size = 15) +
         theme(axis.text.x = element_text(size = 9))
