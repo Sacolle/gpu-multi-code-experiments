@@ -1111,3 +1111,10 @@ vez que o número de cores dobra.
 #+BEGIN_SRC R :session *R* :async yes :results output silent
   scalability_plot(scale_stats, "ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
+
+* Texto
+
+Performance Analysis of the Forwards Phase of Fletcher's Reverse Time Migration Algorithm Using Task-Based Paradigm on Multiple CPU architectures.
+
+
+Reverse Time Migration (RTM) is a computationally and IO-intensive algorithm widely used in oil and gas exploration. This paper presents \emph{star-fletcher}, an implementation of the forward phase of the Fletcher RTM algorithm using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, \emph{star-fletcher} enables overlap of computation and I/O, eliminating global synchronization points between iterations. Experiments conducted on multiple CPU architectures show that \emph{star-fletcher} outperforms the OpenMP implementation \emph{fletcher-base}, with the most significant gains observed on heterogeneous architectures featuring mixed performance and efficiency cores.
