@@ -426,6 +426,8 @@
     {
         packages = {
             # test = my-star-fletcher.override { compileAsRelease = false; };
+
+          star-fletcher-cpu-scalability-grace-extra = star-fletcher-cpu-scalability ./scalability/star-fletcher-scal-grace-extra.csv;
           inherit
             # my-star-fletcher
             fletcher-base-cpu

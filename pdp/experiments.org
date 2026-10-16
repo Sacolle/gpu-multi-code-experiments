@@ -85,6 +85,7 @@ Experimento matriz
 Experimento de escalabilidade
 - Aumentar o número de OMP_WORKERS, primeiro usando os p-cores e depois os e-cores
 
+*** Cógido de geração dos experimentos base
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
    source("./libExp.R")
@@ -125,6 +126,8 @@ Experimento de escalabilidade
   fb_ex |> readr::write_csv(glue("./pdp/fletcher-base-exp.csv"))
 #+END_SRC
 
+*** Cógido de geração dos traces
+
 Nisso, precisamos também de fazer um projeto do /star-flecther/ para os traces.
 
 
@@ -137,6 +140,8 @@ Nisso, precisamos também de fazer um projeto do /star-flecther/ para os traces.
 
 #+END_SRC
 
+
+*** Cógido de geração dos experimentos do IO
 
 Ainda precisamos do experimento de escalabilidade do programa. Isso vai depender de cada máquina.
 Por isso, é importante adicionar no preemble de todos os programas um código para gerar o layout dos
@@ -164,6 +169,8 @@ Além disso, preciso do projeto experimental que avalia a velocidade de leitura 
   fio_ex |> readr::write_csv(glue("./pdp/fio-write.csv"))
 
 #+END_SRC
+
+*** Cógido de geração dos experimentos de escalabilidade
 
 Experimento de escalabilidade do /star-fletcher/ e do /fletcher-base/.
 Ele é feito por máquina, pois depende da topologia de cada CPU (ver [[file:../cpu-topology.org][cpu-topology.org]]).
@@ -270,12 +277,31 @@ O número de CPUs segue potências de 2 mais os pontos de transição (socket in
 
     fb_scal <- sf_scal |>
       select(-BlockSeg, -StarpuCpuList) |>
-      cross_join(tibble(Schedulers = c("static", "dynamic", "guided")))
+      cross_join(tibble(Schedulers = c("static", "dynamic")))
 
     sf_scal |> readr::write_csv(glue("./pdp/scalability/star-fletcher-scal-{machine}.csv"))
     fb_scal |> readr::write_csv(glue("./pdp/scalability/fletcher-base-scal-{machine}.csv"))
   })
 #+END_SRC
+
+**** Mais datapoints para a Grace
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  source("./libExp.R")
+  options(scipen = 999)
+
+  grace_scale <- read_csv("./pdp/scalability/star-fletcher-scal-grace.csv")
+
+  grace_extra <- grace_scale |>
+    select(-Blocks) |>
+    unique() |>
+    cross_join(tibble(Blocks = c(1:10 + max(grace_scale$Blocks)))) |>
+    slice_sample(prop = 1)
+
+  grace_extra |> readr::write_csv("./pdp/scalability/star-fletcher-scal-grace-extra.csv")
+#+END_SRC
+
 
 
 
@@ -434,65 +460,71 @@ Experimento do fletcher-base considerando o bind de cores
 #+END_SRC
 
 
-#+BEGIN_SRC R :session *R* :async yes 
+#+BEGIN_SRC R :session *R* :async yes :colnames yes
 
-                                          # put both tables 
+                                            # put both tables 
   fb_variants <- list(
-      base = fb_res,
-      bind = fb_bind_res
-    ) |>
-      list_rbind(names_to = "Variant") |>
-      mutate(Variant = factor(Variant, levels = c("base", "bind")))
+    base = fb_res,
+    bind = fb_bind_res
+  ) |>
+    list_rbind(names_to = "Variant") |>
+    mutate(Variant = factor(Variant, levels = c("base", "bind")))
 
-                                          # Sinceramente, não entendi tão bem esse código abaixo
+                                            # Sinceramente, não entendi tão bem esse código abaixo
   fb_variant_stats <- fb_variants |>
-      filter(WithIO == 0) |>
-      mutate(Machine = sub("\\d+$", "", Machine)) |>
-      group_by(Machine, Schedulers, Variant) |>
-      summarize(
-        UsedThreads = first(UsedThreads),
-        n       = n(),
-        Ms_mean = mean(Msamples),
-        Ms_sd   = sd(Msamples),
-        Ms_err  = (3 * Ms_sd) / sqrt(n),
-        raw     = list(Msamples),
-        .groups = "drop"
+    filter(WithIO == 0) |>
+    mutate(Machine = sub("\\d+$", "", Machine)) |>
+    group_by(Machine, Schedulers, Variant) |>
+    summarize(
+      UsedThreads = first(UsedThreads),
+      n       = n(),
+      Ms_mean = mean(Msamples),
+      Ms_sd   = sd(Msamples),
+      Ms_err  = (3 * Ms_sd) / sqrt(n),
+          raw     = list(Msamples),
+      .groups = "drop"
     ) |>
-      group_by(Machine, Schedulers) |>
-      filter(any(Variant == "base")) |>
-      mutate(
-        Gain_pct = (Ms_mean / Ms_mean[Variant == "base"] - 1) * 100,
-        p_value  = map_dbl(raw, \(x) if (identical(x, raw[[which(Variant == "base")]])) NA_real_
-                                     else t.test(x, raw[[which(Variant == "base")]])$p.value)
-      ) |>
+    group_by(Machine, Schedulers) |>
+    filter(any(Variant == "base")) |>
+    mutate(
+      Gain_pct = (Ms_mean / Ms_mean[Variant == "base"] - 1) * 100,
+      p_value  = map_dbl(raw, \(x) if (identical(x, raw[[which(Variant == "base")]])) NA_real_
+                                   else t.test(x, raw[[which(Variant == "base")]])$p.value)
+    ) |>
     ungroup() |>
     select(-raw)
 
   fb_variant_stats |>
-    select(Machine, Schedulers, Variant, Gain_pct) |>
-    pivot_wider(names_from = Variant, values_from = Gain_pct, names_prefix = "gain_")
-
+    select(Machine, Schedulers, Variant, Ms_mean, Gain_pct, p_value) |>
+    pivot_wider(names_from = Variant, values_from = c(Ms_mean, Gain_pct, p_value)) |>
+    select(Machine, Schedulers, Ms_mean_base, Ms_mean_bind, Gain_pct = Gain_pct_bind, p_value = p_value_bind) |>
+    mutate(
+      across(c(Ms_mean_base, Ms_mean_bind, Gain_pct), \(x) round(x, 2)),
+      p_value = signif(p_value, 2)
+    )
 #+END_SRC
 
 #+RESULTS:
-| cei     | dynamic | 0 | -15.5422684848791 |
-| cei     | guided  | 0 |  -12.307961707828 |
-| cei     | static  | 0 | -13.3549099778647 |
-| draco   | dynamic | 0 | -9.05153752148635 |
-| draco   | guided  | 0 |  -7.5508492811013 |
-| draco   | static  | 0 | -9.97668519444256 |
-| grace   | dynamic | 0 |  8.06197796735981 |
-| grace   | guided  | 0 |  12.4542511983841 |
-| grace   | static  | 0 |  33.1950599313639 |
-| lunaris | dynamic | 0 | -19.9470804991922 |
-| lunaris | guided  | 0 | -18.4123634053974 |
-| lunaris | static  | 0 |  -17.804028627845 |
-| poti    | dynamic | 0 | -17.6873610220556 |
-| poti    | guided  | 0 | -26.4253677506755 |
-| poti    | static  | 0 | -32.5086337349693 |
-| tupi    | dynamic | 0 |                   |
-| tupi    | guided  | 0 |                   |
-| tupi    | static  | 0 |                   |
+| Machine | Schedulers | Ms_mean_base | Ms_mean_bind | Gain_pct | p_value |
+|---------+------------+--------------+--------------+----------+---------|
+| cei     | dynamic    |        58.56 |        49.46 |   -15.54 | 1.5e-23 |
+| cei     | guided     |           55 |        48.23 |   -12.31 |   2e-21 |
+| cei     | static     |        52.15 |        45.18 |   -13.35 | 3.7e-21 |
+| draco   | dynamic    |        26.26 |        23.88 |    -9.05 |   4e-13 |
+| draco   | guided     |        25.35 |        23.44 |    -7.55 | 8.1e-22 |
+| draco   | static     |        24.93 |        22.44 |    -9.98 | 5.4e-11 |
+| grace   | dynamic    |        440.7 |       476.23 |     8.06 | 2.3e-05 |
+| grace   | guided     |        399.1 |       448.81 |    12.45 | 2.3e-07 |
+| grace   | static     |       342.53 |       456.23 |     33.2 | 1.1e-08 |
+| lunaris | dynamic    |        89.59 |        71.72 |   -19.95 | 1.9e-10 |
+| lunaris | guided     |        87.51 |        71.39 |   -18.41 | 1.4e-08 |
+| lunaris | static     |        85.46 |        70.25 |    -17.8 |   1e-08 |
+| poti    | dynamic    |        92.86 |        76.44 |   -17.69 | 6.6e-19 |
+| poti    | guided     |        77.48 |        57.01 |   -26.43 | 8.7e-20 |
+| poti    | static     |         52.9 |         35.7 |   -32.51 |   1e-23 |
+| tupi    | dynamic    |       106.33 |              |          |         |
+| tupi    | guided     |        90.35 |              |          |         |
+| tupi    | static     |        68.89 |              |          |         |
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
@@ -554,6 +586,7 @@ Experimento do fletcher-base considerando o bind de cores
         width = 0.5
       ) +
       scale_x_continuous(breaks = x_breaks) +
+      #coord_cartesian(ylim = c(-10, 10)) +
       facet_grid(Machine ~ IO, scales = "free_y") +
       labs(
         title = paste0(name, "Execution Time Difference vs. Block Order"),
@@ -569,9 +602,9 @@ Experimento do fletcher-base considerando o bind de cores
         axis.text.x = element_text(size = 10)
       )
   }
-
-  time_plot(sf_res, fb_res, name = "OpenMP free: ") /
-    time_plot(sf_res, fb_bind_res, name = "OpenMP pinned: ")
+  
+  time_plot(sf_res, fb_res, name = "OpenMP free: ") 
+  #time_plot(sf_res, fb_bind_res, name = "OpenMP pinned: ")
     
 #+END_SRC
 
@@ -588,7 +621,7 @@ sobreposição do IO com a computação.
   options(width = 200)
 
   # ordem 24 = BlockSeg 16 (384 / 24), com IO a cada passo
-  trace_dir <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree/tupi6/OutputTime-0.0001/BlockSeg-16"
+  trace_dir <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree/grace1/OutputTime-1/BlockSeg-8"
   trace <- starvz_read(trace_dir, selective = FALSE)
 
   # Os tempos do StarVZ estão em ms. No tupi o worker k fica no CPU k (ver o stdout do StarPU):
@@ -676,11 +709,186 @@ sobreposição do IO com a computação.
   print(io_overlap)
 #+END_SRC
 
+#+RESULTS:
+#+begin_example
+Makespan: 2.835 s com 144 workers
+
+# A tibble: 2 × 8
+  Task                 n mean_ms   sd_ms median_ms  p95_ms    total_s  share_pct
+  <fct>            <int>   <dbl>   <dbl>     <dbl>   <dbl>      <dbl>      <dbl>
+1 wave_insertion      21  0.0189  0.0155    0.0138  0.0479   0.000396   0.000118
+2 wave_propagation 10752 31.3    26.6      17.5    95.8    336.       100.0     
+# A tibble: 2 × 7
+  CoreKind workers     n tasks_per_worker mean_ms sd_ms median_ms
+  <chr>      <int> <int>            <dbl>   <dbl> <dbl>     <dbl>
+1 E-core       128  9583             74.9    31.2  26.3      17.5
+2 P-core        16  1169             73.1    32.0  29.0      17.0
+# A tibble: 2 × 13
+  CoreKind n_mean n_min n_max compute_s_mean compute_s_min compute_s_max write_s_mean write_s_min write_s_max util_pct_mean util_pct_min util_pct_max
+  <chr>     <dbl> <int> <int>          <dbl>         <dbl>         <dbl>        <dbl>       <dbl>       <dbl>         <dbl>        <dbl>        <dbl>
+1 E-core     75.0    70    79           2.33          2.25          2.41            0           0           0          82.3         79.3         84.9
+2 P-core     73.2    72    75           2.34          2.31          2.36            0           0           0          82.4         81.4         83.4
+# A tibble: 3 × 5
+  State               n total_s mean_us pct_worker_time
+  <fct>           <int>   <dbl>   <dbl>           <dbl>
+1 Callback        16774  5.13    306.           1.26   
+2 Scheduling       8610  0.0292    3.39         0.00716
+3 Submitting task 16774  1.60     95.5          0.392  
+# A tibble: 1 × 4
+  pct_time_writing pct_time_only_writing workers_computing workers_computing_if_write
+             <dbl>                 <dbl>             <dbl>                      <dbl>
+1                0                     0              119.                        NaN
+#+end_example
 Painel de iterações do StarVZ (o mesmo da figura 3 do artigo do SSCAD): cada linha é uma iteração,
 cada retângulo uma tarefa, e as linhas pretas ligam o início e o fim de cada iteração, mostrando
 quantas iterações executam ao mesmo tempo. Usa o =trace= lido no bloco acima.
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
-  panel_kiteration(trace, legend = TRUE) +
+  panel_st(trace) +
     labs(title = "star-fletcher no tupi, ordem 24 com IO a cada passo")
+#+END_SRC
+
+** Análise da Escalabilidade
+
+Resultados do experimento de escalabilidade: o desempenho de cada programa conforme aumenta o
+número de cores usados (primeiro os p-cores e depois os e-cores, um thread por core físico).
+O último ponto das máquinas com SMT usa todos os threads (hyperthreading) e não está em escala no
+eixo X, por isso a linha até ele é pontilhada.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Lê os resultados de escalabilidade. Cada máquina tem o seu csv em ./pdp/scalability e as
+  # pastas de resultado têm o nome do nó (cei1, draco6, ...), por isso o csv é escolhido pelo
+  # nome da máquina sem o número.
+  load_scalability <- function(program, exp_folder, parse_fn) {
+    list.dirs(glue("{base_dir}/{exp_folder}"), recursive = FALSE) |>
+      basename() |>
+      map(\(node) {
+        read_csv(glue("./pdp/scalability/{program}-scal-{sub('\\\\d+$', '', node)}.csv"), show_col_types = FALSE) |>
+          mutate(Machine = node)
+      }) |>
+      list_rbind() |>
+      mutate(
+        Steps = floor(as.numeric(OutputTime) / as.numeric(TimeStep)),
+        Config = if (program == "star-fletcher") BlockSeg else Schedulers,
+        FILE = glue("{base_dir}/{exp_folder}/{Machine}/stdout-{NumCPUs}-{Config}-{Steps}-{Blocks}.out")
+      ) |>
+      parse_files(FILE, parse_fn) |>
+      select(-Config)
+  }
+
+  sf_scale <- load_scalability("star-fletcher", "star-fletcher-cpu-pdp-exp-scale", function(lines) {
+    tibble(
+      Msamples = lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+      ExecTime = lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+    )
+  }) |>
+    mutate(Program = "star-fletcher")
+
+  fb_scale <- load_scalability("fletcher-base", "fletcher-base-pdp-exp-scale", function(lines) {
+    tibble(
+      Msamples = lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+      ExecTime = lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+    )
+  }) |>
+    mutate(Program = paste0("fletcher-base (", Schedulers, ")"))
+
+  scale_stats <- bind_rows(sf_scale, fb_scale) |>
+    mutate(
+      Machine = sub("\\d+$", "", Machine),
+      IO = factor(if_else(WithIO == 0, "Without IO", "IO every step"), levels = c("Without IO", "IO every step"))
+    ) |>
+    group_by(Machine, Program, IO, NumCPUs, SMT) |>
+    summarize(
+      n = n(),
+      Msamples_mean = mean(Msamples),
+      Msamples_error = (3 * sd(Msamples)) / sqrt(n),
+      ExecTime_mean = mean(ExecTime),
+      ExecTime_error = (3 * sd(ExecTime)) / sqrt(n),
+      .groups = "drop"
+    ) |>
+    # O ponto com hyperthreading (SMT) não fica na escala do eixo X: ele é colocado um pouco
+    # depois do último ponto com cores físicos, para não ficar longe demais
+    group_by(Machine) |>
+    mutate(
+      MaxPhysical = max(NumCPUs[SMT == 0]),
+      X = if_else(SMT == 1, MaxPhysical * 1.2, NumCPUs)
+    ) |>
+    ungroup()
+#+END_SRC
+
+Gráfico de MSamples/s pelo número de cores. Só os casos sem IO, pois o MSamples/s não é uma
+métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, enquanto o
+/star-fletcher/ inclui as escritas.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
+  # mostra o número total de threads), juntados com o patchwork. As cores são fixas por programa
+  # para serem as mesmas em todas as máquinas.
+  program_colors <- c(
+    "star-fletcher"           = "#1b9e77",
+    "fletcher-base (dynamic)" = "#d95f02",
+    "fletcher-base (static)"  = "#7570b3"
+  )
+
+  scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE) {
+    machine_plot <- function(machine) {
+      d <- filter(stats, Machine == machine) |>
+        mutate(
+          y = .data[[paste0(metric, "_mean")]],
+          err = .data[[paste0(metric, "_error")]],
+          # na escala log2 o ponto com SMT precisa de um espaço maior para não colar no último ponto
+          X = if_else(SMT == 1, MaxPhysical * (if (log_x) 1.6 else 1.2), NumCPUs)
+        )
+      ticks <- distinct(d, X, NumCPUs, SMT) |>
+        mutate(Label = if_else(SMT == 1, paste0(NumCPUs, "\n(SMT)"), as.character(NumCPUs)))
+      max_physical <- first(d$MaxPhysical)
+
+      p <- ggplot(d, aes(x = X, y = y, color = Program)) +
+        geom_line(data = filter(d, SMT == 0), linewidth = 0.8)
+      if (any(d$SMT == 1)) {
+        # o trecho até o ponto com SMT é pontilhado, já que a distância não está em escala
+        p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.8)
+      }
+      p +
+        geom_point(alpha = 0.8) +
+        # a largura da barra de erro é em unidades do eixo, que na escala log2 são bem maiores
+        geom_errorbar(aes(ymin = y - err, ymax = y + err), width = if (log_x) 0.15 else 0.5) +
+        (if (log_y) scale_y_log10() else scale_y_continuous(limits = c(0, NA))) +
+        scale_x_continuous(
+          transform = if (log_x) "log2" else "identity",
+          breaks = ticks$X,
+          labels = ticks$Label
+        ) +
+        scale_color_manual(values = program_colors, limits = names(program_colors)) +
+        facet_grid(IO ~ Machine, scales = "free_y") +
+        labs(x = "Number of cores/threads", y = y_label, color = NULL) +
+        theme_bw(base_size = 15) +
+        theme(axis.text.x = element_text(size = 9))
+    }
+
+    # só a máquina com mais programas mostra a legenda, para o patchwork juntar uma só
+    machines <- sort(unique(stats$Machine))
+    with_legend <- stats |> distinct(Machine, Program) |> count(Machine) |> slice_max(n, n = 1, with_ties = FALSE) |> pull(Machine)
+
+    machines |>
+      map(\(m) machine_plot(m) + (if (m == with_legend) NULL else guides(color = "none"))) |>
+      wrap_plots(nrow = 1) +
+      plot_layout(guides = "collect", axis_titles = "collect") +
+      plot_annotation(
+        title = title,
+        subtitle = "Faceted by machine (columns) and IO (rows). The SMT point (all hardware threads) is not to scale."
+      ) &
+      theme(legend.position = "bottom")
+  }
+
+  scale_stats |>
+    filter(IO == "Without IO") |>
+    scalability_plot("Msamples", "Msamples/s", "MSamples/s vs. Number of Cores (without IO)", log_x = FALSE)
+#+END_SRC
+
+Tempo de execução, em escala logarítmica: com escalabilidade ideal o tempo cai pela metade a cada
+vez que o número de cores dobra.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  scalability_plot(scale_stats, "ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
