@@ -12,3 +12,6 @@ result
 results
 
 *.pdf
+
+*.err
+*.out
