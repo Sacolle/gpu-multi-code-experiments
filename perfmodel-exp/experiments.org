@@ -1,0 +1,47 @@
+* Plano do Projeto Experimental
+
+
+** Experimento para determinar tamanho do bloco
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  library(numbers)
+  source("./libExp.R")
+
+  #no scientific notation
+  options(scipen = 999)
+
+
+  total_width = 576
+  border_size = 4
+  absorb_size = 8
+  width = total_width - 2 * (border_size + absorb_size)
+  seed = 0
+  time_step = 0.00001
+  iterations = 50
+  output = 5 # output every 5 steps
+  replications = 20
+
+  segmentations = divisors(total_width)
+
+  cpu_factors <- list(
+    WithIO =  c(0, 1),
+    BlockSeg = segmentations[segmentations > 3 & segmentations <= 24],
+    Schedulers = c("dm", "dmda", "dmdar")
+  )
+
+  ex <- generate_experiment(cpu_factors, replications, seed) |>
+    as_tibble() |>
+    mutate(
+  	Width = width,
+  	AbsorbSize = absorb_size,
+  	BorderSize = border_size,
+  	TotalTime = format(time_step * iterations, scientific = FALSE),
+  	TimeStep = format(time_step, scientific = FALSE),
+  	OutputTime = format(time_step * output, scientific = FALSE)
+    )
+
+
+  ex |> readr::write_csv(glue("./ideal-seg/perf-model-sampler.csv"))
+
+#+END_SRC
+
