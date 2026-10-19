@@ -1,0 +1,16 @@
+# nix output
+result
+
+# latex build files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+
+# org produced files
+refs.bib
+pdp.tex
+pdp.pdf

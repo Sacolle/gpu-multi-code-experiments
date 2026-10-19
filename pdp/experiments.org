@@ -975,12 +975,16 @@ eixo X, por isso a linha até ele é pontilhada.
 #+BEGIN_SRC R :session *R* :async yes :results output silent
   # Lê os resultados de escalabilidade. Cada máquina tem o seu csv em ./pdp/scalability e as
   # pastas de resultado têm o nome do nó (cei1, draco6, ...), por isso o csv é escolhido pelo
-  # nome da máquina sem o número.
+  # nome da máquina sem o número. Uma máquina pode ter mais de um csv, como o grace, que tem
+  # replicações a mais em star-fletcher-scal-grace-extra.csv: todos são lidos.
   load_scalability <- function(program, exp_folder, parse_fn) {
     list.dirs(glue("{base_dir}/{exp_folder}"), recursive = FALSE) |>
       basename() |>
       map(\(node) {
-        read_csv(glue("./pdp/scalability/{program}-scal-{sub('\\\\d+$', '', node)}.csv"), show_col_types = FALSE) |>
+        csvs <- list.files("./pdp/scalability", full.names = TRUE,
+                           pattern = glue("^{program}-scal-{sub('\\\\d+$', '', node)}(-.+)?\\.csv$"))
+        map(csvs, \(f) read_csv(f, show_col_types = FALSE)) |>
+          list_rbind() |>
           mutate(Machine = node)
       }) |>
       list_rbind() |>
@@ -1047,8 +1051,12 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
     "fletcher-base (static)"  = "#7570b3"
   )
 
+  # nas máquinas com p-cores e e-cores, a partir de quantos cores começam os e-cores
+  # (ver cpu-topology.org)
+  pcore_count <- c(poti = 8, tupi = 8)
+
   scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE) {
-    machine_plot <- function(machine) {
+    machine_plot <- function(machine, is_last) {
       d <- filter(stats, Machine == machine) |>
         mutate(
           y = .data[[paste0(metric, "_mean")]],
@@ -1066,6 +1074,15 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
         # o trecho até o ponto com SMT é pontilhado, já que a distância não está em escala
         p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.8)
       }
+      if (machine %in% names(pcore_count)) {
+        # linha tracejada onde terminam os p-cores e começam a ser usados os e-cores
+        p <- p +
+          geom_vline(xintercept = pcore_count[[machine]], linetype = "dashed", color = "gray40") +
+          annotate("text", x = pcore_count[[machine]], y = Inf, label = " E-cores →",
+                   hjust = 0, vjust = 1.5, size = 3.5, color = "gray30")
+      }
+      print(colnames(d))
+      
       p +
         geom_point(alpha = 0.8) +
         # a largura da barra de erro é em unidades do eixo, que na escala log2 são bem maiores
@@ -1082,7 +1099,9 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
           scales = "free_y") +
         labs(x = "Number of cores/threads", y = y_label, color = NULL) +
         theme_bw(base_size = 15) +
-        theme(axis.text.x = element_text(size = 9))
+        theme(axis.text.x = element_text(size = 9)) +
+        # o rótulo do IO vale para a linha inteira, então só aparece no último gráfico
+        (if (is_last) NULL else theme(strip.text.y = element_blank(), strip.background.y = element_blank()))
     }
 
     # só a máquina com mais programas mostra a legenda, para o patchwork juntar uma só
@@ -1090,7 +1109,7 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
     with_legend <- stats |> distinct(Machine, Program) |> count(Machine) |> slice_max(n, n = 1, with_ties = FALSE) |> pull(Machine)
 
     machines |>
-      map(\(m) machine_plot(m) + (if (m == with_legend) NULL else guides(color = "none"))) |>
+      map(\(m) machine_plot(m, m == last(machines)) + (if (m == with_legend) NULL else guides(color = "none"))) |>
       wrap_plots(nrow = 1) +
       plot_layout(guides = "collect", axis_titles = "collect") +
       plot_annotation(
