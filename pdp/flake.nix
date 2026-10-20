@@ -18,9 +18,10 @@
           inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        starvz.url = "github:schnorr/starvz";
         flake-utils.url = "github:numtide/flake-utils";
     };
-    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base,  flake-utils }: 
+    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base,  starvz, flake-utils }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; };
@@ -48,6 +49,17 @@
             stdenv = pkgs.gcc13Stdenv;
             StarPU = starpu-no-check;
         };
+
+        # o starpu_fxt_tool usado pelo starvz tem que ser do mesmo StarPU que gerou o trace,
+        # por isso é o mesmo StarPU que o star-fletcher usa quando compilado com enableTrace
+        starpu-trace = starpu-no-check.override {
+            stdenv = pkgs.gcc13Stdenv;
+            enableTrace = true;
+            enableCUDA = false;
+            compileAsRelease = true;
+            maxBuffers = 56;
+        };
+        starvz-cmd = "${starvz.packages.${system}.starvzTools.override { StarPU = starpu-trace; }}/bin/starvz";
 
         my-star-fletcher-trace = my-star-fletcher.override { enableTrace = true; };
 
@@ -290,6 +302,71 @@
             '';
           };
 
+        star-fletcher-cpu-scalability-grace-trace = 
+          let
+            program = "${my-star-fletcher-trace}/bin/star-fletcher";
+            experiment-name = "star-fletcher-cpu-pdp-exp-scale-trace";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs;
+
+            csvFile = ./star-fletcher-scal-grace-trace.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+
+            bashRunFn = {
+                NumCPUs, OutputTime, WithIO, BlockSeg, Width, AbsorbSize, TotalTime, TimeStep, SMT, StarpuCpuList, ...
+            }:
+              let
+                tt = amountWritten OutputTime TimeStep;
+                filename = "${NumCPUs}-${BlockSeg}-${tt}";
+                # uma pasta por execução, pois o starvz -1 lê todos os prof_file_* da pasta como uma execução só
+                trace-folder = "${scratch-folder}/${filename}";
+                stdout-file = "${trace-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                rsf-at-file = "${rsf-file}@";
+                prof-name = "prof_file_${filename}";
+                prof-file = "${trace-folder}/${prof-name}_0";
+                archive = "${scratch-folder}/${filename}.tar.gz";
+            in
+            ''
+                mkdir -p ${trace-folder}
+                STARPU_TRACE_BUFFER_SIZE=8192 \
+                STARPU_FXT_TRACE=1 \
+                STARPU_FXT_PREFIX=${trace-folder} \
+                STARPU_FXT_SUFFIX=${prof-name} \
+                STARPU_NCPU=${NumCPUs} \
+                STARPU_NCUDA=0 \
+                STARPU_NOPENCL=0 \
+                STARPU_WORKERS_CPUID="${StarpuCpuList}" \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} > ${stdout-file} 2>&1
+                cat ${stdout-file}
+                rm ${rsf-file} ${rsf-at-file}
+
+                # fase 1 do StarVZ logo após a execução: converte o trace bruto em parquet, que é bem menor.
+                # Se ela falhar, o trace bruto é mantido para poder ser convertido depois.
+                if ${starvz-cmd} -1 ${trace-folder} > ${trace-folder}/phase1.log 2>&1; then
+                  rm ${prof-file}
+                else
+                  echo "starvz phase 1 failed for ${filename}, keeping the raw trace"
+                fi
+
+                # compacta a pasta da execução (parquet, log e stdout) e copia para a home
+                tar -czf ${archive} -C ${scratch-folder} ${filename}
+                cp ${archive} ${home-folder}
+            '';
+          };
+
         # one package per machine for the scalability experiment, each with its own csv
         scalability-machines = [ "cei" "draco" "grace" "lunaris" "poti" "tupi" ];
         scalability-pkgs = pkgs.lib.listToAttrs (pkgs.lib.concatMap (m: [
@@ -436,6 +513,7 @@
 
           star-fletcher-cpu-scalability-grace-extra = star-fletcher-cpu-scalability ./scalability/star-fletcher-scal-grace-extra.csv;
           inherit
+            star-fletcher-cpu-scalability-grace-trace
             # my-star-fletcher
             fletcher-base-cpu
             fletcher-base-cpu-bind

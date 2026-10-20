@@ -348,6 +348,25 @@ O número de CPUs segue potências de 2 mais os pontos de transição (socket in
 #+END_SRC
 
 
+E algumas execuções para gerar o trace
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  source("./libExp.R")
+  options(scipen = 999)
+
+  grace_scale <- read_csv("./pdp/scalability/star-fletcher-scal-grace.csv")
+
+  grace_extra_traces <- grace_scale |>
+    select(-Blocks) |>
+    filter(NumCPUs >= 64) |>
+    unique() |>
+    mutate(
+        TimeStep = format(TimeStep, scientific = FALSE),
+        OutputTime = format(OutputTime, scientific = FALSE)
+    )
+  grace_extra_traces |> readr::write_csv("./pdp/star-fletcher-scal-grace-trace.csv")
+#+END_SRC
+
 
 
 * Análise de Dados
@@ -648,8 +667,8 @@ Experimento do fletcher-base considerando o bind de cores
       )
   }
   
-  time_plot(sf_res, fb_res, name = "OpenMP free: ") 
-  #time_plot(sf_res, fb_bind_res, name = "OpenMP pinned: ")
+  #time_plot(sf_res, fb_res, name = "OpenMP free: ") 
+  time_plot(sf_res, fb_bind_res, name = "OpenMP pinned: ")
     
 #+END_SRC
 
@@ -1081,7 +1100,6 @@ métrica válida com IO: o /fletcher-base/ calcula ele sem o tempo de escrita, e
           annotate("text", x = pcore_count[[machine]], y = Inf, label = " E-cores →",
                    hjust = 0, vjust = 1.5, size = 3.5, color = "gray30")
       }
-      print(colnames(d))
       
       p +
         geom_point(alpha = 0.8) +
@@ -1128,12 +1146,8 @@ Tempo de execução, em escala logarítmica: com escalabilidade ideal o tempo ca
 vez que o número de cores dobra.
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
-  scalability_plot(scale_stats, "ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
+  scale_stats |>
+    filter(X >= 4) |>
+    scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
-* Texto
-
-Performance Analysis of the Forwards Phase of Fletcher's Reverse Time Migration Algorithm Using Task-Based Paradigm on Multiple CPU architectures.
-
-
-Reverse Time Migration (RTM) is a computationally and IO-intensive algorithm widely used in oil and gas exploration. This paper presents \emph{star-fletcher}, an implementation of the forward phase of the Fletcher RTM algorithm using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, \emph{star-fletcher} enables overlap of computation and I/O, eliminating global synchronization points between iterations. Experiments conducted on multiple CPU architectures show that \emph{star-fletcher} outperforms the OpenMP implementation \emph{fletcher-base}, with the most significant gains observed on heterogeneous architectures featuring mixed performance and efficiency cores.
