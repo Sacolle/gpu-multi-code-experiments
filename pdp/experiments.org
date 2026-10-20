@@ -368,6 +368,35 @@ E algumas execuções para gerar o trace
 #+END_SRC
 
 
+**** Datapoints de trace para o fletcher-base
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  source("./libExp.R")
+  options(scipen = 999)
+
+  for(m in c("grace", "lunaris")){
+    scale <- read_csv(glue("./pdp/scalability/fletcher-base-scal-{m}.csv"))
+
+    max_cores = max(scale$NumCPUs) / (max(scale$SMT) + 1)
+
+    print(max_cores)
+
+    traces <- scale |>
+  	select(-Blocks) |>
+  	filter(NumCPUs >= (max_cores / 3)) |>
+  	unique() |>
+  	mutate(
+  	    TimeStep = format(TimeStep, scientific = FALSE),
+  	    OutputTime = format(OutputTime, scientific = FALSE)
+  	)
+
+    traces |> readr::write_csv(glue("./pdp/fletcher-base-scal-{m}-trace.csv"))
+  }
+
+#+END_SRC
+
+
 
 * Análise de Dados
 

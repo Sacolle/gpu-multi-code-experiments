@@ -18,10 +18,15 @@
           inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        fletcher-base-trace = {
+          url = "github:Sacolle/fletcher-base?ref=trace&dir=original";
+          inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         starvz.url = "github:schnorr/starvz";
         flake-utils.url = "github:numtide/flake-utils";
     };
-    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base,  starvz, flake-utils }: 
+    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base, fletcher-base-trace, starvz, flake-utils }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; };
@@ -36,6 +41,12 @@
             ];
             patchFlags = [ "-p2" ];
         });
+
+        my-fletcher-base-trace = fletcher-base-trace.packages.${system}.default.override {
+            CUDAbackend = false;
+            OpenMPbackend = true;
+            OpenACCbackend = false;
+        };
 
         starpu-no-check = StarPU.packages.${system}.default.overrideAttrs {
             doCheck = false;
@@ -113,7 +124,7 @@
             '';
           };
         fletcher-base-cpu = base-fletcher-base-cpu ./fletcher-base-exp.csv;
-        fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv;
+        # fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv;
 
         base-fletcher-base-cpu-bind = file:
           let
@@ -164,7 +175,7 @@
           };
 
         fletcher-base-cpu-bind = base-fletcher-base-cpu-bind ./fletcher-base-exp.csv;
-        fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv;
+        #fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv;
 
         fletcher-base-cpu-scalability = file:
           let
@@ -189,6 +200,57 @@
                 let
                   tt = amountWritten OutputTime TimeStep;
                   filename = "${NumCPUs}-${Schedulers}-${tt}-${Blocks}";
+                  stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                  rsf-file = "${scratch-folder}/${filename}.rsf";
+                  rsf-at-file = "${rsf-file}@";
+                  # "0 2 4" -> "{0},{2},{4}": one place per CPU, in the order of the csv
+                  places = "{" + pkgs.lib.concatStringsSep "},{" (pkgs.lib.splitString " " CpuList) + "}";
+                in
+                  ''
+                env -u OMP_NUM_THREADS -u OMP_PLACES -u GOMP_CPU_AFFINITY -u KMP_AFFINITY \
+                OMP_SCHEDULE=${Schedulers} \
+                OMP_PROC_BIND=close \
+                OMP_PLACES="${places}" \
+                OMP_NUM_THREADS=${NumCPUs} \
+                OMP_DISPLAY_ENV=true \
+                OMP_DISPLAY_AFFINITY=true \
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${OutputTime} > ${stdout-file} 2>&1 
+
+                cat ${stdout-file}
+                ${if WithIO == "1" then "rm ${rsf-file} ${rsf-at-file}" else ""}
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
+
+        fletcher-base-cpu-scalability-trace = file:
+          let
+            program = "${my-fletcher-base-trace}/bin/fletcher-base";
+            experiment-name = "fletcher-base-pdp-exp-scale-trace";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+            experiments.lib.mkExperiment {
+              inherit pkgs;
+
+              csvFile = file;
+
+              preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+                '';
+
+              bashRunFn = {
+                NumCPUs, OutputTime, WithIO, Width, AbsorbSize, TotalTime, TimeStep, SMT, CpuList, Schedulers
+              }:
+                let
+                  tt = amountWritten OutputTime TimeStep;
+                  filename = "${NumCPUs}-${Schedulers}-${tt}";
                   stdout-file = "${scratch-folder}/stdout-${filename}.out";
                   rsf-file = "${scratch-folder}/${filename}.rsf";
                   rsf-at-file = "${rsf-file}@";
@@ -256,7 +318,7 @@
             '';
           };
         star-fletcher-cpu = base-star-fletcher-cpu ./star-fletcher-exp.csv;
-        star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv;
+        # star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv;
 
         star-fletcher-cpu-scalability = file:
           let
@@ -510,6 +572,8 @@
     {
         packages = {
             # test = my-star-fletcher.override { compileAsRelease = false; };
+        fletcher-base-cpu-scalability-trace-grace = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-grace-trace.csv;
+        fletcher-base-cpu-scalability-trace-lunaris = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-lunaris-trace.csv;
 
           star-fletcher-cpu-scalability-grace-extra = star-fletcher-cpu-scalability ./scalability/star-fletcher-scal-grace-extra.csv;
           inherit
@@ -518,9 +582,9 @@
             fletcher-base-cpu
             fletcher-base-cpu-bind
             star-fletcher-cpu
-            fletcher-base-cpu-big
-            fletcher-base-cpu-bind-big
-            star-fletcher-cpu-big
+            #fletcher-base-cpu-big
+            #fletcher-base-cpu-bind-big
+            #star-fletcher-cpu-big
             star-fletcher-cpu-trace
             fio-exp
           ;
