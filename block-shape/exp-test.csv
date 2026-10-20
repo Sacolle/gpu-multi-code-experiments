@@ -1,0 +1,5 @@
+WithIO,Schedulers,Blocks,Shape,BlockX,BlockY,BlockZ,BlockVolume,Surface,SurfaceRatio,Width,AbsorbSize,TotalTime,TimeStep,OutputTime
+0,lws,1,64x32x16,64,32,16,32768,7168,0.8571,104,8,0.0003,0.0001,0.0005
+0,lws,1,32x32x32,32,32,32,32768,6144,1,104,8,0.0003,0.0001,0.0005
+0,dmda,1,64x32x16,64,32,16,32768,7168,0.8571,104,8,0.0003,0.0001,0.0005
+0,dmda,1,32x32x32,32,32,32,32768,6144,1,104,8,0.0003,0.0001,0.0005

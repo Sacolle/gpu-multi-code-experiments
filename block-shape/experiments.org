@@ -1,0 +1,235 @@
+* Projeto Experimental: formato dos blocos
+
+** Hipótese
+
+O star-fletcher particiona o volume em cubos. A pergunta é se blocos não cúbicos
+(=bx × by × bz=, mesmo volume do cubo) são mais eficientes.
+
+Em blocos de mesmo volume o cubo tem a menor área de superfície, então os outros formatos
+têm mais pontos na borda (que leem dos vizinhos). Por outro lado, um bloco longo em x
+(eixo contíguo na memória) pode acessar a memória melhor.
+
+No teste local em CPU (=benchmarks/local-cpu.md= no branch =block-shapes= do star-fletcher),
+os formatos ficaram dentro do ruído (~5%) entre si. Este projeto repete o teste nas máquinas
+com GPU, onde os blocos são transferidos entre memórias, e numa CPU maior.
+
+** Versão
+
+Branch =block-shapes= do star-fletcher (=github:Sacolle/star-fletcher?ref=block-shapes=).
+A entrada é =TTI nx ny nz absorb dx dy dz dt tmax bx by bz dt_output=, com =bx by bz= o tamanho do
+bloco em cada eixo (cada um >= 9 e divisor do volume no seu eixo).
+As tarefas recebem os blocos vizinhos inteiros (não só as faces), como no main.
+
+** Fatores
+
+- Formato do bloco (=Shape=), agrupado pelo volume do bloco (=BlockVolume=):
+  para cada volume, o cubo e formatos não cúbicos com as permutações longo em x e longo em z.
+  | Volume | Formatos                                                                       |
+  |--------+--------------------------------------------------------------------------------|
+  | 64³    | 64x64x64, 128x64x32, 32x64x128, 128x128x16, 16x128x128, 256x32x32, 32x32x256   |
+  | 96³    | 96x96x96, 192x96x48, 48x96x192, 192x192x24, 24x192x192, 384x48x48, 48x48x384   |
+  | 128³   | 128x128x128, 256x128x64, 64x128x256, 256x256x32, 32x256x256                    |
+  | 192³   | 192x192x192, 384x192x96, 96x192x384, 384x384x48, 48x384x384, 768x96x96, 96x96x768 |
+- Escalonador: lws, dm, dmda, dmdar
+- 5 replicações, ordem aleatória (=generate_experiment= do =libExp.R=)
+
+Fixos:
+- GPU: volume 768³ (=Width= 744 + 2·8 absorção + 2·4 borda), 20 passos de 0.0001, sem IO.
+  Threads CUDA fixas por máquina, sempre com =ThreadX= = 16 (o menor =bx= dos formatos), para que
+  nenhum formato desperdice threads em x. Valores vindos do =best-config.csv= do =ideal-seg=.
+- CPU: volume 384³ (=Width= 360), só os formatos que dividem 384 (18 dos 26: saem os com 256 e 768,
+  então do volume 128³ fica só o cubo), sem IO. 360 execuções.
+
+Colunas derivadas no CSV: =BlockX/Y/Z=, =BlockVolume=, =Surface= = 2·(bx·by + by·bz + bx·bz)
+(área de um bloco) e =SurfaceRatio= = superfície do cubo de mesmo volume / =Surface=.
+
+** Pacotes (flake.nix)
+
+| Pacote                    | Máquina      | Build                                 | CSV           |
+|---------------------------+--------------+---------------------------------------+---------------|
+| =exp-block-shape-cidia=   | cidia        | CUDA 12.2, gcc12, sm_75               | exp-cidia.csv |
+| =exp-block-shape-poti=    | poti         | CUDA 13.0, gcc13, sm_89               | exp-poti.csv  |
+| =exp-block-shape-tupi=    | tupi         | CUDA 13.0, gcc13, sm_89               | exp-tupi.csv  |
+| =exp-block-shape-grace=   | grace        | CUDA 13.0, gcc13, sm_89               | exp-grace.csv |
+| =exp-block-shape-cpu=     | qualquer nó  | só CPU, gcc13                         | exp-cpu.csv   |
+| =exp-block-shape-test=    | qualquer nó  | só CPU, volume 128³, 3 passos (teste) | exp-test.csv  |
+
+Rodar na máquina (resultados em =$SCRATCH/<exp>/$HOSTNAME= e copiados para
+=~/experimental-results/<exp>/$HOSTNAME=):
+#+BEGIN_SRC bash
+  nix run github:Sacolle/gpu-multi-code-experiments?dir=block-shape#exp-block-shape-tupi
+  # ou, sem nix instalado, com o nix-portable do experiments-nix:
+  bash experiments-nix/np nix run ./gpu-multi-code-experiments/block-shape#exp-block-shape-tupi
+#+END_SRC
+
+Uma execução que falha não interrompe o resto: o stdout dela fica salvo e o script segue.
+Na GPU, cada execução inicializa um meio de 768³ na CPU, então a inicialização deve dominar o
+tempo total (520 execuções). Rodar =exp-block-shape-test= antes numa máquina nova.
+
+** Geração do projeto
+
+Rodar da raiz do repositório (=nix develop .#simple=, como os outros projetos).
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  source("./libExp.R")
+  options(scipen = 999)
+
+  seed = 0
+  replications = 5
+  time_step = 0.0001
+  iterations = 20
+  output = 5
+  absorb_size = 8
+  border_size = 4
+
+  shapes <- tribble(
+    ~BlockVolume, ~Shape,
+    64,  "64x64x64",    64,  "128x64x32",   64,  "32x64x128",  64,  "128x128x16",
+    64,  "16x128x128",  64,  "256x32x32",   64,  "32x32x256",
+    96,  "96x96x96",    96,  "192x96x48",   96,  "48x96x192",  96,  "192x192x24",
+    96,  "24x192x192",  96,  "384x48x48",   96,  "48x48x384",
+    128, "128x128x128", 128, "256x128x64",  128, "64x128x256", 128, "256x256x32",
+    128, "32x256x256",
+    192, "192x192x192", 192, "384x192x96",  192, "96x192x384", 192, "384x384x48",
+    192, "48x384x384",  192, "768x96x96",   192, "96x96x768"
+  ) |>
+    separate_wider_delim(Shape, "x", names = c("BlockX", "BlockY", "BlockZ"), cols_remove = FALSE) |>
+    mutate(across(c(BlockX, BlockY, BlockZ), as.integer),
+           Surface = 2 * (BlockX * BlockY + BlockY * BlockZ + BlockX * BlockZ),
+           SurfaceRatio = round(6 * BlockVolume^2 / Surface, 4),
+           BlockVolume = BlockVolume^3)
+
+  stopifnot(all(shapes$BlockX * shapes$BlockY * shapes$BlockZ == shapes$BlockVolume))
+
+  # full factorial design over the shapes that divide the volume, with the fixed columns
+  make_design <- function(shape_tbl, total_width, iters, schedulers, reps) {
+    stopifnot(all(total_width %% c(shape_tbl$BlockX, shape_tbl$BlockY, shape_tbl$BlockZ) == 0))
+    generate_experiment(list(Shape = shape_tbl$Shape, Schedulers = schedulers), reps, seed) |>
+      as_tibble() |>
+      # fac.design only adds the Blocks (replication) column when reps > 1
+      (\(d) if ("Blocks" %in% names(d)) d else mutate(d, Blocks = "1"))() |>
+      mutate(across(everything(), as.character), Blocks = sub("\\.", "", Blocks)) |>
+      left_join(shape_tbl, by = "Shape") |>
+      mutate(
+        WithIO = 0,
+        Width = total_width - 2 * (absorb_size + border_size),
+        AbsorbSize = absorb_size,
+        TotalTime = format(time_step * iters, scientific = FALSE),
+        TimeStep = format(time_step, scientific = FALSE),
+        OutputTime = format(time_step * output, scientific = FALSE)
+      ) |>
+      select(WithIO, Schedulers, Blocks, Shape, BlockX, BlockY, BlockZ, BlockVolume,
+             Surface, SurfaceRatio, Width, AbsorbSize, TotalTime, TimeStep, OutputTime)
+  }
+
+  schedulers <- c("lws", "dm", "dmda", "dmdar")
+
+  # GPU: 768³, CUDA threads per machine with ThreadX = 16
+  gpu_design <- make_design(shapes, 768, iterations, schedulers, replications)
+  threads <- tribble(
+    ~Machine, ~ThreadX, ~ThreadY, ~ThreadZ,
+    "cidia",  16, 4, 4,
+    "grace",  16, 4, 4,
+    "poti",   16, 4, 2,
+    "tupi",   16, 4, 2
+  )
+  for (m in threads$Machine) {
+    t <- threads |> filter(Machine == m)
+    gpu_design |>
+      mutate(ThreadX = t$ThreadX, ThreadY = t$ThreadY, ThreadZ = t$ThreadZ) |>
+      write_csv(glue("./block-shape/exp-{m}.csv"))
+  }
+
+  # CPU: 384³, only the shapes that divide 384
+  cpu_shapes <- shapes |> filter(384 %% BlockX == 0, 384 %% BlockY == 0, 384 %% BlockZ == 0)
+  make_design(cpu_shapes, 384, iterations, schedulers, replications) |>
+    write_csv("./block-shape/exp-cpu.csv")
+
+  # smoke test: 128³, 3 steps, 2 shapes of 32³ volume, 1 replication
+  test_shapes <- tribble(~BlockVolume, ~Shape, 32, "32x32x32", 32, "64x32x16") |>
+    separate_wider_delim(Shape, "x", names = c("BlockX", "BlockY", "BlockZ"), cols_remove = FALSE) |>
+    mutate(across(c(BlockX, BlockY, BlockZ), as.integer),
+           Surface = 2 * (BlockX * BlockY + BlockY * BlockZ + BlockX * BlockZ),
+           SurfaceRatio = round(6 * BlockVolume^2 / Surface, 4),
+           BlockVolume = BlockVolume^3)
+  make_design(test_shapes, 128, 3, c("lws", "dmda"), 1) |>
+    write_csv("./block-shape/exp-test.csv")
+#+END_SRC
+
+** Análise
+
+Os diretórios de resultado são =results/<experimento>/<hostname>=, como nos outros projetos.
+O nome da máquina é o hostname sem o número final (=tupi3= -> =tupi=), usado para achar o CSV.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  options(crayon.enabled = FALSE)
+  source("./libExp.R")
+
+  base_dir = "./block-shape/results"
+
+  # experiment folder -> csv prefix (gpu csvs are per machine, cpu/test are shared)
+  experiments <- tribble(
+    ~Experiment,               ~Csv,
+    "block-shape-gpu",         "machine",
+    "block-shape-cpu",         "cpu",
+    "block-shape-test",        "test"
+  )
+
+  read_experiment <- function(experiment, csv) {
+    hosts <- list.dirs(glue("{base_dir}/{experiment}"), recursive = FALSE, full.names = FALSE)
+    hosts |> map(function(host) {
+      mach <- sub("\\d+$", "", host)
+      file <- if (csv == "machine") glue("./block-shape/exp-{mach}.csv") else glue("./block-shape/exp-{csv}.csv")
+      read_csv(file, show_col_types = FALSE) |>
+        mutate(Experiment = experiment, Host = host, Machine = mach,
+               FILE = glue("{base_dir}/{experiment}/{host}/stdout-{Schedulers}-{Shape}-{Blocks}.out")) |>
+        parse_files(FILE, function(lines) {
+          msamples <- lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+          exec_time <- lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+          tribble(~Msamples, ~ExecTime, msamples[1], exec_time[1])
+        })
+    }) |> list_rbind()
+  }
+
+  res <- experiments |>
+    pmap(\(Experiment, Csv) read_experiment(Experiment, Csv)) |>
+    list_rbind() |>
+    filter(!is.na(Msamples)) |>
+    mutate(BlockOrder = as.integer(round(BlockVolume^(1/3))))
+
+  # throughput relative to the cube of the same volume (same machine, scheduler and replication)
+  rel <- res |>
+    group_by(Experiment, Host, Schedulers, Blocks, BlockOrder) |>
+    mutate(RelCube = Msamples / Msamples[BlockX == BlockY & BlockY == BlockZ][1]) |>
+    ungroup()
+
+  summary_tbl <- rel |>
+    group_by(Experiment, Machine, Schedulers, BlockOrder, Shape, SurfaceRatio) |>
+    summarize(N = n(), Msamples = mean(Msamples), RelCube = mean(RelCube), .groups = "drop") |>
+    arrange(Experiment, Machine, Schedulers, BlockOrder, desc(SurfaceRatio))
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output graphics file :file block-shape-rel.pdf :width 12 :height 8
+  ggplot(rel, aes(x = SurfaceRatio, y = RelCube, color = factor(BlockOrder))) +
+    geom_hline(yintercept = 1, linetype = "dashed") +
+    geom_jitter(width = 0.01, alpha = 0.4) +
+    stat_summary(fun = mean, geom = "line") +
+    facet_grid(Machine ~ Schedulers) +
+    labs(
+      title = "Msamples relativo ao cubo de mesmo volume",
+      x = "Superfície do cubo / superfície do bloco (1 = cubo)",
+      y = "Msamples / Msamples do cubo",
+      color = "Bloco (aresta do cubo equivalente)"
+    ) +
+    theme_bw(base_size = 15) +
+    theme(legend.position = "bottom")
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output graphics file :file block-shape-msamples.pdf :width 14 :height 8
+  ggplot(rel, aes(x = reorder(Shape, -SurfaceRatio), y = Msamples, color = Schedulers)) +
+    geom_boxplot(outlier.shape = NA) +
+    facet_grid(Machine ~ BlockOrder, scales = "free") +
+    labs(title = "Msamples por formato de bloco", x = "Formato (bx x by x bz)", y = "Msamples/s") +
+    theme_bw(base_size = 13) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+#+END_SRC
