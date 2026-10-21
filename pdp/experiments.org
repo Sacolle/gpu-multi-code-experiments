@@ -436,13 +436,13 @@ Experimento do star-fletcher
     mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
 #+END_SRC
 
-Experimento do fletcher-base
+Experimento do fletcher-base, com e sem bind
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent 
   ex_fletcher_base <- read_csv('./pdp/fletcher-base-exp.csv')
   fb <- machines |> cross_join(ex_fletcher_base)
 
-  fb_res <- fb |>
+  fb_no_bind_res <- fb |>
     mutate(
       TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
       FILE = paste0(base_dir,"/fletcher-base-pdp-exp/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
@@ -454,18 +454,15 @@ Experimento do fletcher-base
          ExecTime = exec_time
        )
     })
-#+END_SRC
 
-Experimento do fletcher-base considerando o bind de cores
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent 
   ex_fletcher_base_bind <- read_csv('./pdp/fletcher-base-exp.csv')
   fb_bind <- machines |> cross_join(ex_fletcher_base)
 
   fb_bind_res <- fb_bind |>
     mutate(
       TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
-      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-bind/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-bind/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")
+    ) |>
     parse_files(FILE, function(lines){
        msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
        exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
@@ -476,7 +473,16 @@ Experimento do fletcher-base considerando o bind de cores
          UsedThreads = threads
        )
     })
+
+  fb_res <- list(
+    free = fb_no_bind_res,
+    bind = fb_bind_res
+  ) |>
+    list_rbind(names_to = "Variant") |>
+    mutate(Variant = factor(Variant, levels = c("free", "bind")))
+
 #+END_SRC
+
 
 
 *** Gráficos dos resultados
@@ -489,16 +495,17 @@ Experimento do fletcher-base considerando o bind de cores
     
     fb_stats <- fbt |>
       mutate(Machine = sub("\\d+$", "", Machine)) |>
-      filter(WithIO == 0) |>
+      filter(WithIO == 0, Schedulers != "guided") |>
       select(-FILE) |>
-      group_by(Machine, Schedulers) |>
+      group_by(Machine, Schedulers, Variant) |>
       summarize(
         rep = n(),
         FB_Mean   = mean(Msamples),
         FB_Sd     = sd(Msamples),
         FB_Error  = (3 * FB_Sd) / sqrt(n()),
         .groups   = "drop" 
-      )
+      ) |>
+      mutate(Version = glue("{Schedulers} ({Variant} threads)"))
 
     sf_msamples_plot <- sft |>
       select(-FILE) |>
@@ -522,13 +529,13 @@ Experimento do fletcher-base considerando o bind de cores
       geom_errorbar(aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error), width = 0.5) +
      geom_rect(
        data = fb_stats, 
-       aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Schedulers),
+       aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Version),
        xmin = -Inf,
        xmax = Inf,
        inherit.aes = FALSE,
        alpha = 0.4
      ) +
-     geom_hline(data = fb_stats, aes(yintercept = FB_Mean, linetype = Schedulers), linewidth = 0.8) +
+     geom_hline(data = fb_stats, aes(yintercept = FB_Mean, linetype = Version, color = Version), linewidth = 0.8) +
       scale_x_continuous(breaks = x_breaks) +
       coord_cartesian(ylim = c(0, 500)) +
       #ylim(0, NA) +
@@ -543,12 +550,7 @@ Experimento do fletcher-base considerando o bind de cores
       theme(legend.position = "bottom")
   }
 
-  (msamples_plot(sf_res, fb_res) +
-     labs(title = "MSamples vs. Block Order with OpenMP free to move.")
-  ) +
-    (msamples_plot(sf_res, fb_bind_res) +
-     labs(title = "MSamples vs. Block Order with OpenMP threads pinned to cores.")
-    )
+  msamples_plot(sf_res, fb_res)
 
 #+END_SRC
 
@@ -621,7 +623,7 @@ Experimento do fletcher-base considerando o bind de cores
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
-  time_plot <- function(sft, fbt, name = "") {
+  time_plot <- function(sft, fbt) {
     x_breaks <- sort(unique(sft$Order))
 
     # readable label for the output frequency, based on WithIO so it works
@@ -636,15 +638,17 @@ Experimento do fletcher-base considerando o bind de cores
     }
 
     fb_stats <- fbt |>
+      filter(Schedulers != "guided") |>
       mutate(Machine = sub("\\d+$", "", Machine)) |>
       io_label() |>
-      group_by(Machine, IO, Schedulers) |>
+      group_by(Machine, IO, Schedulers, Variant) |>
       summarize(
         fb_n = n(),
         ExecTime_fb_mean = mean(ExecTime, na.rm = TRUE),
         ExecTime_fb_sd = sd(ExecTime, na.rm = TRUE),
         .groups = "drop"
-      )
+      ) |>
+      mutate(Version = glue("{Schedulers} ({Variant} threads)"))
 
     sf_comb <- sft |>
       mutate(Machine = sub("\\d+$", "", Machine)) |>
@@ -656,8 +660,6 @@ Experimento do fletcher-base considerando o bind de cores
         ExecTime_sf_sd = sd(ExecTime, na.rm = TRUE),
         .groups = "drop"
       ) |>
-      # each star-fletcher point is compared with each of the 3 OpenMP schedulers
-      # that ran with the same output frequency
       inner_join(fb_stats, by = c("Machine", "IO"), relationship = "many-to-many") |>
       mutate(
         # Difference of Means
@@ -668,9 +670,11 @@ Experimento do fletcher-base considerando o bind de cores
 
         # 3x Error mapping
         Diff_error = 3 * Combined_SE
-      )
+      ) |> filter(Order < 100, Order > 12)
 
-    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = Schedulers)) +
+    
+
+    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = Version)) +
       geom_hline(yintercept = 0, linetype = "dashed") +
       geom_point(alpha = 0.8) +
       geom_line(linewidth = 0.8) +
@@ -682,11 +686,11 @@ Experimento do fletcher-base considerando o bind de cores
       #coord_cartesian(ylim = c(-10, 10)) +
       facet_grid(Machine ~ IO, scales = "free_y") +
       labs(
-        title = paste0(name, "Execution Time Difference vs. Block Order"),
+        title = "Execution Time Difference vs. Block Order",
         subtitle = "Below 0: star-fletcher is faster. Rows: machine, columns: output frequency",
         x = "Block Size",
         y = "Execution Time Difference (s)",
-        color = "OpenMP scheduler"
+        color = "OpenMP Version"
       ) +
       theme_bw(base_size=15) +
       theme(
@@ -695,10 +699,82 @@ Experimento do fletcher-base considerando o bind de cores
         axis.text.x = element_text(size = 10)
       )
   }
-  
-  #time_plot(sf_res, fb_res, name = "OpenMP free: ") 
-  time_plot(sf_res, fb_bind_res, name = "OpenMP pinned: ")
+
+  time_plot(sf_res, fb_res)
     
+#+END_SRC
+
+O MSamples/s ou o tempo de execução (sem diferença relativa) pela ordem do bloco, com a mesma função:
+o /star-fletcher/ em pontos e as versões do /fletcher-base/ (escalonador e threads livres ou com bind) em
+linhas horizontais. O MSamples/s só é mostrado sem IO.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
+  # ou "ExecTime"). O star-fletcher são os pontos com a barra de erro, o fletcher-base (sem escalonador
+  # guided) são as linhas horizontais com a faixa do erro, uma por versão (escalonador e threads).
+  # `ios` escolhe os níveis de IO mostrados; o MSamples/s só vale sem IO.
+  order_plot <- function(sft, fbt, metric, y_label, title, ios = c("Without IO", "Output every 1 steps", "Output every 5 steps")) {
+    x_breaks <- sort(unique(sft$Order))
+
+    io_label <- function(df) {
+      df |>
+        mutate(
+          Steps = round(as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
+          IO = if_else(WithIO == 0, "Without IO", paste0("Output every ", Steps, " steps")),
+          IO = fct_relevel(IO, "Without IO", after = Inf)
+        ) |>
+        filter(IO %in% ios)
+    }
+
+    sf_stats <- sft |>
+      mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
+      io_label() |>
+      group_by(Machine, IO, Order) |>
+      summarize(
+        Mean = mean(y),
+        Error = (3 * sd(y)) / sqrt(n()),
+        .groups = "drop"
+      )
+
+    fb_stats <- fbt |>
+      filter(Schedulers != "guided") |>
+      mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
+      io_label() |>
+      group_by(Machine, IO, Schedulers, Variant) |>
+      summarize(
+        Mean = mean(y),
+        Error = (3 * sd(y)) / sqrt(n()),
+        .groups = "drop"
+      ) |>
+      mutate(Version = glue("{Schedulers} ({Variant} threads)"))
+
+    ggplot(sf_stats, aes(x = Order, y = Mean)) +
+      geom_rect(
+        data = fb_stats,
+        aes(ymin = Mean - Error, ymax = Mean + Error, fill = Version),
+        xmin = -Inf, xmax = Inf, inherit.aes = FALSE, alpha = 0.3
+      ) +
+      geom_hline(data = fb_stats, aes(yintercept = Mean, color = Version, linetype = Version), linewidth = 0.8) +
+      geom_point(alpha = 0.8) +
+      geom_line(linewidth = 0.5) +
+      geom_errorbar(aes(ymin = Mean - Error, ymax = Mean + Error), width = 0.5) +
+      scale_x_continuous(breaks = x_breaks) +
+      # facet_wrap para que cada painel tenha o seu eixo Y (no facet_grid os painéis da mesma linha
+      # compartilham o eixo); uma coluna por máquina, então cada linha é um nível de IO
+      facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
+      labs(
+        title = title,
+        subtitle = "Points: star-fletcher. Lines: fletcher-base. Columns: machine, rows: output frequency",
+        x = "Block Order",
+        y = y_label,
+        color = "fletcher-base", fill = "fletcher-base", linetype = "fletcher-base"
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom", axis.text.x = element_text(size = 9))
+  }
+
+  order_plot(sf_res, fbt = fb_res, "Msamples", "Msamples/s", "MSamples/s vs. Block Order", ios = "Without IO")
+  #order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
 #+END_SRC
 
 
@@ -1012,6 +1088,7 @@ Estatísticas da duração das tarefas por máquina, segmentação (tarefas por 
 | tupi    |    48 |        8 |          512 |      32 | IO every 5 steps | write_block      |  2560 |    1.51 |   1.81 | 119.63 |      0.54 |    5.76 |    8.13 |           0.74 |
 | tupi    |    32 |       12 |         1728 |      32 | IO every 5 steps | write_block      |  8640 |     0.5 |   0.77 | 153.75 |      0.15 |    2.08 |    4.55 |           0.21 |
 | tupi    |    24 |       16 |         4096 |      32 | IO every 5 steps | write_block      | 20480 |    0.36 |   0.76 |  211.9 |      0.05 |    1.79 |    19.5 |           0.23 |
+|         |       |          |              |         |                  |                  |       |         |        |        |           |         |         |                |
 
 *** Traces de escalabilidade
 
@@ -1180,6 +1257,134 @@ Uma barra por execução do grace sem IO (128 e 144 cores), com o /star-fletcher
   rectangles() / rectangles(TRUE)
 
 
+#+END_SRC
+
+O mesmo gráfico para o lunaris, que não tem traces por número de cores. O /star-fletcher/ vem do trace
+normal (24 workers, o padrão do StarPU) com a melhor segmentação do lunaris no experimento matriz,
+BlockSeg 8 (ordem 48). O /fletcher-base/ vem do trace de escalabilidade com 24 cores e o escalonador =dynamic=.
+Usa o =all_tasks= lido em [[*Comparação entre máquinas]].
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Mesmo gráfico para o lunaris. O star-fletcher vem do trace normal (24 workers), com a segmentação
+  # de melhor desempenho do lunaris no experimento matriz: BlockSeg 8 (ordem 48). O fletcher-base vem
+  # do trace de escalabilidade com 24 cores (os mesmos CPUs) e o escalonador dynamic.
+  lunaris_blockseg <- 8
+  lunaris_cores <- 24
+
+  lunaris_rectangles <- function(io_state = FALSE){
+    io <- if_else(io_state, "IO every step", "Without IO")
+
+    sf <- all_tasks |>
+      filter(Machine == "lunaris", IO == io, BlockSeg == lunaris_blockseg, Value != "wave_insertion") |>
+      transmute(Program = "star-fletcher", Start, End, Alpha = 3 / Workers,
+                Kind = if_else(Value == "write_block", "IO", "Compute"))
+
+    fb <- fb_scale_trace_phases |>
+      filter(Machine == "lunaris", IO == io, NumCPUs == lunaris_cores, Schedulers == "dynamic") |>
+      transmute(Program = "fletcher-base (dynamic)", Start, End, Alpha = 0.95,
+                Kind = if_else(Phase == "io", "IO", "Compute"))
+
+    bars <- bind_rows(sf, fb) |>
+      mutate(
+        Program = factor(Program, levels = c("fletcher-base (dynamic)", "star-fletcher")),
+        y = as.integer(Program)
+      )
+
+    task_colors <- c("Compute" = "#377eb8", "IO" = "#e41a1c")
+
+    ggplot(bars) +
+      geom_rect(aes(xmin = Start, xmax = End, ymin = y - 0.4, ymax = y + 0.4, fill = Kind, alpha = Alpha)) +
+      scale_alpha_identity() +
+      scale_fill_manual(values = task_colors, breaks = intersect(names(task_colors), unique(bars$Kind))) +
+      scale_y_continuous(breaks = seq_along(levels(bars$Program)), labels = levels(bars$Program)) +
+      labs(
+        title = paste0("lunaris, ", lunaris_cores, " cores, ", if (io_state) "IO every step" else "without IO", ": busy workers over time"),
+        x = "Time [ms]", y = NULL, fill = NULL
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom", panel.grid.major.y = element_blank())
+  }
+  lunaris_rectangles() / lunaris_rectangles(TRUE)
+#+END_SRC
+
+Painel de iterações do StarVZ no lunaris, com o /star-fletcher/ em cima e o /fletcher-base/ embaixo, no
+mesmo eixo de tempo, para mostrar a sobreposição das iterações no /star-fletcher/. Os dados do
+/fletcher-base/ são convertidos para o formato do StarVZ para usar o próprio =panel_kiteration=.
+Usa as mesmas execuções do gráfico acima (BlockSeg 8, 24 cores) e o =trace_root= de [[*Comparação entre máquinas]].
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Painel de iterações (panel_kiteration do StarVZ) do star-fletcher e do fletcher-base, um acima do
+  # outro e com o mesmo eixo de tempo. Recebe o trace do star-fletcher já lido com starvz_read (sf) e as
+  # fases de uma execução do fletcher-base (linhas de fb_scale_trace_phases). O fletcher-base não tem
+  # trace do StarPU, então os seus tempos são colocados no formato que o panel_kiteration espera: cada
+  # fase vira uma tarefa na linha da sua iteração. Usa a configuração do trace do star-fletcher.
+  kiteration_compare <- function(sf, fb_phases, title){
+    # as tarefas passam a se chamar Compute e IO (as de inserção da fonte são ignoradas),
+    # com as mesmas cores dos gráficos de barras
+    sf$Application <- sf$Application |>
+      filter(Value != "wave_insertion") |>
+      mutate(Value = if_else(Value == "write_block", "IO", "Compute"))
+    sf$Colors <- tibble(Value = c("Compute", "IO"), Color = c("#377eb8", "#e41a1c"))
+
+    fb <- sf
+    fb$Application <- fb_phases |>
+      transmute(
+        Iteration, Subiteration = -1L, Node = factor(0), ResourceId = "CPU0",
+        Value = if_else(Phase == "io", "IO", "Compute"),
+        Start, End, Duration
+      )
+
+    x_end <- max(max(sf$Application$End), max(fb$Application$End))
+
+    # tempo médio de uma iteração: do início da primeira tarefa ao fim da última de cada iteração
+    # (no star-fletcher as iterações se sobrepõem, então a soma delas é maior que o makespan)
+    bind_rows(
+      sf$Application |> mutate(Program = "star-fletcher"),
+      fb$Application |> mutate(Program = "fletcher-base (dynamic)")
+    ) |>
+      filter(Iteration >= 1) |>
+      group_by(Program, Iteration) |>
+      summarize(iteration_ms = max(End) - min(Start), .groups = "drop_last") |>
+      summarize(iterations = n(), mean_iteration_ms = mean(iteration_ms), sd_iteration_ms = sd(iteration_ms)) |>
+      print()
+
+    # o nome do programa fica no título do eixo Y (na vertical, à esquerda) e os dois painéis
+    # compartilham o eixo X, que só aparece embaixo
+    (panel_kiteration(sf, x_start = 0, x_end = x_end, sub_ite = FALSE) + labs(y = "star-fletcher") +
+       theme(plot.margin = margin(b = 10))) /
+      (panel_kiteration(fb, x_start = 0, x_end = x_end, sub_ite = FALSE) + labs(y = "fletcher-base (dynamic)") + guides(fill = "none")) +
+      plot_layout(guides = "collect", axes = "collect") +
+      plot_annotation(title = title, subtitle = "Iteration (Y axis) over time") &
+      theme(legend.position = "bottom")
+  }
+
+  lunaris_io <- TRUE
+  io <- if_else(lunaris_io, "IO every step", "Without IO")
+
+  lunaris_sf <- starvz_read(
+    file.path(trace_root, "lunaris", if (lunaris_io) "OutputTime-0.0001" else "OutputTime-1", paste0("BlockSeg-", lunaris_blockseg)),
+    selective = FALSE
+  )
+  lunaris_fb <- fb_scale_trace_phases |>
+    filter(Machine == "lunaris", IO == io, NumCPUs == lunaris_cores, Schedulers == "dynamic")
+
+  kiteration_compare(lunaris_sf, lunaris_fb, paste0("lunaris, ", lunaris_cores, " cores, ", io))
+#+END_SRC
+
+O mesmo painel para o grace, com IO a cada passo e 144 cores: o trace de escalabilidade do /star-fletcher/
+(BlockSeg 8) e o do /fletcher-base/ com o escalonador =dynamic=. Usa o =sf_scale_trace_dirs= lido em
+[[*Traces de escalabilidade]] e a função =kiteration_compare= do bloco acima.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  grace_sf <- sf_scale_trace_dirs |>
+    filter(IO == "IO every step", NumCPUs == 144) |>
+    pull(Dir) |>
+    first() |>
+    starvz_read(selective = FALSE)
+  grace_fb <- fb_scale_trace_phases |>
+    filter(Machine == "grace", IO == "IO every step", NumCPUs == 144, Schedulers == "dynamic")
+
+  kiteration_compare(grace_sf, grace_fb, "grace, 144 cores, IO every step")
 #+END_SRC
 
 
