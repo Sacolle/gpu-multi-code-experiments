@@ -1013,6 +1013,437 @@ Estatísticas da duração das tarefas por máquina, segmentação (tarefas por 
 | tupi    |    32 |       12 |         1728 |      32 | IO every 5 steps | write_block      |  8640 |     0.5 |   0.77 | 153.75 |      0.15 |    2.08 |    4.55 |           0.21 |
 | tupi    |    24 |       16 |         4096 |      32 | IO every 5 steps | write_block      | 20480 |    0.36 |   0.76 |  211.9 |      0.05 |    1.79 |    19.5 |           0.23 |
 
+*** Traces de escalabilidade
+
+Traces das execuções de escalabilidade com mais cores. O /star-fletcher/ foi rodado no grace (64, 72, 128 e
+144 cores, BlockSeg 8) e cada execução já foi convertida pela fase 1 do StarVZ e compactada num =.tar.gz=.
+O arquivo é extraído na primeira leitura; a pasta de cada execução fica em =sf_scale_trace_dirs$Dir= e pode
+ser aberta com =starvz_read(dir, selective = FALSE)= para usar os painéis do StarVZ: =panel_st= (tarefas por
+worker), =panel_st_runtime= (estados do StarPU por worker), =panel_kiteration=, etc.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Cada execução do star-fletcher foi convertida com a fase 1 do StarVZ logo após rodar e
+  # compactada em <NumCPUs>-<BlockSeg>-<Steps>.tar.gz. O arquivo inteiro é extraído ao lado dele
+  # (só na primeira vez), para que qualquer execução possa ser aberta com starvz_read e usada
+  # com os painéis do StarVZ (panel_st, panel_st_runtime, panel_kiteration, ...).
+  sf_scale_trace_root <- glue("{base_dir}/star-fletcher-cpu-pdp-exp-scale-trace")
+
+  sf_scale_trace_dirs <- list.files(sf_scale_trace_root, pattern = "\\.tar\\.gz$", recursive = TRUE, full.names = TRUE) |>
+    map(\(f) {
+      dir <- str_remove(f, "\\.tar\\.gz$")
+      if (!dir.exists(dir)) {
+        utils::untar(f, exdir = dirname(f))
+      }
+      parts <- str_split_1(basename(dir), "-")  # <NumCPUs>-<BlockSeg>-<Steps>
+      tibble(
+        Machine = sub("\\d+$", "", basename(dirname(dir))),
+        NumCPUs = as.integer(parts[1]),
+        BlockSeg = as.integer(parts[2]),
+        Steps = as.integer(parts[3]),
+        Dir = dir
+      )
+    }) |>
+    list_rbind() |>
+    mutate(IO = factor(if_else(Steps == 1, "IO every step", "Without IO"), levels = c("Without IO", "IO every step")))
+
+  # Mesma tabela de tarefas do bloco all_tasks (application.parquet), tempos em ms
+  sf_scale_trace_tasks <- sf_scale_trace_dirs |>
+    pmap(\(Machine, NumCPUs, BlockSeg, Steps, Dir, IO) {
+      arrow::read_parquet(
+        file.path(Dir, "application.parquet"),
+        col_select = c(ResourceId, Start, End, Duration, Value, Iteration)
+      ) |>
+        mutate(Machine = Machine, NumCPUs = NumCPUs, BlockSeg = BlockSeg, IO = IO)
+    }) |>
+    list_rbind() |>
+    mutate(
+      Value = as.character(Value),
+      Order = 384 / BlockSeg,
+      TasksPerIter = BlockSeg^3
+    ) |>
+    group_by(Machine, NumCPUs, BlockSeg, IO) |>
+    mutate(Workers = n_distinct(ResourceId)) |>
+    ungroup()
+
+  sf_scale_trace_tasks |> count(Machine, NumCPUs, BlockSeg, IO, Workers, Value) |> print(n = 50)
+#+END_SRC
+
+
+
+O /fletcher-base/ com trace (grace e lunaris) imprime os tempos de cada iteração. Uma linha por fase
+(computação e IO) de cada iteração.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # O fletcher-base com trace imprime o início e o fim da computação e do IO de cada iteração
+  # ("Iter N, comp_start: <segundos>"). Uma linha por fase de cada iteração, com os tempos em ms
+  # a partir do primeiro comp_start da execução, para comparar com os traces do StarVZ.
+  fb_scale_trace_root <- glue("{base_dir}/fletcher-base-pdp-exp-scale-trace")
+
+  fb_scale_trace_phases <- list.files(fb_scale_trace_root, pattern = "^stdout-.*\\.out$", recursive = TRUE, full.names = TRUE) |>
+    map(\(f) {
+      parts <- str_match(basename(f), "^stdout-(\\d+)-([a-z]+)-(\\d+)\\.out$")  # <NumCPUs>-<Schedulers>-<Steps>
+      read_lines(f) |>
+        str_match("^Iter (\\d+), (comp|io)_(start|end): ([0-9.]+)$") |>
+        as_tibble(.name_repair = ~ c("line", "Iteration", "Phase", "Edge", "Time")) |>
+        filter(!is.na(line)) |>
+        select(-line) |>
+        mutate(Iteration = as.integer(Iteration), Time = as.numeric(Time)) |>
+        pivot_wider(names_from = Edge, values_from = Time) |>
+        mutate(
+          Machine = sub("\\d+$", "", basename(dirname(f))),
+          NumCPUs = as.integer(parts[2]),
+          Schedulers = parts[3],
+          Steps = as.integer(parts[4])
+        )
+    }) |>
+    list_rbind() |>
+    group_by(Machine, NumCPUs, Schedulers, Steps) |>
+    mutate(
+      Start = 1000 * (start - min(start[Phase == "comp"])),
+      End = 1000 * (end - min(start[Phase == "comp"])),
+      Duration = End - Start
+    ) |>
+    ungroup() |>
+    mutate(IO = factor(if_else(Steps == 1, "IO every step", "Without IO"), levels = c("Without IO", "IO every step"))) |>
+    select(Machine, NumCPUs, Schedulers, IO, Iteration, Phase, Start, End, Duration) |>
+    arrange(Machine, NumCPUs, Schedulers, IO, Iteration, Phase)
+
+  fb_scale_trace_phases |> count(Machine, NumCPUs, Schedulers, IO, Phase) |> print(n = 70)
+#+END_SRC
+
+Uma barra por execução do grace sem IO (128 e 144 cores), com o /star-fletcher/ e os dois escalonadores do
+/fletcher-base/, para ver o fim da execução (os workers sem tarefas) sem uma linha por worker.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Uma barra por execução, como as barras do panel_st, mas com todos os workers na mesma linha.
+  # Cada tarefa do star-fletcher é um retângulo semitransparente (alpha = 3 / workers): com todos
+  # os workers ocupados a barra fica quase opaca, e quanto menos workers ocupados, mais clara ela
+  # fica; o vazio é quando nenhum trabalha. O fletcher-base só tem o início e o fim da computação
+  # de cada iteração (a região paralela com todas as threads), desenhados com a opacidade de uma
+  # barra cheia.
+  bar_program_colors <- c(
+    "star-fletcher"           = "#1b9e77",
+    "fletcher-base (dynamic)" = "#d95f02",
+    "fletcher-base (static)"  = "#7570b3"
+  )
+  bar_cores <- c(144, 128)
+
+  rectangles <- function(io_state = FALSE){
+    io <- if_else(io_state, "IO every step", "Without IO")
+
+    # Computação: retângulos de propagação do star-fletcher e fases comp do fletcher-base
+    compute <- bind_rows(
+      sf_scale_trace_tasks |>
+        filter(Machine == "grace", IO == io, NumCPUs %in% bar_cores, Value == "wave_propagation") |>
+        transmute(Program = "star-fletcher", NumCPUs, Start, End, Alpha = 3 / Workers),
+      fb_scale_trace_phases |>
+        filter(Machine == "grace", IO == io, NumCPUs %in% bar_cores, Phase == "comp", Schedulers == "dynamic") |>
+        transmute(Program = paste0("fletcher-base (", Schedulers, ")"), NumCPUs, Start, End, Alpha = 0.95)
+    ) |>
+      mutate(Kind = "Compute")
+
+    # IO: tarefas write_block do star-fletcher (uma por worker, com a mesma transparência) e as
+    # fases io do fletcher-base (a escrita de cada iteração, depois da computação)
+    writes <- bind_rows(
+      sf_scale_trace_tasks |>
+        filter(Machine == "grace", IO == io, NumCPUs %in% bar_cores, Value == "write_block") |>
+        transmute(Program = "star-fletcher", NumCPUs, Start, End, Alpha = 3 / Workers),
+      fb_scale_trace_phases |>
+        filter(Machine == "grace", IO == io, NumCPUs %in% bar_cores, Phase == "io", Schedulers == "dynamic") |>
+        transmute(Program = paste0("fletcher-base (", Schedulers, ")"), NumCPUs, Start, End, Alpha = 0.95)
+    ) |>
+      mutate(Kind = "IO")
+
+    bars <- bind_rows(compute, writes) |>
+      mutate(
+        Program = factor(Program, levels = rev(names(bar_program_colors))),
+        y = as.integer(Program),
+        Cores = factor(paste(NumCPUs, "cores"), levels = paste(bar_cores, "cores"))
+      )
+
+    # a cor é o tipo de tarefa; o programa já está no rótulo de cada barra
+    task_colors <- c("Compute" = "#377eb8", "IO" = "#e41a1c")
+
+    ggplot(bars) +
+      geom_rect(aes(xmin = Start, xmax = End, ymin = y - 0.4, ymax = y + 0.4, fill = Kind, alpha = Alpha)) +
+      scale_alpha_identity() +
+      scale_fill_manual(values = task_colors, breaks = intersect(names(task_colors), unique(bars$Kind))) +
+      scale_y_continuous(breaks = seq_along(levels(bars$Program)), labels = levels(bars$Program)) +
+      facet_grid(Cores ~ .) +
+      labs(
+        title = paste0("grace, ", if (io_state) "IO every step" else "without IO", ": busy workers over time"),
+        x = "Time [ms]", y = NULL, fill = NULL
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom", panel.grid.major.y = element_blank())
+  }
+  rectangles() / rectangles(TRUE)
+
+
+#+END_SRC
+
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  tasks <- sf_scale_trace_dirs |>
+    mutate(app = map(Dir, ~ starvz_read(.x)$Application)) |>
+    unnest(app) |>
+    filter(Value == "wave_propagation", IO == "Without IO", Duration < 40)
+
+  ggplot(tasks, aes(x = Duration, fill = Tag)) +
+    geom_histogram(bins = 100) +
+    facet_grid(IO ~ NumCPUs, scales = "free")
+
+#+END_SRC
+*** Fome dos workers
+
+Quanto tempo os workers do /star-fletcher/ ficam sem tarefas (/starving/) e se a submissão de tarefas
+consegue ficar à frente da execução. Para cada execução: o tempo total, o tempo gasto submetendo as tarefas
+de propagação, o custo de submissão por tarefa, a porcentagem do tempo dos workers sem tarefa, a porcentagem
+de tarefas que começam logo após serem submetidas (menos de 1 ms) e a média de tarefas submetidas à frente da
+execução. Primeiro para os traces com várias segmentações, em todas as máquinas.
+
+#+BEGIN_SRC R :session *R* :async yes :results value :colnames yes
+  # Estatísticas de fome de uma execução (pasta convertida pelo StarVZ), tempos em ms:
+  # - starving_pct: fração do tempo dos workers sem nenhuma tarefa
+  # - submitting_s: tempo entre a submissão da primeira e da última tarefa de propagação
+  # - started_on_submit_pct: tarefas que começaram menos de 1 ms depois de serem submetidas
+  # - tasks_ahead: média de tarefas submetidas e ainda não executadas (contador "Submitted" do StarPU)
+  starvation_stats <- function(dir) {
+    app <- arrow::read_parquet(file.path(dir, "application.parquet"), col_select = c(ResourceId, Start, End, Duration))
+    tasks <- arrow::read_parquet(file.path(dir, "tasks.parquet"), col_select = c(Name, SubmitTime, StartTime)) |>
+      filter(Name == "wave_propagation")
+    workers <- nrow(arrow::read_parquet(file.path(dir, "y.parquet")))  # todos os workers, mesmo os sem tarefas
+    t0 <- min(app$Start)
+    t1 <- max(app$End)
+    submitted <- arrow::read_parquet(file.path(dir, "variable.parquet")) |>
+      filter(Type == "Submitted", End > t0, Start < t1) |>
+      mutate(Duration = pmin(End, t1) - pmax(Start, t0))
+
+    tibble(
+      Workers = workers,
+      total_s = (t1 - t0) / 1000,
+      submitting_s = (max(tasks$SubmitTime) - min(tasks$SubmitTime)) / 1000,
+      us_per_submit = 1000 * (max(tasks$SubmitTime) - min(tasks$SubmitTime)) / nrow(tasks),
+      starving_pct = 100 * (1 - sum(app$Duration) / (workers * (t1 - t0))),
+      started_on_submit_pct = 100 * mean(tasks$StartTime - tasks$SubmitTime < 1),
+      tasks_ahead = weighted.mean(submitted$Value, submitted$Duration)
+    )
+  }
+
+  trace_root <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree"
+
+  starvation_by_config <- list.files(trace_root, pattern = "^\\.phase1-done$", all.files = TRUE, recursive = TRUE) |>
+    dirname() |>
+    map(\(leaf) {
+      parts <- str_split_1(leaf, "/")  # <nó>/OutputTime-<x>/BlockSeg-<n>
+      starvation_stats(file.path(trace_root, leaf)) |>
+        mutate(
+          Machine = sub("\\d+$", "", parts[1]),
+          OutputTime = as.numeric(str_remove(parts[2], "OutputTime-")),
+          BlockSeg = as.integer(str_remove(parts[3], "BlockSeg-")),
+          .before = 1
+        )
+    }) |>
+    list_rbind() |>
+    mutate(
+      Order = 384 / BlockSeg,
+      IO = case_when(
+        OutputTime >= 1 ~ "Without IO",
+        near(OutputTime, 1e-4) ~ "IO every step",
+        TRUE ~ "IO every 5 steps"
+      ),
+      IO = factor(IO, levels = c("Without IO", "IO every step", "IO every 5 steps")),
+      .after = BlockSeg
+    ) |>
+    select(-OutputTime) |>
+    arrange(Machine, IO, BlockSeg) |>
+    mutate(across(where(is.double), \(x) round(x, 2)))
+
+  starvation_by_config
+#+END_SRC
+
+#+RESULTS:
+| Machine | BlockSeg | Order | IO               | Workers | total_s | submitting_s | us_per_submit | starving_pct | started_on_submit_pct | tasks_ahead |
+|---------+----------+-------+------------------+---------+---------+--------------+---------------+--------------+-----------------------+-------------|
+| cei     |        3 |   128 | Without IO       |      24 |   34.78 |         0.07 |        123.95 |           31 |                  1.94 |      280.56 |
+| cei     |        4 |    96 | Without IO       |      24 |    21.9 |         0.16 |         115.5 |         5.47 |                  0.67 |      681.33 |
+| cei     |        6 |    64 | Without IO       |      24 |   21.33 |          0.5 |        109.14 |         0.56 |                  0.53 |     2215.82 |
+| cei     |        8 |    48 | Without IO       |      24 |   19.12 |         1.23 |        114.49 |         0.88 |                  0.22 |      5004.7 |
+| cei     |       12 |    32 | Without IO       |      24 |   21.16 |         4.65 |        128.22 |         1.43 |                  0.07 |    14389.91 |
+| cei     |       16 |    24 | Without IO       |      24 |   21.01 |        12.42 |        144.37 |         3.85 |                  0.03 |    18518.34 |
+| cei     |        3 |   128 | IO every step    |      24 |   37.97 |          0.1 |        183.06 |        28.11 |                     0 |      564.74 |
+| cei     |        4 |    96 | IO every step    |      24 |   24.54 |         0.24 |        180.75 |         5.39 |                     0 |      1374.2 |
+| cei     |        6 |    64 | IO every step    |      24 |   22.08 |         0.65 |        142.56 |         0.45 |                     0 |     4467.57 |
+| cei     |        8 |    48 | IO every step    |      24 |   23.54 |         1.51 |        139.98 |         0.59 |                     0 |      9391.5 |
+| cei     |       12 |    32 | IO every step    |      24 |   27.37 |          5.4 |        148.68 |         1.84 |                     0 |    27822.93 |
+| cei     |       16 |    24 | IO every step    |      24 |   24.97 |        14.17 |        164.77 |         4.49 |                  0.01 |    33303.99 |
+| cei     |        3 |   128 | IO every 5 steps |      24 |   36.81 |         0.09 |        165.19 |        29.08 |                     0 |      339.77 |
+| cei     |        4 |    96 | IO every 5 steps |      24 |   22.57 |         0.22 |        166.83 |         5.64 |                     0 |      817.87 |
+| cei     |        6 |    64 | IO every 5 steps |      24 |   21.81 |          0.6 |        132.57 |         0.79 |                     0 |      2732.9 |
+| cei     |        8 |    48 | IO every 5 steps |      24 |   19.94 |         1.35 |        125.23 |         0.55 |                     0 |      6165.9 |
+| cei     |       12 |    32 | IO every 5 steps |      24 |   22.27 |         4.84 |        133.41 |         1.47 |                     0 |    17695.14 |
+| cei     |       16 |    24 | IO every 5 steps |      24 |   22.06 |        13.29 |        154.48 |         4.05 |                     0 |    22743.75 |
+| draco   |        3 |   128 | Without IO       |      16 |   57.74 |         0.07 |        130.63 |        17.89 |                  1.59 |      289.76 |
+| draco   |        4 |    96 | Without IO       |      16 |   41.48 |         0.18 |        134.37 |         1.49 |                  1.12 |      670.61 |
+| draco   |        6 |    64 | Without IO       |      16 |   40.91 |         0.57 |        125.83 |         0.42 |                  0.35 |     2246.83 |
+| draco   |        8 |    48 | Without IO       |      16 |   44.33 |         1.41 |        131.18 |          0.4 |                  0.15 |     5179.02 |
+| draco   |       12 |    32 | Without IO       |      16 |   41.88 |         5.04 |        139.02 |         0.99 |                  0.04 |       16212 |
+| draco   |       16 |    24 | Without IO       |      16 |   41.75 |         12.5 |        145.31 |         2.69 |                  0.02 |     30551.4 |
+| draco   |        3 |   128 | IO every step    |      16 |   68.52 |          0.1 |         177.7 |        25.53 |                     0 |      542.93 |
+| draco   |        4 |    96 | IO every step    |      16 |    45.3 |         0.22 |        161.54 |         1.36 |                     0 |     1363.89 |
+| draco   |        6 |    64 | IO every step    |      16 |   48.03 |         0.78 |         171.8 |         0.41 |                     0 |     4537.13 |
+| draco   |        8 |    48 | IO every step    |      16 |   50.55 |         1.66 |         154.6 |         0.69 |                     0 |    10492.61 |
+| draco   |       12 |    32 | IO every step    |      16 |   47.48 |         5.77 |           159 |         1.29 |                     0 |     32457.7 |
+| draco   |       16 |    24 | IO every step    |      16 |   47.97 |        15.99 |        185.87 |         3.21 |                     0 |    56925.67 |
+| draco   |        3 |   128 | IO every 5 steps |      16 |   64.25 |         0.09 |        156.51 |        25.67 |                     0 |      338.06 |
+| draco   |        4 |    96 | IO every 5 steps |      16 |    42.3 |          0.2 |        147.46 |         2.04 |                     0 |      824.76 |
+| draco   |        6 |    64 | IO every 5 steps |      16 |   42.03 |         0.63 |        138.46 |         0.52 |                     0 |     2746.99 |
+| draco   |        8 |    48 | IO every 5 steps |      16 |   46.13 |         1.48 |         137.7 |         0.42 |                     0 |     6332.14 |
+| draco   |       12 |    32 | IO every 5 steps |      16 |   43.43 |         5.01 |        138.08 |         1.38 |                     0 |    20085.61 |
+| draco   |       16 |    24 | IO every 5 steps |      16 |    42.8 |        12.94 |        150.38 |         2.66 |                     0 |    37559.09 |
+| grace   |        3 |   128 | Without IO       |     144 |    8.87 |         0.07 |        131.26 |        83.07 |                  4.76 |      292.66 |
+| grace   |        4 |    96 | Without IO       |     144 |    3.42 |         0.19 |        139.29 |        62.61 |                  4.24 |      694.05 |
+| grace   |        6 |    64 | Without IO       |     144 |    2.74 |         1.07 |        235.16 |        23.14 |                  2.36 |     1491.02 |
+| grace   |        8 |    48 | Without IO       |     144 |    2.83 |         2.82 |        262.28 |        17.66 |                 14.57 |     1698.11 |
+| grace   |       12 |    32 | Without IO       |     144 |    9.95 |         9.94 |        273.79 |         69.2 |                 65.56 |      268.12 |
+| grace   |       16 |    24 | Without IO       |     144 |   25.19 |        25.17 |        292.67 |        92.31 |                 90.94 |       24.62 |
+| grace   |        3 |   128 | IO every step    |     144 |   10.65 |         0.09 |        164.75 |        82.11 |                  4.23 |      585.18 |
+| grace   |        4 |    96 | IO every step    |     144 |    5.64 |          0.3 |        220.47 |        47.03 |                  1.49 |     1372.93 |
+| grace   |        6 |    64 | IO every step    |     144 |    7.79 |         1.95 |        430.32 |         1.16 |                     0 |     3705.15 |
+| grace   |        8 |    48 | IO every step    |     144 |    8.81 |         3.92 |        364.14 |         5.97 |                     0 |     6884.19 |
+| grace   |       12 |    32 | IO every step    |     144 |    13.6 |        10.92 |         300.9 |         5.55 |                  0.02 |     11327.2 |
+| grace   |       16 |    24 | IO every step    |     144 |   20.28 |        18.93 |        220.09 |        26.76 |                 10.16 |     9925.75 |
+| grace   |        3 |   128 | IO every 5 steps |     144 |   10.07 |         0.08 |        138.19 |        82.67 |                  3.53 |      346.98 |
+| grace   |        4 |    96 | IO every 5 steps |     144 |    4.47 |          0.3 |        222.43 |        57.09 |                   2.6 |      756.98 |
+| grace   |        6 |    64 | IO every 5 steps |     144 |     4.4 |          1.4 |        308.03 |        10.18 |                     0 |     1945.31 |
+| grace   |        8 |    48 | IO every 5 steps |     144 |    4.21 |         2.53 |         235.7 |         3.12 |                     0 |     4560.14 |
+| grace   |       12 |    32 | IO every 5 steps |     144 |   10.19 |         8.92 |        245.68 |        37.36 |                 27.98 |     3359.79 |
+| grace   |       16 |    24 | IO every 5 steps |     144 |   23.78 |        22.51 |        261.66 |         64.8 |                 50.53 |     2147.94 |
+| lunaris |        3 |   128 | Without IO       |      24 |    26.1 |         0.03 |         53.54 |        27.37 |                   3.7 |      288.35 |
+| lunaris |        4 |    96 | Without IO       |      24 |    9.84 |         0.06 |         47.68 |         4.72 |                  1.56 |      683.62 |
+| lunaris |        6 |    64 | Without IO       |      24 |    9.85 |         0.21 |         47.08 |         0.57 |                  0.53 |      2247.4 |
+| lunaris |        8 |    48 | Without IO       |      24 |    8.21 |         0.56 |         52.18 |         0.57 |                  0.22 |      5047.6 |
+| lunaris |       12 |    32 | Without IO       |      24 |   10.03 |         2.43 |         67.01 |         1.47 |                  0.07 |    14243.15 |
+| lunaris |       16 |    24 | Without IO       |      24 |    9.07 |         7.91 |         91.96 |         4.99 |                  1.36 |     7265.65 |
+| lunaris |        3 |   128 | IO every step    |      24 |    29.5 |         0.04 |         72.28 |        24.14 |                     0 |      574.48 |
+| lunaris |        4 |    96 | IO every step    |      24 |   10.64 |         0.09 |          70.4 |         4.73 |                     0 |     1372.17 |
+| lunaris |        6 |    64 | IO every step    |      24 |   10.29 |         0.29 |         64.01 |         0.45 |                     0 |     4547.06 |
+| lunaris |        8 |    48 | IO every step    |      24 |     9.1 |         0.69 |         64.53 |         0.66 |                     0 |    10124.61 |
+| lunaris |       12 |    32 | IO every step    |      24 |   10.94 |         2.85 |         78.63 |         1.65 |                     0 |    28807.71 |
+| lunaris |       16 |    24 | IO every step    |      24 |   10.43 |         8.93 |        103.78 |         6.16 |                  0.69 |    17860.82 |
+| lunaris |        3 |   128 | IO every 5 steps |      24 |   27.29 |         0.04 |         66.66 |        25.98 |                     0 |      347.76 |
+| lunaris |        4 |    96 | IO every 5 steps |      24 |   10.38 |         0.08 |         60.63 |         5.35 |                     0 |      837.84 |
+| lunaris |        6 |    64 | IO every 5 steps |      24 |    9.96 |         0.27 |         59.41 |         0.56 |                     0 |     2772.31 |
+| lunaris |        8 |    48 | IO every 5 steps |      24 |     8.5 |         0.61 |         56.46 |         0.59 |                     0 |     6257.46 |
+| lunaris |       12 |    32 | IO every 5 steps |      24 |   10.45 |         2.51 |         69.03 |         1.46 |                     0 |     17970.9 |
+| lunaris |       16 |    24 | IO every 5 steps |      24 |     9.5 |         7.98 |         92.76 |         4.97 |                  0.75 |    11145.92 |
+| poti    |        3 |   128 | Without IO       |      28 |   39.76 |         0.06 |        101.02 |        68.96 |                  1.94 |       225.4 |
+| poti    |        4 |    96 | Without IO       |      28 |   14.77 |         0.14 |        106.16 |        19.39 |                  1.26 |      628.28 |
+| poti    |        6 |    64 | Without IO       |      28 |   13.41 |         0.42 |         92.35 |         6.47 |                   0.6 |     2129.34 |
+| poti    |        8 |    48 | Without IO       |      28 |    12.5 |          1.1 |        102.44 |         10.9 |                  0.24 |     4473.95 |
+| poti    |       12 |    32 | Without IO       |      28 |   13.66 |         3.94 |        108.49 |         8.18 |                   0.1 |       12320 |
+| poti    |       16 |    24 | Without IO       |      28 |   13.17 |         9.83 |        114.25 |         6.18 |                  0.21 |    11957.95 |
+| poti    |        3 |   128 | IO every step    |      28 |   49.86 |         0.04 |          73.9 |        72.87 |                  0.18 |      415.08 |
+| poti    |        4 |    96 | IO every step    |      28 |   15.17 |         0.11 |         85.33 |        18.01 |                     0 |     1248.89 |
+| poti    |        6 |    64 | IO every step    |      28 |   13.67 |         0.37 |         80.62 |         9.71 |                     0 |     4060.94 |
+| poti    |        8 |    48 | IO every step    |      28 |   13.35 |         1.37 |        127.39 |         9.19 |                     0 |     8487.69 |
+| poti    |       12 |    32 | IO every step    |      28 |   14.91 |         4.75 |        131.01 |         6.71 |                     0 |    23265.07 |
+| poti    |       16 |    24 | IO every step    |      28 |   13.48 |        10.88 |        126.47 |         5.92 |                  0.46 |    16972.66 |
+| poti    |        3 |   128 | IO every 5 steps |      28 |    42.7 |         0.03 |         58.89 |        70.79 |                  0.18 |      267.49 |
+| poti    |        4 |    96 | IO every 5 steps |      28 |   15.63 |         0.11 |         82.16 |        21.04 |                     0 |      752.83 |
+| poti    |        6 |    64 | IO every 5 steps |      28 |   14.26 |         0.59 |         129.9 |         8.78 |                     0 |     2500.85 |
+| poti    |        8 |    48 | IO every 5 steps |      28 |   12.89 |         1.06 |         99.04 |        12.47 |                     0 |     5317.73 |
+| poti    |       12 |    32 | IO every 5 steps |      28 |    14.5 |         4.09 |        112.64 |         3.78 |                     0 |     15644.1 |
+| poti    |       16 |    24 | IO every 5 steps |      28 |   12.83 |         9.96 |        115.79 |         6.06 |                  0.23 |    12467.88 |
+| tupi    |        3 |   128 | Without IO       |      32 |   35.96 |         0.06 |        110.03 |        75.24 |                  1.41 |      246.54 |
+| tupi    |        4 |    96 | Without IO       |      32 |    12.4 |         0.14 |        105.53 |        25.86 |                  0.97 |      626.55 |
+| tupi    |        6 |    64 | Without IO       |      32 |   10.83 |          0.4 |         87.93 |        11.95 |                  0.49 |     2046.76 |
+| tupi    |        8 |    48 | Without IO       |      32 |    9.61 |         1.12 |        103.81 |        15.04 |                  0.26 |     4249.34 |
+| tupi    |       12 |    32 | Without IO       |      32 |   11.35 |         3.87 |        106.53 |        12.86 |                  0.07 |    10617.87 |
+| tupi    |       16 |    24 | Without IO       |      32 |    9.86 |         8.82 |        102.49 |         4.04 |                  1.39 |     5830.63 |
+| tupi    |        3 |   128 | IO every step    |      32 |    32.9 |         0.04 |         68.93 |        69.46 |                     0 |      407.13 |
+| tupi    |        4 |    96 | IO every step    |      32 |   13.62 |         0.12 |         88.82 |        26.51 |                     0 |     1195.51 |
+| tupi    |        6 |    64 | IO every step    |      32 |   11.61 |         0.41 |         90.25 |        11.74 |                     0 |     4056.15 |
+| tupi    |        8 |    48 | IO every step    |      32 |   10.73 |         1.22 |        113.65 |        17.29 |                     0 |     7818.55 |
+| tupi    |       12 |    32 | IO every step    |      32 |   11.86 |         4.25 |        117.15 |         13.3 |                     0 |    20061.86 |
+| tupi    |       16 |    24 | IO every step    |      32 |   10.59 |         9.79 |        113.84 |          4.7 |                  1.13 |    12478.58 |
+| tupi    |        3 |   128 | IO every 5 steps |      32 |   42.45 |         0.03 |         60.16 |        78.08 |                  0.35 |      257.56 |
+| tupi    |        4 |    96 | IO every 5 steps |      32 |   12.62 |         0.11 |         81.19 |        25.73 |                     0 |       746.2 |
+| tupi    |        6 |    64 | IO every 5 steps |      32 |   11.14 |         0.37 |         80.58 |         13.2 |                     0 |     2443.61 |
+| tupi    |        8 |    48 | IO every 5 steps |      32 |   10.16 |         1.09 |         101.7 |        17.74 |                     0 |     4980.39 |
+| tupi    |       12 |    32 | IO every 5 steps |      32 |   10.57 |         3.87 |        106.63 |         5.87 |                     0 |    13959.67 |
+| tupi    |       16 |    24 | IO every 5 steps |      32 |   10.19 |         8.75 |        101.78 |         6.72 |                  1.62 |     6464.88 |
+
+A porcentagem de tempo sem tarefas por ordem do bloco, em cada máquina e nível de IO.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  ggplot(starvation_by_config, aes(x = Order, y = starving_pct, color = Machine)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    scale_x_continuous(breaks = sort(unique(starvation_by_config$Order))) +
+    facet_grid(~ IO) +
+    labs(
+      title = "Worker starvation vs. Block Order",
+      x = "Block Order",
+      y = "Starving workers (% of worker time)"
+    ) +
+    theme_bw(base_size = 15) +
+    theme(legend.position = "bottom", axis.text.x = element_text(size = 9))
+#+END_SRC
+
+As mesmas estatísticas para os traces de escalabilidade do grace sem IO (64, 72, 128 e 144 cores, BlockSeg 8).
+Usa o =sf_scale_trace_dirs= lido em [[*Traces de escalabilidade]].
+
+#+BEGIN_SRC R :session *R* :async yes :results value :colnames yes
+  starvation_by_cores <- sf_scale_trace_dirs |>
+    filter(IO == "Without IO") |>
+    arrange(NumCPUs) |>
+    pull(Dir) |>
+    map(starvation_stats) |>
+    list_rbind() |>
+    select(Workers, starving_pct, submitting_s, total_s, us_per_submit, started_on_submit_pct, tasks_ahead) |>
+    mutate(across(where(is.double), \(x) round(x, 2)))
+
+  starvation_by_cores
+#+END_SRC
+
+#+RESULTS:
+| Workers | starving_pct | submitting_s | total_s | us_per_submit | started_on_submit_pct | tasks_ahead |
+|---------+--------------+--------------+---------+---------------+-----------------------+-------------|
+|      64 |          1.6 |         0.85 |    2.82 |         78.92 |                   0.6 |     3987.48 |
+|      72 |         2.48 |         1.35 |    2.44 |        125.37 |                  0.67 |     2614.22 |
+|     128 |        10.22 |         2.24 |    2.28 |        208.04 |                 12.96 |      493.45 |
+|     144 |        25.77 |         3.06 |    3.08 |        284.19 |                 26.44 |     1487.12 |
+
+A fome, a fração do tempo de execução gasta submetendo tarefas e as tarefas que começam logo após a
+submissão, conforme aumenta o número de cores no grace.
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  starvation_by_cores |>
+    mutate(submitting_pct = 100 * submitting_s / total_s) |>
+    select(Workers, starving_pct, started_on_submit_pct, submitting_pct) |>
+    pivot_longer(-Workers, names_to = "Metric", values_to = "Percent") |>
+    mutate(Metric = recode(Metric,
+      starving_pct = "Starving workers (% of worker time)",
+      started_on_submit_pct = "Tasks started < 1 ms after submission (%)",
+      submitting_pct = "Submission time / run time (%)"
+    )) |>
+    ggplot(aes(x = Workers, y = Percent, color = Metric)) +
+    geom_point() +
+    geom_line(linewidth = 0.8) +
+    scale_x_continuous(breaks = starvation_by_cores$Workers) +
+    ylim(0, 100) +
+    labs(
+      title = "grace, without IO: starvation vs. number of cores",
+      x = "Number of cores",
+      y = "%",
+      color = NULL
+    ) +
+    theme_bw(base_size = 15) +
+    theme(legend.position = "bottom", legend.direction = "vertical")
+#+END_SRC
+
 ** Análise da Escalabilidade
 
 Resultados do experimento de escalabilidade: o desempenho de cada programa conforme aumenta o

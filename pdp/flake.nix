@@ -79,10 +79,10 @@
 
         amountWritten = time: base: toString (builtins.floor ((builtins.fromJSON time) / (builtins.fromJSON base)));
 
-        base-fletcher-base-cpu = file:
+        base-fletcher-base-cpu = file: name:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
-            experiment-name = "fletcher-base-pdp-exp";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -123,8 +123,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        fletcher-base-cpu = base-fletcher-base-cpu ./fletcher-base-exp.csv;
-        # fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv;
+        fletcher-base-cpu = base-fletcher-base-cpu ./fletcher-base-exp.csv "fletcher-base-pdp-exp";
+        fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv "fletcher-base-pdp-exp-big";
 
         base-fletcher-base-cpu-bind = file:
           let
@@ -278,10 +278,10 @@
             '';
           };
         
-        base-star-fletcher-cpu =  file:
+        base-star-fletcher-cpu =  file: name:
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
-            experiment-name = "star-fletcher-cpu-pdp-exp";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -317,8 +317,8 @@
                 cp ${stdout-file} ${home-folder}
             '';
           };
-        star-fletcher-cpu = base-star-fletcher-cpu ./star-fletcher-exp.csv;
-        # star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv;
+        star-fletcher-cpu = base-star-fletcher-cpu ./star-fletcher-exp.csv "star-fletcher-cpu-pdp-exp";
+        star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv "star-fletcher-cpu-pdp-exp-big";
 
         star-fletcher-cpu-scalability = file:
           let
@@ -582,9 +582,9 @@
             fletcher-base-cpu
             fletcher-base-cpu-bind
             star-fletcher-cpu
-            #fletcher-base-cpu-big
+            fletcher-base-cpu-big
             #fletcher-base-cpu-bind-big
-            #star-fletcher-cpu-big
+            star-fletcher-cpu-big
             star-fletcher-cpu-trace
             fio-exp
           ;
