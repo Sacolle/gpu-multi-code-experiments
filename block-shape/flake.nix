@@ -73,6 +73,8 @@
                 enableTrace = false;
                 compileAsRelease = true;
                 cuda_arch = "sm_89";
+                # sem os testes do StarPU, que falham em algumas máquinas (grace, poti) e impedem o build
+                StarPU = starpu-no-check;
             } // options);
             program = "${my-star-fletcher}/bin/star-fletcher";
 

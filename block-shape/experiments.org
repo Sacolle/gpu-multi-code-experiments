@@ -209,7 +209,7 @@ O nome da máquina é o hostname sem o número final (=tupi3= -> =tupi=), usado 
     arrange(Experiment, Machine, Schedulers, BlockOrder, desc(SurfaceRatio))
 #+END_SRC
 
-#+BEGIN_SRC R :session *R* :async yes :results output graphics file :file block-shape-rel.pdf :width 12 :height 8
+#+BEGIN_SRC R :session *R* :async yes :results output silent
   ggplot(rel, aes(x = SurfaceRatio, y = RelCube, color = factor(BlockOrder))) +
     geom_hline(yintercept = 1, linetype = "dashed") +
     geom_jitter(width = 0.01, alpha = 0.4) +
@@ -225,9 +225,11 @@ O nome da máquina é o hostname sem o número final (=tupi3= -> =tupi=), usado 
     theme(legend.position = "bottom")
 #+END_SRC
 
-#+BEGIN_SRC R :session *R* :async yes :results output graphics file :file block-shape-msamples.pdf :width 14 :height 8
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
   ggplot(rel, aes(x = reorder(Shape, -SurfaceRatio), y = Msamples, color = Schedulers)) +
     geom_boxplot(outlier.shape = NA) +
+    scale_y_continuous(breaks = c(1:7 * 50)) +
     facet_grid(Machine ~ BlockOrder, scales = "free") +
     labs(title = "Msamples por formato de bloco", x = "Formato (bx x by x bz)", y = "Msamples/s") +
     theme_bw(base_size = 13) +
