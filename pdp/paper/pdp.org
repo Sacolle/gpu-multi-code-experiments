@@ -187,7 +187,6 @@ the same multi-track EasyChair installation as the main conference.
 Fletcher is a seismic analysis algorithm widely used in oil and gas exploration. It is a Reverse Time Migration (RTM) algorithm that is computationally and I/O-Intensive. This paper presents Star-Fletcher, an implementation of the forward phase of the Fletcher RTM algorithm using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, Star-Fletcher enables overlap of computation and I/O, eliminating global synchronization points between iterations. This paper bases its analysis on the OpenMP base version, fletcher-base, and characterizes its performance across OpenMP configurations. Experiments across multiple CPU architectures show that Star-Fletcher outperforms the OpenMP baseline implementation with static partitioning and either matches or surpasses it with dynamic scheduling. The most significant gains are observed on heterogeneous architectures featuring mixed performance and efficiency cores. 
 #+end_abstract
 
-
 ** Introduction
 <<sec:intro>>
 
@@ -718,7 +717,6 @@ Another aspect to consider is that the Fletcher algorithm is not adequate for st
 #+NAME: fig:pcore_dyn_time_diff
 #+ATTR_LATEX: :placement [!htb] :width .9\textwidth
 [[file:pcore_dyn_time_plot.pdf]]
-
 
 ** Conclusion
 <<sec:conclusion>>
