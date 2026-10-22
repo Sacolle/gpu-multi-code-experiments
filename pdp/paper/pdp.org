@@ -1363,6 +1363,7 @@ Tangle this file with C-c C-v t
 # eval: (require 'ox-latex)
 # eval: (add-to-list 'org-latex-classes '("IEEEtran" "\\documentclass{IEEEtran}" ("\\section{%s}" . "\\section*{%s}") ("\\subsection{%s}" . "\\subsection*{%s}") ("\\subsubsection{%s}" . "\\subsubsection*{%s}") ("\\paragraph{%s}" . "\\paragraph*{%s}")))
 # eval: (setq-local org-latex-packages-alist '(("AUTO" "babel" t ("pdflatex")) ("" "url") ("" "cite")))
-# eval: (setq org-latex-pdf-process (list "latexmk -pdf -interaction=nonstopmode -f %f"))
+# eval: (setq-local org-latex-pdf-process (list "latexmk -pdf -interaction=nonstopmode -f %f"))
+# eval: (setq-local org-latex-remove-logfiles nil)
 # eval: (add-to-list 'org-export-before-processing-hook (lambda (be) (org-babel-tangle)))
 # End:
