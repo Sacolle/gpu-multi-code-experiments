@@ -24,6 +24,9 @@
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
 
+# visual-line-mode [enable]
+# auto-fill-mode [disable]
+
 #+PROPERTY: header-args :eval never
 
 # keywords:
