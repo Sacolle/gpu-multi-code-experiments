@@ -39,6 +39,126 @@
 # Fletcher
 
 
+* PDP 2027 Call for Papers                                         :noexport:
+
+Source: https://www.pdp2027.org/ (iframe of
+https://research.ac.upc.edu/PDP2027/index.html), downloaded 2026-10-22.
+
+** Conference
+
+35th Euromicro Conference on Parallel, Distributed and Network-Based
+Processing (PDP 2027).
+
+- Location :: Barcelona, Catalonia, Spain
+- Dates :: 17–19 March 2027
+- Proceedings :: IEEE CPS · Scopus-indexed
+- Organizers :: Universitat Politècnica de Catalunya - BarcelonaTech;
+  Barcelona Supercomputing Center - BSC-CNS
+- Submission system :: https://easychair.org/my/conference?conf=pdp2027
+- Contact :: pdp2027@ac.upc.edu
+
+PDP stands as a premier European and international conference that
+comprehensively addresses all facets of parallel and distributed
+processing. Encompassing a spectrum from foundational theory to
+practical implementation, it spans systems of all scales—from small
+configurations to the largest infrastructures. PDP addresses
+fundamental computational challenges alongside robust applications and
+delves into architecture, compiler, language, interface design and
+deployment, tools, support infrastructures, and performance
+optimization.
+
+Parallel, Distributed, and Network-Based Processing fields have evolved
+significantly, marked by the emergence of novel architectures and
+groundbreaking applications. Artificial intelligence (AI) has become a
+major application area, leveraging parallel and distributed
+technologies to enhance computational efficiency and enable
+sophisticated AI models. This progress emphasizes the dynamic fusion of
+parallel and distributed technologies with other rapidly advancing
+domains. In evaluating these cutting-edge developments, it is
+imperative to highlight the latest research achievements in
+established areas of parallel and distributed computing, drawing
+insights from both industrial and academic perspectives.
+
+PDP 2027 brings researchers and practitioners together in Barcelona to
+present new work and discuss where the field is heading next. Accepted
+papers are published through IEEE Conference Publishing Services (CPS)
+and submitted for indexing in Scopus and other major indexing services.
+
+** Topics of interest
+
+PDP welcomes original, unpublished work across (but not limited to) the
+following areas.
+
+1. Algorithms :: Resource-aware & power-efficient algorithms; real-time
+   and fault-tolerant distributed/parallel algorithms; graph and network
+   algorithms.
+2. Applications :: Numerical and scientific applications with
+   multi-level parallelism; computations over irregular domains.
+3. Data-centric processing :: Scientific workflows; large-scale data
+   processing & management; next-generation storage; FAIR/open data
+   systems.
+4. Distributed AI :: Federated and distributed learning; AI at scale;
+   training of LLMs; benchmarking for AI workloads.
+5. Distributed computing :: Cluster, grid, fog/edge, mobile and cloud
+   systems; service-oriented processing; cost, security & energy models.
+6. Parallel computing :: Accelerator-based systems (GPU, FPGA,
+   neuromorphic, post-CMOS); embedded parallel systems; fault tolerance.
+7. Programming models & tools :: Languages, compilers, middleware and
+   OS; libraries, runtime and systems software; performance prediction.
+8. HPC state of practice :: Managing systems, storage & facilities; HPC
+   in the cloud; networking and cybersecurity; training strategies.
+9. Systems & architectures :: High-throughput & streaming
+   architectures; heterogeneous and hybrid systems; post-CMOS
+   architectures.
+
+** How to submit
+
+Papers report original, unpublished work and are reviewed double-blind.
+The review process is double-blind and all papers need to be
+“best-effort” anonymized. We strongly encourage making code and data
+available anonymously (e.g., in an anonymous GitHub repository via
+Anonymous GitHub or in a Dropbox folder).
+
+- Page limit :: Full papers: up to 8 pages.
+- Double-blind :: Remove author names, affiliations, and identifying
+  acknowledgements from the manuscript prior to submission.
+- Proceedings :: Accepted papers are published through IEEE CPS and
+  submitted for indexing in Scopus and other major services.
+- Author registration :: At least one author of each accepted paper
+  must register with a regular registration and present the paper at
+  the conference.
+- Paper templates :: All submissions must follow the IEEE Conference
+  Proceedings Format (double-column, 10pt size fonts). LaTeX and Word
+  templates: https://www.ieee.org/conferences/publishing/templates
+
+** Important dates
+
+All deadlines are firm, AoE times.
+
+| Date                         | Event                           | Status        |
+|------------------------------+---------------------------------+---------------|
+| 31 Aug 2026 → 11 Sept 2026   | Special session proposals due   | Closed        |
+| 19 Oct 2026                  | Abstract registration deadline  | Open          |
+| 26 Oct 2026                  | Submission deadline             | Main deadline |
+| 7 Dec 2026                   | Author notification             | Confirmed     |
+| 25 Jan 2027                  | Camera-ready (all tracks)       | Confirmed     |
+| 17–19 Mar 2027               | Conference dates                | Confirmed     |
+
+** Special sessions
+
+Co-located sessions running alongside the main track, each with its own
+scope, chairs, and program committee. Papers are submitted as tracks in
+the same multi-track EasyChair installation as the main conference.
+
+- DT4DC :: Digital Twins for Energy-Efficient Data Centers
+- HPCMS :: High Performance Computing in Modelling and Simulation
+- RM-HPC-QC :: Resource Management in HPC-QC Environments
+- SimCOT :: Simulation of Distributed Systems across the
+  Cloud-to-Thing Continuum
+- SPDNBC :: Security in Parallel, Distributed, and Network-Based
+  Computing
+- AHPC³ :: Accelerated HPC in the Cloud-Edge Continuum
+
 * *The Paper*                                                       :ignore:
 ** Frontpage                                                        :ignore:
 
