@@ -153,6 +153,7 @@ Experimento de escalabilidade
      as_tibble() |>
      mutate(
        WithIO = if_else(OutputTime == 0, 0, 1),
+       OutputTime = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))),
        Width = width,
        AbsorbSize = absorb_size,
        TotalTime = format(time_step * iterations, scientific = FALSE),
@@ -773,8 +774,8 @@ linhas horizontais. O MSamples/s só é mostrado sem IO.
       theme(legend.position = "bottom", axis.text.x = element_text(size = 9))
   }
 
-  order_plot(sf_res, fbt = fb_res, "Msamples", "Msamples/s", "MSamples/s vs. Block Order", ios = "Without IO")
-  #order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
+  #order_plot(sf_res, fbt = fb_res, "Msamples", "Msamples/s", "MSamples/s vs. Block Order", ios = "Without IO")
+  order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
 #+END_SRC
 
 
