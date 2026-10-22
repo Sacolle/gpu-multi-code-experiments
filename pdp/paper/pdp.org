@@ -16,6 +16,8 @@
 #+LATEX_CLASS_OPTIONS: [conference]
 
 #+LATEX_HEADER: \sloppy
+#+LATEX_HEADER: \usepackage{censor}
+#+LATEX_HEADER: %\StopCensoring
 #+LATEX_HEADER: \usepackage{booktabs}
 #+LATEX_HEADER: \usepackage{tikz}
 #+LATEX_HEADER: \usetikzlibrary{positioning, arrows.meta}
@@ -169,18 +171,13 @@ the same multi-track EasyChair installation as the main conference.
 
 \title{\orgtitle}
 
-\author{\IEEEauthorblockN{Anonymous Author(s)}
-\IEEEauthorblockA{\textit{Anonymous Institution}}}
+\author{
+\IEEEauthorblockN{\censor{Pedro Henrique Boniatti Colle},
+   \censor{Lucas Mello Schnorr}}
+\IEEEauthorblockA{\censor{Institute of Informatics, Federal University of Rio Grande do Sul (UFRGS)} \\
+\censor{Porto Alegre, Brazil} \\
+\censor{\{phbcolle,schnorr\}@inf.ufrgs.br}}}
 #+END_EXPORT
-
-# Bloco de autores real, para usar depois da revisão (substituir o bloco anônimo acima):
-#+begin_comment
-\author{\IEEEauthorblockN{Pedro Henrique Boniatti Colle, Lucas Mello Schnorr}
-\IEEEauthorblockA{\textit{Institute of Informatics} \\
-\textit{Federal University of Rio Grande do Sul (UFRGS)}\\
-Porto Alegre, Brazil \\
-\{phbcolle,schnorr\}@inf.ufrgs.br}}
-#+end_comment
 
 #+LaTeX: \maketitle
 
