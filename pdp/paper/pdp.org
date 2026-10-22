@@ -240,9 +240,16 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
 
+*** Introduction                                                   :ignore:
+- Just mention internal structure of the section, eventually justifying some choices. First explain Fletcher’s Equations, then the baseline, then your solution, then the experimental method to evaluate your solution against the baseline.
+
+- All NIX and more reproducibility details get concentrad in the end [last paragraph] of methods and materials. Also cite the Star-Fletcher codebased [OPEN] + the companion.
+
 The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
 
 *** Fletcher's Equations
+
+- Figura cinza das célculas
 
 Fletcher modeling is a technique for simulating wave propagation over time in different types of media, with the Tilted Transverse Isotopic (TTI) medium highlighted. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by  Equation \ref{eq:equacao2}. in them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
@@ -261,19 +268,35 @@ Fletcher modeling is a technique for simulating wave propagation over time in di
 
 To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this algorithm, the neighboring points of it from $t$ and $t - 1$ are necessary. This paper uses /fletcher-base/ cite:fletcher_base, an implementation of this algorithm, to benchmark its own implementation using the STF paradigm. In it, two buffers are kept in memory,/curr/ and/prev/, to store all points at $t$ and $t - 1$, respectively. To compute $t + 1$, the buffer /prev/ ($t - 1$) has its values overwritten, after having them read to do the computation. After that, the buffers are swapped to compute the next iteration. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forward propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a later backward propagation phase. It can be chosen from three parallelization back-ends: CUDA, OpenCL, and OpenMP; the latter was used for comparison purposes against our work.
 
+*** Fletcher-base description
+- Brief, but with enough details so that all the remaining parts of the article became easier to understand [especially when talking about comparison against it]. IO, etc.
 *** Our Task-Based Implementation
+
+- Figura das dependências dos blocos em algum lugar aqui
+  - Com a explicação do segundo parágrafo da eval
 
 /Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed among workers, which can represent CPU cores or GPUs, and execute the computations. StarPU is equipped with multiple scheduling policies, each with different rules that determine which worker a task goes to. Each worker has its own task queue, and it is the scheduler's job to distribute work between them. Work-stealing schedulers may distribute tasks equally, but workers then steal tasks from others when they become idle. Performance-based schedulers measure a task's performance on each worker it executes on and then distribute tasks to them based on the measured computing capability.
 
 In the implementation, the computed medium had to be segmented into cubes so that /star-fletcher/ could use task-based parallelism in first order. Each computed task is a section of the whole medium. This presented an opportunity to schedule tasks. Instead of using a single loop that, at each iteration, alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the whole. With this, to compute a cube $C_{i,j,k,t + 1}$, it needs its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by a swap of $prev$ and $curr$, /star-fletcher/ does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between block computations. Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
 
-
 *** Experimental Methodology for Performance Evaluation
 <<sec:methodology>>
 
-Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard that measures the efficiency of the computing kernel. It only counts the time during which the kernel is actively performing computations, and divides the total number of computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the IO. /Star-fletcher/ cannot achieve this level of granularity, so the computed time is measured from the first submitted task up to the end of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time (s), measures the kernel time plus the IO time, meaning it is exactly /star-fletcher/'s measured time, with and without IO. To acquire this time in /fletcher-base/, the application measures the time from the start of the execution loop to its end. This metric allows us to assess the consequences of IO on the code's performance, since MSamples/s was not made to check that. To really stress the IO capabilities, even with comparable small total volumes, the whole volume was saved at every computational step. 
+- Why MSample/s is not ideal alone for task-based
+  - Different measurements strategies
 
-The metrics MSamples/s and Computed Time (s) depend on the program's parameters, such as the StarPU scheduler, the IO operations, and the block order. A block's order is the width of its side (all blocks in this project are cube-shaped), so a block of order 32 has $32^3 = 32768$ elements. With a cube volume with total width of 320 units, totaling $320^3 = 32768000$ elements, there will be $(320/32)^3 = 1000$ tasks to compute each iteration. For this metric, one order size is expected to yield the lowest Execution Time or the highest MSamples/s across all machine architectures. To find that, the experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12, respectively). The machine grace is a special case: an /aarch-64/ architecture with core-to-thread correspondence, making it a powerful homogeneous computer. 
+Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s) and Computed Time (s). MSamples/s is an industry standard that measures the efficiency of the computing kernel. It only counts the time during which the kernel is actively performing computations, and divides the total number of computed points by this time. /Fletcher-base/ measures this by timing the computational section of the loop, before the IO. /Star-fletcher/ cannot achieve this level of granularity, so the computed time is measured from the first submitted task up to the end of the last one. This means that MSamples/s measurements are only comparable between applications when no IO is being recorded, given that /star-fletcher/'s time would also account for that. The other metric, Computed Time (s), measures the kernel time plus the IO time, meaning it is exactly /star-fletcher/'s measured time, with and without IO. To acquire this time in /fletcher-base/, the application measures the time from the start of the execution loop to its end. This metric allows us to assess the consequences of IO on the code's performance, since MSamples/s was not made to check that. To really stress the IO capabilities, even with comparable small total volumes, the whole volume was saved at every computational step.
+
+- Explain block dividing [block size, etc or "block order"
+  - In previous section, when detailing your own work
+  - Este gancho de entrada "The metrics MSamples/s and Computed Time (s) depend on the program's parameters, such as the StarPU scheduler, the IO operations, and the block order. " será desnecessário por consequência.
+
+The metrics MSamples/s and Computed Time (s) depend on the program's parameters, such as the StarPU scheduler, the IO operations, and the block order. A block's order is the width of its side (all blocks in this project are cube-shaped), so a block of order 32 has $32^3 = 32768$ elements. With a cube volume with total width of 320 units, totaling $320^3 = 32768000$ elements, there will be $(320/32)^3 = 1000$ tasks to compute each iteration. For this metric, one order size is expected to yield the lowest Execution Time or the highest MSamples/s across all machine architectures.
+
+
+#+latex: \noindent
+*Experimental Hardware Platform*.
+To find that, the experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have homogeneous architectures, with 2 threads per core, and tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12, respectively). The machine grace is a special case: an /aarch-64/ architecture with core-to-thread correspondence, making it a powerful homogeneous computer. 
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
@@ -287,7 +310,15 @@ The metrics MSamples/s and Computed Time (s) depend on the program's parameters,
 | tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
 
 #+latex: \noindent
-*Design of Experiments*. An experiment was designed to understand the performance of the implemented task-based solution (/start-fletcher/) against the reference implementation (/fletcher-base/). It was used to validate assumptions about /star-fletcher/'s performance, as detailed below.
+*Software*. Nix and stuff. All the version, etc. URL.
+
+#+latex: \noindent
+*Design of Experiments*.
+#+latex: %
+- Remove the estorinha
+  - Be direct. Which DoE have you used. Why. Justify.
+#+latex: %
+An experiment was designed to understand the performance of the implemented task-based solution (/start-fletcher/) against the reference implementation (/fletcher-base/). It was used to validate assumptions about /star-fletcher/'s performance, as detailed below.
 #+latex: %
 It fixed the total number of computed points to $384^3$, and then varied the block order within it. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. Both the MSamples/s and Execution Time were measured, with the hypothesis that, at some block order, the /star-fletcher/ implementation will be superior to the /fletcher-base/ implementation. Even more so when considering Execution Time, since /star-fletcher/ uses asynchronous IO. After the initial analysis, additional versions of this experiment were run, primarily to investigate the exceptional performance of the tupi and poti machines. In them, execution was performed only on the CPUs' p-cores to validate the hypothesis about why there was a significant speedup on those machines specifically. Also, in one case, the OpenMP scheduler of /fletcher-base/ was changed to dynamic to see if an optimization on that side was the missing factor of this paper's explanation.
 
