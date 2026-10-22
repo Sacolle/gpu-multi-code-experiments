@@ -153,7 +153,7 @@ Experimento de escalabilidade
      as_tibble() |>
      mutate(
        WithIO = if_else(OutputTime == 0, 0, 1),
-       OutputTime = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))),
+       OutputTime = format(if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))), scientific = FALSE),
        Width = width,
        AbsorbSize = absorb_size,
        TotalTime = format(time_step * iterations, scientific = FALSE),
@@ -1817,3 +1817,182 @@ vez que o número de cores dobra.
     scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
+
+* Figuras 3D
+
+Figuras para o artigo feitas com o PyVista (estão no flake da raiz do projeto). Cada bloco salva um PNG em
+=pdp/figures/= e mostra a imagem no =#+RESULTS:=. O ângulo da câmera e o zoom de cada figura estão nas
+constantes =AZIMUTH=, =ELEVATION= e =ZOOM= no começo do bloco, junto com a transparência. As cores são as mesmas
+nas duas figuras: roxo para as derivadas cruzadas, coral para as derivadas nos eixos e verde para o ponto ou bloco
+calculado.
+
+** Estêncil e as derivadas cruzadas
+
+Estêncil de 8ª ordem (raio 4) usado para calcular um ponto: as derivadas segundas em cada eixo usam os pontos
+a ±1 até ±4 no eixo (coral), e as derivadas cruzadas (dxy, dxz, dyz) usam os pontos (±i, ±j), com i e j
+de 1 a 4, no plano dos dois eixos (roxo) (=derivatives-impl.h= do /star-fletcher/). São 217 pontos ao
+todo, um por quadrado, separados em partes afastadas do centro pela constante =GAP=: o cubo do ponto
+calculado (verde), os 6 braços de 4 quadrados nos eixos e os 12 quadrantes de 4 x 4 quadrados nos planos.
+
+#+BEGIN_SRC python :results file :exports results
+  import os
+  import numpy as np
+  import pyvista as pv
+  from PIL import Image
+
+  # ângulo da câmera (em graus), zoom, transparência e espaçamento: ajuste aqui
+  AZIMUTH = 25        # rotação em torno do eixo z
+  ELEVATION = 14      # altura da câmera acima do plano xy
+  ZOOM = 1.1
+  OPACITY_CROSS = 0.2   # opacidade dos quadrados das derivadas cruzadas, roxo (1 = opaco)
+  OPACITY_AXIS = 0.5    # opacidade dos quadrados dos eixos, coral
+  OPACITY_CENTER = 1.0  # opacidade do quadrado do centro, verde
+  THICKNESS = 1       # espessura dos planos
+  GAP = 0.7           # distância com que cada parte é afastada do centro
+  EDGE_WIDTH = 3.0    # espessura das linhas entre os quadrados
+  EDGE_OPACITY = 0.6  # opacidade das linhas
+  WINDOW = (1600, 1400)
+
+  pv.OFF_SCREEN = True
+  os.makedirs("figures", exist_ok=True)
+
+  # paleta (a mesma das outras figuras); a segunda cor é a das linhas
+  TEAL, TEAL_D = "#1D9E75", "#085041"
+  PURPLE, PURPLE_D = "#7F77DD", "#3C3489"
+  CORAL, CORAL_D = "#D85A30", "#712B13"
+  LOOK = dict(ambient=0.45, diffuse=0.65, specular=0.0)  # luz chapada, sem brilho
+
+  def set_view(plotter, azimuth, elevation, zoom):
+      az, el = np.radians(azimuth), np.radians(elevation)
+      plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
+      plotter.camera.zoom(zoom)
+
+  def grid(lower, cells, sizes):
+      # bloco dividido em células: canto inferior, número de células e tamanho de cada célula por eixo
+      return pv.ImageData(dimensions=[c + 1 for c in cells], spacing=sizes, origin=lower)
+
+  # Estêncil de 8ª ordem (raio 4), separado em partes que são afastadas do centro por GAP:
+  # - 1 cubo no centro: o ponto calculado (verde)
+  # - 6 braços de 4 células ao longo de ±x, ±y, ±z: as derivadas segundas (coral)
+  # - 12 quadrantes de 4 x 4 células, 4 em cada plano xy, xz e yz: as derivadas cruzadas (roxo)
+  r = 4
+  e = np.eye(3)
+  half = np.array([0.5, 0.5, 0.5])
+
+  parts = [(grid(-half, [1, 1, 1], [1, 1, 1]), TEAL, TEAL_D, OPACITY_CENTER)]
+  for k in range(3):
+      for s in (-1, 1):
+          cells, lower = [1, 1, 1], -half.copy()
+          cells[k] = r
+          lower[k] = 0.5 if s > 0 else -0.5 - r
+          parts.append((grid(lower + GAP * s * e[k], cells, [1, 1, 1]), CORAL, CORAL_D, OPACITY_AXIS))
+  for a, b in [(0, 1), (0, 2), (1, 2)]:
+      c = 3 - a - b  # eixo perpendicular ao plano
+      for sa in (-1, 1):
+          for sb in (-1, 1):
+              cells, sizes, lower = [1, 1, 1], [1, 1, 1], np.zeros(3)
+              cells[a], cells[b] = r, r
+              sizes[c] = THICKNESS
+              lower[a] = 0.5 if sa > 0 else -0.5 - r
+              lower[b] = 0.5 if sb > 0 else -0.5 - r
+              lower[c] = -THICKNESS / 2
+              parts.append((grid(lower + GAP * (sa * e[a] + sb * e[b]), cells, sizes), PURPLE, PURPLE_D, OPACITY_CROSS))
+
+  def render(lines):
+      # lines=False: faces coloridas e transparentes, sem linhas
+      # lines=True: as partes como sólidos brancos e opacos com as suas linhas; os sólidos escondem as linhas
+      #             de trás e as internas, como se as partes fossem opacas
+      plotter = pv.Plotter(off_screen=True, window_size=WINDOW)
+      plotter.set_background("white")
+      if lines:
+          for part, _, edge, _ in parts:
+              plotter.add_mesh(part, color="white", ambient=1.0, diffuse=0.0, specular=0.0,
+                               show_edges=True, edge_color=edge, line_width=EDGE_WIDTH)
+      else:
+          plotter.enable_depth_peeling()
+          for part, color, _, opacity in parts:
+              plotter.add_mesh(part, color=color, opacity=opacity, **LOOK)
+          for k, name in enumerate(["x", "y", "z"]):
+              plotter.add_point_labels([(r + 1.2 + GAP) * e[k]], [name], font_size=34, text_color="#2a2927",
+                                       shape=None, show_points=False, always_visible=True)
+      set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
+      image = plotter.screenshot(return_img=True).astype(float)
+      plotter.close()
+      return image
+
+  faces, lines = render(False), render(True)
+  # onde a imagem das linhas não é branca há uma linha visível: ela é desenhada por cima das faces
+  alpha = np.clip((255 - lines.min(axis=2, keepdims=True)) / 120, 0, 1) * EDGE_OPACITY
+  image = faces * (1 - alpha) + lines * alpha
+
+  path = "figures/stencil.png"
+  Image.fromarray(image.round().astype(np.uint8)).save(path)
+  return path
+#+END_SRC
+
+#+RESULTS:
+[[file:figures/stencil.png]]
+
+** Vizinhos necessários para calcular um bloco
+
+Uma tarefa =wave_propagation= do /star-fletcher/ lê o próprio bloco (verde) e 18 vizinhos em t-1: os 6 das faces
+(coral, como as derivadas nos eixos) e os
+12 das arestas (roxo, por causa das derivadas cruzadas). Os 8 cantos (em arame) não são necessários, pois não há derivada
+cruzada xyz. Também lê o próprio bloco em t-2 e escreve o bloco em t.
+
+#+BEGIN_SRC python :results file :exports results
+  import os
+  import itertools
+  import numpy as np
+  import pyvista as pv
+
+  # ângulo da câmera (em graus), zoom e transparência: ajuste aqui
+  AZIMUTH = -58
+  ELEVATION = 16
+  ZOOM = 1.0
+  OPACITY = 0.5    # opacidade dos blocos vizinhos (1 = opaco)
+  EDGE_WIDTH = 3.5 # espessura das arestas dos blocos
+
+  pv.OFF_SCREEN = True
+  os.makedirs("figures", exist_ok=True)
+
+  # cores dos blocos e das suas arestas (mais escuras)
+  TEAL, TEAL_D = "#1D9E75", "#085041"
+  PURPLE, PURPLE_D = "#7F77DD", "#3C3489"
+  CORAL, CORAL_D = "#D85A30", "#712B13"
+  AMBER_D = "#633806"
+  LOOK = dict(ambient=0.45, diffuse=0.65, specular=0.0)
+
+  def set_view(plotter, azimuth, elevation, zoom):
+      az, el = np.radians(azimuth), np.radians(elevation)
+      plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
+      plotter.camera.zoom(zoom)
+
+  # Blocos lidos por uma tarefa wave_propagation: o próprio bloco e os vizinhos de t-1 nas 6 faces (coral,
+  # como as derivadas nos eixos) e nas 12 arestas (roxo, como as derivadas cruzadas). Os 8 cantos não são
+  # necessários (não há derivada cruzada xyz) e ficam só em arame.
+  spacing = 1.45
+  blocks = {0: [], 1: [], 2: [], 3: []}  # número de coordenadas diferentes de zero
+  for d in itertools.product((-1, 0, 1), repeat=3):
+      blocks[sum(c != 0 for c in d)].append(pv.Cube(center=[spacing * c for c in d]))
+  print({k: len(v) for k, v in blocks.items()})
+
+  plotter = pv.Plotter(off_screen=True, window_size=(1600, 1400))
+  plotter.set_background("white")
+  plotter.enable_depth_peeling()
+
+  plotter.add_mesh(pv.merge(blocks[0]), color=TEAL, show_edges=True, edge_color=TEAL_D, line_width=EDGE_WIDTH, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[1]), color=CORAL, show_edges=True, edge_color=CORAL_D, line_width=EDGE_WIDTH,
+                   opacity=OPACITY, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[2]), color=PURPLE, show_edges=True, edge_color=PURPLE_D, line_width=EDGE_WIDTH,
+                   opacity=OPACITY, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[3]), style="wireframe", color=AMBER_D, opacity=0.5, line_width=2)
+
+  set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
+  path = "figures/neighbors.png"
+  plotter.screenshot(path)
+  return path
+#+END_SRC
+
+#+RESULTS:
+[[file:figures/neighbors.png]]

@@ -43,6 +43,8 @@
                 buildInputs =  [ 
                     (rEnv [ starvz.packages.${system}.starvz ])
                     myStarvzTools
+                    pkgs.python314
+                    pkgs.python314Packages.pyvista
                 ]; 
             };
             simple = pkgs.mkShell { 
