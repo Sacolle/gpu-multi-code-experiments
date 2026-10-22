@@ -191,7 +191,7 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
 <<sec:intro>>
 
 *** Structure                                                    :noexport:
-**** Context
+**** Context [problema identificação]
 1. RTM => Fletcher é uma forma de fazer RTM that considers Tilted Transverse Isotropic (TTI)
    - How it works? Multiple shots are computed, it is their aggregation that allows a seismic image to be created
      - XX Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm [1] is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image.
@@ -202,15 +202,23 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
    - XX This common parallelization approach will be harder when nodes’ architectures become increasingly heterogeneous because one usualy uses 2D block cyclic partitioning: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs.
    - For example, there is "a base implementation that uses OpenMP, called fletcher-base [9]," that paralelizes only the foward phase of the RTM for each shot.
 3. Somehow include IO discussion here [it is already here]
-**** Toward a task-based solution
+**** Toward a task-based solution [em direção a solução]
 - An alternative programming model to tackle this problem is the task-based paradigm ...
   - Explain what is the task-based paradigm for a newbie
     - Dependent sequential tasks, way to explicit dependencies RAW WAR WAW, DAG, how to submit the DAG => Sequential Task Flow (STF)
 - STF Dongarra support
   - XX In 2013, Dongarra [2] already proposed the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra [3], Computational Fluid Dynamics (CFD) [4], [5], and Reverse Time Migration (RTM) applications [6], [7].
 - It is the different scheduling policies implemented in a runtime that enables exploration of all available computational resources after the programmer segmented computations into those dependent tasks. The runtime will balance the work across resources.
-**** Star-Fletcher is a task-based
+**** Related work [quem já fez? quem já tentou resolver]
+***** Paragraph starting with "Related work consists of. ..."
+- Which works already used the task-based paradigm for the application we use.
+- For each one, detail its inner workings.
+***** This paragraph ends with a  **** Related Work Comparison
+- Quick discussion about the differences of your approach against those others that you used as motivation.
+**** Star-Fletcher is a task-based [o meu é o melhor, vou apresentá-lo]
 As in the current version.
+**** One paragraph with main Results [os principais resultados, vangloriando-se quantitativamente contra os trabalhos relacionados, OU qualitativamente]
+**** Paper structure
 *** Previous text
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
@@ -233,7 +241,6 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 <<sec:methodsandmaterials>>
 
 The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
-
 
 *** Fletcher's Equations
 
