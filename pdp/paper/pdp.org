@@ -234,51 +234,6 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 
 The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
 
-#+BEGIN_EXPORT latex
-\begin{figure}[htbp]
-    \centering
-    \scalebox{0.65}{%
-    \begin{tikzpicture}[
-        node distance=1.5cm and 2.5cm,
-        >=Stealth,
-        block/.style={
-            draw=orange!60!black,
-            fill=orange!5,
-            rectangle,
-            rounded corners=4pt,
-            align=center,
-            text width=3.8cm,
-            minimum height=1.2cm,
-            font=\sffamily\small,
-            line width=0.8pt
-        },
-        line/.style={
-            draw,
-            ->,
-            thick,
-            shorten >=2pt,
-            shorten <=2pt
-        }
-    ]
-        % Nodes
-        \node [block] (expproj) {Build experimental Project based on observations.};
-        \node [block, below=of expproj] (pcad) {Execute on PCAD's infrastructure.};
-        \node [block, below=of pcad] (process) {Collect the Data and do data analysis with R.};
-
-        % Direct Connections
-        \draw [line] (expproj) -- (pcad);
-        \draw [line] (pcad) -- (process);
-
-        \draw [line] (process.east) -- ++(1.2,0) |- (expproj.east) 
-            node[pos=0.25, fill=white, inner sep=2pt, align=center, font=\sffamily\small] {Validate new\\hypothesis.};
-
-    \end{tikzpicture}
-    }
-    \caption{The project's workflow.}
-    \label{fig:flowchart}
-\end{figure}
-#+END_EXPORT
-
 
 *** Fletcher's Equations
 
