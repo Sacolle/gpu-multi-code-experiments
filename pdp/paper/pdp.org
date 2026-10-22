@@ -190,6 +190,28 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
 ** Introduction
 <<sec:intro>>
 
+*** Structure                                                    :noexport:
+**** Context
+1. RTM => Fletcher é uma forma de fazer RTM that considers Tilted Transverse Isotropic (TTI)
+   - How it works? Multiple shots are computed, it is their aggregation that allows a seismic image to be created
+     - XX Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm [1] is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image.
+   - Each shot is very compute-bound, and consists of a forward and a backward phase. Each shot is independent.
+     - XX There are no dependencies between shots, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using threads or hardware accelerators.
+   - In an ideal scenario, the full volume could be kept in-memory so that the backward phase reads the output of the forward phase. However, because the volume is very large, frequently one decides to register it in secondary storage. This ultimately leads to a IO-bound application.
+2. The common parallelization approach of each shot is to use traditional MPI+X or just X in scenarios where multiple shots are necessary to build a full seismic image of the marine subsurface.
+   - XX This common parallelization approach will be harder when nodes’ architectures become increasingly heterogeneous because one usualy uses 2D block cyclic partitioning: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs.
+   - For example, there is "a base implementation that uses OpenMP, called fletcher-base [9]," that paralelizes only the foward phase of the RTM for each shot.
+3. Somehow include IO discussion here [it is already here]
+**** Toward a task-based solution
+- An alternative programming model to tackle this problem is the task-based paradigm ...
+  - Explain what is the task-based paradigm for a newbie
+    - Dependent sequential tasks, way to explicit dependencies RAW WAR WAW, DAG, how to submit the DAG => Sequential Task Flow (STF)
+- STF Dongarra support
+  - XX In 2013, Dongarra [2] already proposed the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra [3], Computational Fluid Dynamics (CFD) [4], [5], and Reverse Time Migration (RTM) applications [6], [7].
+- It is the different scheduling policies implemented in a runtime that enables exploration of all available computational resources after the programmer segmented computations into those dependent tasks. The runtime will balance the work across resources.
+**** Star-Fletcher is a task-based
+As in the current version.
+*** Previous text
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
 This common parallelization approach will not work when nodes' architectures become increasingly heterogeneous: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs. In 2013, Dongarra cite:dongarra already proposed the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF enables exploration of all available computational resources by segmenting computations into dependent tasks and balancing their distribution across resources.
