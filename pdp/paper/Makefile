@@ -12,10 +12,10 @@ all: $(NAME).pdf
 	--eval "(setq org-export-babel-evaluate t)" $^  --funcall org-latex-export-to-latex
 
 %.pdf: %.tex
-	pdflatex $^
+	-pdflatex -interaction=nonstopmode $^
 	bibtex `basename $^ .tex`
-	pdflatex $^
-	pdflatex $^
+	-pdflatex -interaction=nonstopmode $^
+	-pdflatex -interaction=nonstopmode $^
 
 %.html: %.org
 	emacs -batch -l ~/.emacs.d/init.el --eval "(setq enable-local-eval t)" --eval "(setq enable-local-variables t)" \
