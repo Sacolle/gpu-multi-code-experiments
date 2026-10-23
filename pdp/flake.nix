@@ -182,10 +182,10 @@
         fletcher-base-cpu-bind = base-fletcher-base-cpu-bind ./fletcher-base-exp.csv;
         #fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv;
 
-        fletcher-base-cpu-scalability = file:
+        fletcher-base-cpu-scalability = name: file:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
-            experiment-name = "fletcher-base-pdp-exp-scale";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -373,10 +373,10 @@
             '';
           };
 
-        star-fletcher-cpu-scalability = file:
+        star-fletcher-cpu-scalability = name: file:
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
-            experiment-name = "star-fletcher-cpu-pdp-exp-scale";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -487,11 +487,11 @@
         scalability-pkgs = pkgs.lib.listToAttrs (pkgs.lib.concatMap (m: [
           {
             name = "fletcher-base-cpu-scalability-${m}";
-            value = fletcher-base-cpu-scalability (./scalability + "/fletcher-base-scal-${m}.csv");
+            value = fletcher-base-cpu-scalability "fletcher-base-pdp-exp-scale" (./scalability + "/fletcher-base-scal-${m}.csv");
           }
           {
             name = "star-fletcher-cpu-scalability-${m}";
-            value = star-fletcher-cpu-scalability (./scalability + "/star-fletcher-scal-${m}.csv");
+            value = star-fletcher-cpu-scalability "star-fletcher-cpu-pdp-exp-scale" (./scalability + "/star-fletcher-scal-${m}.csv");
           }
         ]) scalability-machines);
 
@@ -625,10 +625,15 @@
     {
         packages = {
             # test = my-star-fletcher.override { compileAsRelease = false; };
-        fletcher-base-cpu-scalability-trace-grace = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-grace-trace.csv;
-        fletcher-base-cpu-scalability-trace-lunaris = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-lunaris-trace.csv;
+          fletcher-base-cpu-scalability-trace-grace = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-grace-trace.csv;
+          fletcher-base-cpu-scalability-trace-lunaris = fletcher-base-cpu-scalability-trace ./fletcher-base-scal-lunaris-trace.csv;
 
-          star-fletcher-cpu-scalability-grace-extra = star-fletcher-cpu-scalability ./scalability/star-fletcher-scal-grace-extra.csv;
+          star-fletcher-cpu-scalability-grace-extra = star-fletcher-cpu-scalability "fletcher-base-pdp-exp-scale" ./scalability/star-fletcher-scal-grace-extra.csv;
+
+
+           fletcher-base-cpu-scalability-grace-big = fletcher-base-cpu-scalability "fletcher-base-pdp-exp-scale-big" ./scalability/fletcher-base-scal-big-grace.csv;
+           star-fletcher-cpu-scalability-grace-big = star-fletcher-cpu-scalability "star-fletcher-cpu-pdp-exp-scale-big" ./scalability/star-fletcher-scal-big-grace.csv;
+
           inherit
             star-fletcher-cpu-scalability-grace-trace
             # my-star-fletcher

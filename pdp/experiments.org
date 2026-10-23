@@ -326,6 +326,52 @@ O número de CPUs segue potências de 2 mais os pontos de transição (socket in
   })
 #+END_SRC
 
+**** Escalabilidade da Grace com o tamanho incrementado
+
+O mesmo experimento de escalabilidade, só para a grace, com o volume do [[*Experimentos com o tamanho incrementado][experimento com o tamanho incrementado]].
+O /star-fletcher/ usa a segmentação com melhor desempenho sem IO da grace nesse experimento: BlockSeg 6 (ordem 120,
+23,9 s), empatada com a BlockSeg 12 (ordem 60, 24,0 s). Usa o =scal_machines= e o =cpu_points= do bloco acima.
+Os arquivos se chamam =*-scal-big-grace.csv= para não serem lidos junto com os da grace em [[*Análise da Escalabilidade]].
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  source("./libExp.R")
+  options(scipen = 999)
+
+  # Os parâmetros do volume (Width, AbsorbSize, TotalTime e TimeStep) vêm do projeto do experimento
+  # com o tamanho incrementado, para serem os mesmos das execuções já analisadas
+  big <- read_csv("./pdp/star-fletcher-exp-big.csv", col_types = cols(.default = "c")) |>
+    distinct(Width, AbsorbSize, TotalTime, TimeStep)
+  stopifnot(nrow(big) == 1)
+
+  grace_big <- scal_machines$grace
+  grace_big$block_seg <- 6  # melhor segmentação sem IO da grace com o tamanho incrementado
+  points <- cpu_points(grace_big)
+
+  sf_scal_big <- generate_experiment(list(NumCPUs = points$NumCPUs, OutputTime = c(1, as.numeric(big$TimeStep))), 5, seed) |>
+    as_tibble() |>
+    mutate(
+      NumCPUs = as.numeric(as.character(NumCPUs)),
+      OutputTime = as.numeric(as.character(OutputTime)),
+      WithIO = if_else(OutputTime == 1, 0, 1),  # OutputTime 1 > TotalTime: nunca escreve
+      OutputTime = format(OutputTime, scientific = FALSE),
+      BlockSeg = grace_big$block_seg,
+      Width = big$Width,
+      AbsorbSize = big$AbsorbSize,
+      TotalTime = big$TotalTime,
+      TimeStep = big$TimeStep,
+      Blocks = str_sub(Blocks, 2, 3)
+    ) |>
+    left_join(points, by = "NumCPUs") |>
+    filter(NumCPUs >= 4) |> unique()
+
+  fb_scal_big <- sf_scal_big |>
+    select(-BlockSeg, -StarpuCpuList) |>
+    cross_join(tibble(Schedulers = c("static", "dynamic")))
+
+  sf_scal_big |> readr::write_csv("./pdp/scalability/star-fletcher-scal-big-grace.csv")
+  fb_scal_big |> readr::write_csv("./pdp/scalability/fletcher-base-scal-big-grace.csv")
+#+END_SRC
+
 **** Mais datapoints para a Grace
 
 
@@ -504,11 +550,12 @@ Experimento do fletcher-base, com e sem bind
     }) |>
     mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
 
-  fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
+  fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp-big.csv'))
 
   fb_no_bind_big_res <- fb_big |>
     mutate(
-      TimeToWrite = as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep)),
+      # the runs without IO were saved with 0 in the file name
+      TimeToWrite = if_else(WithIO == 0, 0, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
       FILE = paste0(base_dir,"/fletcher-base-pdp-exp-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
     parse_files(FILE, function(lines){
        msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
