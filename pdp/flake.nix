@@ -13,6 +13,11 @@
             inputs.nixpkgs.follows = "nixpkgs";
         };
 
+        star-fletcher-direct = {
+            url = "github:Sacolle/Star-Fletcher?ref=direct_io";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
+
         fletcher-base = {
           url = "github:Sacolle/fletcher-base?dir=original";
           inputs.nixpkgs.follows = "nixpkgs";
@@ -26,7 +31,7 @@
         starvz.url = "github:schnorr/starvz";
         flake-utils.url = "github:numtide/flake-utils";
     };
-    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, fletcher-base, fletcher-base-trace, starvz, flake-utils }: 
+    outputs = { self, nixpkgs, experiments, StarPU, star-fletcher, star-fletcher-direct, fletcher-base, fletcher-base-trace, starvz, flake-utils }: 
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
     let
         pkgs = import nixpkgs { inherit system; };
@@ -320,6 +325,54 @@
         star-fletcher-cpu = base-star-fletcher-cpu ./star-fletcher-exp.csv "star-fletcher-cpu-pdp-exp";
         star-fletcher-cpu-big = base-star-fletcher-cpu ./star-fletcher-exp-big.csv "star-fletcher-cpu-pdp-exp-big";
 
+        star-fletcher-cpu-big-direct-io = 
+          let
+            program = "${
+              (star-fletcher-direct.packages.${system}.default.override {
+                enableCUDA = false;
+                enableTrace = false;
+                compileAsRelease = true;
+                stdenv = pkgs.gcc13Stdenv;
+                StarPU = starpu-no-check;
+              })
+            }/bin/star-fletcher";
+            experiment-name = "star-fletcher-cpu-pdp-exp-big-direct";
+            scratch-folder = mk-scratch-folder experiment-name;
+            home-folder = mk-home-folder experiment-name;
+          in
+          experiments.lib.mkExperiment {
+            inherit pkgs; 
+            
+            csvFile = ./star-fletcher-exp-big.csv;
+
+            preamble = ''
+                mkdir -p ${scratch-folder}
+                mkdir -p ${home-folder}
+            '';
+            
+            bashRunFn = {
+                BlockSeg, OutputTime, Blocks, WithIO, Width, AbsorbSize, TotalTime, TimeStep
+            }: 
+              let
+                tt = amountWritten OutputTime TimeStep;
+                filename = "${BlockSeg}-${tt}-${Blocks}";
+                stdout-file = "${scratch-folder}/stdout-${filename}.out";
+                rsf-file = "${scratch-folder}/out-${filename}.rsf";
+                meta-file = "${scratch-folder}/out-${filename}.meta";
+            in
+            ''
+                OUTPUT_FOLDER=${scratch-folder} \
+                OUTPUT_FILE=${filename} \
+                ENABLE_IO=${WithIO} \
+                ${program} TTI ${Width} ${Width} ${Width} \
+                ${AbsorbSize} 12.5 12.5 12.5 \
+                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} > ${stdout-file} 2>&1
+                cat ${stdout-file}
+                ${if WithIO == "1" then "rm -f ${rsf-file} ${meta-file} ${scratch-folder}/out-${filename}-w*.bin" else ""}
+                cp ${stdout-file} ${home-folder}
+            '';
+          };
+
         star-fletcher-cpu-scalability = file:
           let
             program = "${my-star-fletcher}/bin/star-fletcher";
@@ -587,6 +640,8 @@
             star-fletcher-cpu-big
             star-fletcher-cpu-trace
             fio-exp
+
+            star-fletcher-cpu-big-direct-io
           ;
           # pkgs 
           # fletcher-base-cpu-scalability-${machine}

@@ -481,8 +481,47 @@ Experimento do fletcher-base, com e sem bind
   ) |>
     list_rbind(names_to = "Variant") |>
     mutate(Variant = factor(Variant, levels = c("free", "bind")))
+#+END_SRC
+
+
+**** Leitura da Grace grande
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  ex_star_fletcher_big <- read_csv('./pdp/star-fletcher-exp-big.csv')
+  sf_big <- machines |> cross_join(ex_star_fletcher_big)
+
+  sf_big_res <- sf_big |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/star-fletcher-cpu-pdp-exp-big/", Machine ,"/stdout-", BlockSeg, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <- lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <- lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+
+  fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
+
+  fb_no_bind_big_res <- fb_big |>
+    mutate(
+      TimeToWrite = as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite), Variant = "free")
 
 #+END_SRC
+
 
 
 
@@ -538,7 +577,7 @@ Experimento do fletcher-base, com e sem bind
      ) +
      geom_hline(data = fb_stats, aes(yintercept = FB_Mean, linetype = Version, color = Version), linewidth = 0.8) +
       scale_x_continuous(breaks = x_breaks) +
-      coord_cartesian(ylim = c(0, 500)) +
+      #coord_cartesian(ylim = c(0, 500)) +
       #ylim(0, NA) +
       facet_grid(~ Machine) + #,scales = "free_y", nrow = 1) + 
       labs(
@@ -775,7 +814,8 @@ linhas horizontais. O MSamples/s só é mostrado sem IO.
   }
 
   #order_plot(sf_res, fbt = fb_res, "Msamples", "Msamples/s", "MSamples/s vs. Block Order", ios = "Without IO")
-  order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
+  #order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
+  order_plot(sf_big_res, fbt = fb_no_bind_big_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order with big total volume.")
 #+END_SRC
 
 
@@ -1867,6 +1907,15 @@ calculado (verde), os 6 braços de 4 quadrados nos eixos e os 12 quadrantes de 4
       plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
       plotter.camera.zoom(zoom)
 
+  def crop_square(image):
+      # recorta a figura num quadrado justo: a caixa do que não é fundo branco, com o lado menor
+      # completado com branco para que a figura fique centrada
+      x0, y0, x1, y1 = Image.fromarray(255 - image.min(axis=2)).point(lambda v: 255 if v > 8 else 0).getbbox()
+      side = max(x1 - x0, y1 - y0)
+      square = Image.new("RGB", (side, side), "white")
+      square.paste(Image.fromarray(image[y0:y1, x0:x1]), ((side - (x1 - x0)) // 2, (side - (y1 - y0)) // 2))
+      return square
+
   def grid(lower, cells, sizes):
       # bloco dividido em células: canto inferior, número de células e tamanho de cada célula por eixo
       return pv.ImageData(dimensions=[c + 1 for c in cells], spacing=sizes, origin=lower)
@@ -1912,9 +1961,6 @@ calculado (verde), os 6 braços de 4 quadrados nos eixos e os 12 quadrantes de 4
           plotter.enable_depth_peeling()
           for part, color, _, opacity in parts:
               plotter.add_mesh(part, color=color, opacity=opacity, **LOOK)
-          for k, name in enumerate(["x", "y", "z"]):
-              plotter.add_point_labels([(r + 1.2 + GAP) * e[k]], [name], font_size=34, text_color="#2a2927",
-                                       shape=None, show_points=False, always_visible=True)
       set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
       image = plotter.screenshot(return_img=True).astype(float)
       plotter.close()
@@ -1926,7 +1972,7 @@ calculado (verde), os 6 braços de 4 quadrados nos eixos e os 12 quadrantes de 4
   image = faces * (1 - alpha) + lines * alpha
 
   path = "figures/stencil.png"
-  Image.fromarray(image.round().astype(np.uint8)).save(path)
+  crop_square(image.round().astype(np.uint8)).save(path)
   return path
 #+END_SRC
 
@@ -1945,6 +1991,7 @@ cruzada xyz. Também lê o próprio bloco em t-2 e escreve o bloco em t.
   import itertools
   import numpy as np
   import pyvista as pv
+  from PIL import Image
 
   # ângulo da câmera (em graus), zoom e transparência: ajuste aqui
   AZIMUTH = -58
@@ -1968,6 +2015,15 @@ cruzada xyz. Também lê o próprio bloco em t-2 e escreve o bloco em t.
       plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
       plotter.camera.zoom(zoom)
 
+  def crop_square(image):
+      # recorta a figura num quadrado justo: a caixa do que não é fundo branco, com o lado menor
+      # completado com branco para que a figura fique centrada
+      x0, y0, x1, y1 = Image.fromarray(255 - image.min(axis=2)).point(lambda v: 255 if v > 8 else 0).getbbox()
+      side = max(x1 - x0, y1 - y0)
+      square = Image.new("RGB", (side, side), "white")
+      square.paste(Image.fromarray(image[y0:y1, x0:x1]), ((side - (x1 - x0)) // 2, (side - (y1 - y0)) // 2))
+      return square
+
   # Blocos lidos por uma tarefa wave_propagation: o próprio bloco e os vizinhos de t-1 nas 6 faces (coral,
   # como as derivadas nos eixos) e nas 12 arestas (roxo, como as derivadas cruzadas). Os 8 cantos não são
   # necessários (não há derivada cruzada xyz) e ficam só em arame.
@@ -1990,7 +2046,7 @@ cruzada xyz. Também lê o próprio bloco em t-2 e escreve o bloco em t.
 
   set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
   path = "figures/neighbors.png"
-  plotter.screenshot(path)
+  crop_square(plotter.screenshot(return_img=True)).save(path)
   return path
 #+END_SRC
 
