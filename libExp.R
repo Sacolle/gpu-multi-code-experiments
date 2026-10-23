@@ -7,7 +7,8 @@ library(patchwork)
 library(stringr)
 library(numbers)
 library(purrr)
-
+library(gtable)
+library(ggh4x)
 
 # function to make the experiments
 # Use case

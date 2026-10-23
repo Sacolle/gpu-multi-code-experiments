@@ -24,6 +24,7 @@
                 tidyverse
                 janitor
                 patchwork
+                ggh4x
             ] ++ extra;
         };
         StarPU = starpu.packages.${system}.default.override {

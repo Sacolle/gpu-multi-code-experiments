@@ -29,7 +29,7 @@
 # visual-line-mode [enable]
 # auto-fill-mode [disable]
 
-#+PROPERTY: header-args :eval never
+#   ;;;+PROPERTY: header-args :eval never
 
 # keywords:
 # Heterogeneous CPU Computing
@@ -338,18 +338,14 @@ The tested schedulers were: Work Stealing (ws), which moves tasks from filled qu
 Facet it as a 2 x 3, each row tag as the kind of architecture
 Present here the fact that free thread with dynamic are better tahn pinned, then latter just use the best case
 32 might be bad due to cache (conjecture, not proven) -> task itself takes more time (observation)
-***** Target IO example [an interesting case] x2
+***** Target IO example [an interesting case] x3
 Plot the cei, tupi and Grace machine in the case, again, a 3 x 3, each row being an IO case
 IO can improve or can worsen execution in relation to the other aplications, behavior is machine dependent
 Why grace worsens so much?
 ***** Scalibility analysis with Execution Time
 Para responder essa pergunta, vamos a análise de escalabilidade:
 Pode-se observar que a aplicação escala melhor do que as demais (anotar a segmentação)
-Na grace há uma inversão no fim? Por quê? E porque a Lunaris é tão melhor.
-Plot de retângulos da Grace. -> Maior parte do tempo é IO, a task é muito rápida
-O tempo de submissão é o tempo de execução -> Tabela para todas as máquinas (quais parâmetros)
-Starving
-Plot de tamamnho maior aqui se terminar
+***** Trace analysis of Lunaris Overperformance
 Lunaris overperformance
 Plot de kiteration da lunaris. -> tempo da iteração
 **** Conclusion
@@ -371,178 +367,548 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 *** Data Parsing                                                         :ignore:
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  setwd("~/experiments/gpu-multi-code-experiments")
+
+  source("./libExp.R")
   options(crayon.enabled = FALSE)
-  #library(starvz)
-  library(tidyverse)
-  library(ggplot2)
-  library(dplyr)
-  library(patchwork)
 
-  base_dir = "./sscad/results"
+  base_dir = "./pdp/results"
 
-  machines <- tribble(
-    ~Machine, ~Processor, ~Ghz, ~Threads, ~Cores, 
-    "tupi3", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
-    "tupi4", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
-    "tupi5", "Intel(R) Core(TM) i9-14900KF", 3.2, 32, 24,
-    "poti1", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
-    "poti4", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
-    "poti5", "Intel(R) Core(TM) i7-14700KF", 3.4, 28, 20,
-    "grace1", "2 x Grace A02", 3.4, 144, 144,
-    "cei1", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
-    "cei2", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
-    "cei3", "2 x Intel(R) Xeon(R) Silver 4116", 2.1, 48, 24,
-    "draco1", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
-    "draco2", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
-    "draco6", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16,
-    "draco7", "2 x Intel(R) Xeon(R) E5-2640 v2", 2.0, 32, 16
+  machines <- read_csv("./machines.csv")
+
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+
+  sf <- machines |> cross_join(read_csv('./pdp/star-fletcher-exp.csv'))
+
+  sf_res <- sf |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/star-fletcher-cpu-pdp-exp/", Machine ,"/stdout-", BlockSeg, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <- lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <- lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+
+  fb <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
+
+  fb_no_bind_res <- fb |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    })
+
+  fb_bind <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
+
+  fb_bind_res <- fb_bind |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-bind/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")
+    ) |>
+    parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       threads <- lines |> str_subset("OMP_NUM_THREADS") |> str_extract("\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time,
+         UsedThreads = threads
+       )
+    })
+
+  fb_res <- list(
+    free = fb_no_bind_res,
+    bind = fb_bind_res
+  ) |>
+    list_rbind(names_to = "Variant") |>
+    mutate(Variant = factor(Variant, levels = c("free", "bind")))
+#+END_SRC
+
+
+**** Scaling Experiment Parsing                                  :ignore:
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Lê os resultados de escalabilidade. Cada máquina tem o seu csv em ./pdp/scalability e as
+  # pastas de resultado têm o nome do nó (cei1, draco6, ...), por isso o csv é escolhido pelo
+  # nome da máquina sem o número. Uma máquina pode ter mais de um csv, como o grace, que tem
+  # replicações a mais em star-fletcher-scal-grace-extra.csv: todos são lidos.
+  load_scalability <- function(program, exp_folder, parse_fn) {
+    list.dirs(glue("{base_dir}/{exp_folder}"), recursive = FALSE) |>
+      basename() |>
+      map(\(node) {
+        csvs <- list.files("./pdp/scalability", full.names = TRUE,
+                           pattern = glue("^{program}-scal-{sub('\\\\d+$', '', node)}(-.+)?\\.csv$"))
+        map(csvs, \(f) read_csv(f, show_col_types = FALSE)) |>
+          list_rbind() |>
+          mutate(Machine = node)
+      }) |>
+      list_rbind() |>
+      mutate(
+        Steps = floor(as.numeric(OutputTime) / as.numeric(TimeStep)),
+        Config = if (program == "star-fletcher") BlockSeg else Schedulers,
+        FILE = glue("{base_dir}/{exp_folder}/{Machine}/stdout-{NumCPUs}-{Config}-{Steps}-{Blocks}.out")
+      ) |>
+      parse_files(FILE, parse_fn) |>
+      select(-Config)
+  }
+
+  sf_scale <- load_scalability("star-fletcher", "star-fletcher-cpu-pdp-exp-scale", function(lines) {
+    tibble(
+      Msamples = lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+      ExecTime = lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+    )
+  }) |>
+    mutate(Program = "star-fletcher", Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg)
+
+  fb_scale <- load_scalability("fletcher-base", "fletcher-base-pdp-exp-scale", function(lines) {
+    tibble(
+      Msamples = lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+      ExecTime = lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+    )
+  }) |>
+    mutate(Program = paste0("fletcher-base (", Schedulers, ")"))
+#+END_SRC
+
+**** Big Volume in Grace                                          :ignore:
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  ex_star_fletcher_big <- read_csv('./pdp/star-fletcher-exp-big.csv')
+  sf_big <- machines |> cross_join(ex_star_fletcher_big)
+
+  sf_big_res <- sf_big |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/star-fletcher-cpu-pdp-exp-big/", Machine ,"/stdout-", BlockSeg, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <- lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <- lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+
+  fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
+
+  fb_no_bind_big_res <- fb_big |>
+    mutate(
+      TimeToWrite = as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite), Variant = "free")
+
+#+END_SRC
+
+
+*** Msamples/s Plot :ignore:
+
+
+#+BEGIN_SRC R :async yes :session *R* :results output silent
+      # :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 10 :height 10
+
+  mach_charact <- tibble(
+    Machine = c("cei", "draco", "poti", "tupi", "lunaris", "grace"),
+    Kind = c("Homogeneous Intel x86_64", "Homogeneous Intel x86_64",
+             "Heterogeneous Intel x86_64", "Heterogeneous Intel x86_64",
+             "Homogeneous AMD x86_64", "Homogeneous Grace aarch64")
   )
 
-  parse_files <- function(tibble, FILE, parse_fn){
-    mutate(tibble, Data = map( {{ FILE }} , function(file) {
-      if(!dir.exists(dirname(file))){
-        return(NULL)
+                                          # Panel order, read left to right, top to bottom
+  machine_order <- c("poti", "tupi", "cei", "draco", "lunaris", "grace")
+
+  msamples_plot <- function(sft, fbt) {
+    x_breaks <- c(12, 32, 48, 64, 96, 128)
+
+    fb_stats <- fbt |>
+      mutate(Machine = sub("\\d+$", "", Machine)) |>
+      filter(WithIO == 0, Schedulers != "guided") |>
+      select(-FILE) |>
+      group_by(Machine, Schedulers, Variant) |>
+      summarize(
+        rep      = n(),
+        FB_Mean  = mean(Msamples),
+        FB_Sd    = sd(Msamples),
+        FB_Error = (3 * FB_Sd) / sqrt(n()),
+        .groups  = "drop"
+      ) |>
+      mutate(Version = glue("{Schedulers} ({Variant} threads)")) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Machine = factor(Machine, levels = machine_order))
+
+    sf_msamples_plot <- sft |>
+      select(-FILE) |>
+      filter(WithIO == 0) |>
+      mutate(Machine = sub("\\d+$", "", Machine)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+        rep = n(),
+        Msamples_mean  = mean(Msamples),
+        Msamples_sd    = sd(Msamples),
+        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+        ExecTime_mean  = mean(ExecTime),
+        ExecTime_sd    = sd(ExecTime),
+        ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+        .groups = "drop"
+      ) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Machine = factor(Machine, levels = machine_order))
+
+    p <- ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
+      geom_rect(
+        data = fb_stats,
+        aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Version),
+        xmin = -Inf, xmax = Inf,
+        inherit.aes = FALSE, alpha = 0.4
+      ) +
+      geom_hline(data = fb_stats,
+                 aes(yintercept = FB_Mean, linetype = Version, color = Version),
+                 linewidth = 0.5, linewidth = 0.4) +
+      geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
+                        ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
+      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
+      scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+      scale_x_continuous(breaks = x_breaks) +
+      facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
+      labs(x = "Block Size", y = "Msamples/s",
+           fill = "Fletcher-base Versions", color = "Fletcher-base Versions",
+           linetype = "Fletcher-base Versions") +
+      guides(
+        fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        shape    = guide_legend(order = 2)
+      ) +
+      theme_bw(base_size = 7) +
+      theme(
+        legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "left",
+        legend.margin = margin(0, 0, 0, 0),
+        legend.box.spacing = unit(3, "pt"),
+        legend.spacing.y = unit(0, "pt"),
+        legend.key.size = unit(8, "pt"),
+        legend.text = element_text(size = 6, margin = margin(r = 8)),
+        legend.title = element_text(size = 7),
+        strip.text = element_text(margin = margin(2, 2, 2, 2)),
+        plot.margin = margin(2, 6, 2, 2),
+        panel.spacing.x = unit(6, "pt"),
+        panel.spacing.y = unit(10, "pt")
+      )
+
+    add_kind_boxes(p, mach_charact, machine_order)
+  }
+
+  msamples_plot(sf_res, fb_res)
+
+  # Draws the Kind labels and the dashed rounded boxes on top of the
+  # finished ggplot. Rows 1-2: one box per row, Kind written vertically
+  # on the right. Last row: one box per panel, Kind written below it.
+  add_kind_boxes <- function(p, mach_charact, machine_order,
+                             side_rows = 1:2, pad = unit(2, "pt")) {
+    g <- ggplotGrob(p)
+
+    # Panels in reading order (top to bottom, left to right) = machine_order
+    panels <- g$layout |>
+      filter(grepl("^panel", name)) |>
+      arrange(t, l) |>
+      mutate(Machine = machine_order) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Kind = sub(" ", "\n", Kind))  # "Homogeneous\nIntel x86_64"
+
+    # New column right after the right-most panels for the vertical labels
+    label_col <- max(panels$r) + 1
+    g <- gtable_add_cols(g, unit(2.2, "lines"), pos = label_col - 1)
+
+    # New row under the last panel row (after its x axis) for bottom labels
+    bottom_t <- max(panels$b)
+    g <- gtable_add_rows(g, unit(2.2, "lines"), pos = bottom_t + 1)
+    label_row <- bottom_t + 2
+
+    box <- function(name) {
+      roundrectGrob(
+        x = 0.5, y = 0.5,
+        width  = unit(1, "npc") + 2 * pad,
+        height = unit(1, "npc") + 2 * pad,
+        r = unit(5, "pt"),
+        gp = gpar(fill = NA, lty = "dashed", lwd = 0.8, col = "grey30"),
+        name = name
+      )
+    }
+    # extent of a panel group: strip above (t-1), y axis left (l-1), x axis below (b+1)
+    row_tops <- sort(unique(panels$t))
+
+    # Side-labelled rows
+    for (i in side_rows) {
+      rp <- filter(panels, t == row_tops[i])
+      t <- min(rp$t) - 1; b <- max(rp$b) + 1
+      g <- gtable_add_grob(
+        g, textGrob(rp$Kind[1], rot = -90, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+        t = t, b = b, l = label_col, clip = "off", name = paste0("kind-side-", i)
+      )
+      g <- gtable_add_grob(g, box(paste0("box-row-", i)),
+                           t = t, b = b, l = min(rp$l) - 1, r = label_col,
+                           z = Inf, clip = "off")
+    }
+
+    # Bottom-labelled panels (every row not in side_rows)
+    for (i in setdiff(seq_along(row_tops), side_rows)) {
+      rp <- filter(panels, t == row_tops[i])
+      for (j in seq_len(nrow(rp))) {
+        pj <- rp[j, ]
+        lab_t <- if (pj$b == bottom_t) label_row else pj$b + 2
+        g <- gtable_add_grob(
+          g, textGrob(pj$Kind, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+          t = lab_t, l = pj$l, r = pj$r, clip = "off",
+          name = paste0("kind-bottom-", pj$Machine)
+        )
+        box_r <- if (pj$r == max(panels$r)) label_col else pj$r  # align with rows above
+        g <- gtable_add_grob(g, box(paste0("box-", pj$Machine)),
+                             t = pj$t - 1, b = lab_t, l = pj$l - 1, r = box_r,
+                             z = Inf, clip = "off")
       }
-      #print(file)
-      lines <- tryCatch({
-        read_lines(file)
-      }, error = function(e){
-        message(paste0("Warning: Failed to read file: ", file, ". Skipping..."))
-        return(NULL) # Returns NULL instead of breaking the script
-      })
-      if(is.null(lines)) {
-        return(NULL)
-      }
-      parse_fn(lines)
-    })) |>
-    filter(lengths(Data) > 0) |>
-    unnest(Data)
+    }
+
+    grid.newpage()
+    grid.draw(g)
+    invisible(g)
   }
 #+END_SRC
 
+*** Exec Time Plot :ignore:
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
-  ex_star_fletcher <- read_csv('./sscad/star-fletcher-fix-size.csv')
-  sf <- machines |> cross_join(ex_star_fletcher)
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+  # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
+  # ou "ExecTime"). O star-fletcher são os pontos com a barra de erro, o fletcher-base (sem escalonador
+  # guided) são as linhas horizontais com a faixa do erro, uma por versão (escalonador e threads).
+  # `ios` escolhe os níveis de IO mostrados; o MSamples/s só vale sem IO.
+  order_plot <- function(sft, fbt, metric, y_label, title, ios = c("Without IO", "Output every 1 steps", "Output every 5 steps")) {
+    x_breaks <- c(12, 32, 48, 64, 96, 128) #sort(unique(sft$Order))
 
-  sf_res <- sf |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, \(lines){
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[6]], vals[[5]])
-    }) |>
-    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+    io_label <- function(df) {
+      df |>
+        mutate(
+          Steps = round(as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
+          IO = if_else(WithIO == 0, "Without IO", paste0("Output every ", Steps, " steps")),
+          IO = fct_relevel(IO, "Without IO", after = Inf)
+        ) |>
+        filter(IO %in% ios)
+    }
 
-  ex_fletcher_base <- read_csv('./sscad/fletcher-base-fix-size.csv')
-  fb <- machines |> cross_join(ex_fletcher_base)
 
-  fb_res <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, function(lines) {
-       msamples <-  lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+    sf_stats <- sft |>
+      mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
+      io_label() |>
+      group_by(Machine, IO, Order) |>
+      summarize(
+        Mean = mean(y),
+        Error = (3 * sd(y)) / sqrt(n()),
+        .groups = "drop"
+      )
 
-       exec_time <-  lines |>
-        str_subset("Total execution time") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+    fb_stats <- fbt |>
+      filter(Schedulers != "guided") |>
+      mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
+      io_label() |>
+      group_by(Machine, IO, Schedulers, Variant) |>
+      summarize(
+        Mean = mean(y),
+        Error = (3 * sd(y)) / sqrt(n()),
+        .groups = "drop"
+      ) |>
+      mutate(Version = glue("{Schedulers} ({Variant} threads)")) |>
+      slice_min(Mean, n = 1, with_ties = FALSE, by = c(Machine, IO))
 
-       tribble(~Msamples, ~ExecTime,
-               msamples[1], exec_time[1])
-    })
+      ylims <- fb_stats |>
+        summarize(ymax = 2 * max(Mean), .by = Machine) |>
+        arrange(Machine) 
 
+    y_scales <- map2(ylims$Machine, ylims$ymax, \(m, ym)
+                     rlang::new_formula(
+                              rlang::expr(Machine == !!m),
+                              rlang::expr(scale_y_continuous(limits = c(0, !!ym), oob = scales::oob_keep))
+                            )
+                     )    
+
+    ggplot(sf_stats, aes(x = Order, y = Mean)) +
+      geom_rect(
+        data = fb_stats,
+        aes(ymin = Mean - Error, ymax = Mean + Error, fill = Version),
+        xmin = -Inf, xmax = Inf, inherit.aes = FALSE, alpha = 0.3
+      ) +
+      geom_hline(data = fb_stats, aes(yintercept = Mean, color = Version, linetype = Version), linewidth = 0.8) +
+      geom_point(alpha = 0.8) +
+      geom_line(linewidth = 0.5) +
+      geom_errorbar(aes(ymin = Mean - Error, ymax = Mean + Error), width = 0.5) +
+      scale_x_continuous(breaks = x_breaks) +
+      # facet_wrap para que cada painel tenha o seu eixo Y (no facet_grid os painéis da mesma linha
+      # compartilham o eixo); uma coluna por máquina, então cada linha é um nível de IO
+      facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
+      facetted_pos_scales(y = y_scales) + 
+      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
+      scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+      labs(x = "Block Size", y = "Exection Time (s)",
+           fill = "Fletcher-base Versions", color = "Fletcher-base Versions",
+           linetype = "Fletcher-base Versions") +
+      guides(
+        fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+        shape    = guide_legend(order = 2)
+      ) +
+      theme_bw(base_size = 7) +
+      theme(
+        legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "left",
+        legend.margin = margin(0, 0, 0, 0),
+        legend.box.spacing = unit(3, "pt"),
+        legend.spacing.y = unit(0, "pt"),
+        legend.key.size = unit(8, "pt"),
+        legend.text = element_text(size = 6, margin = margin(r = 8)),
+        legend.title = element_text(size = 7),
+        strip.text = element_text(margin = margin(2, 2, 2, 2)),
+        plot.margin = margin(2, 6, 2, 2),
+        panel.spacing.x = unit(6, "pt"),
+        panel.spacing.y = unit(10, "pt")
+      )
+  }
+  fl <- \(x) filter(x, sub("\\d+$", "", Machine) %in% c("cei", "tupi", "grace"))
+
+  order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
 #+END_SRC
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
-  ex_star_fletcher <- read_csv('./sscad/star-fletcher-fix-size.csv')
-  sf <- machines |> cross_join(ex_star_fletcher)
+*** Scale Plot :ignore:
 
-  sf_res_p <- sf |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, \(lines){
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[6]], vals[[5]])
-    }) |>
-    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+Scale plot with exec time
 
-  ex_fletcher_base <- read_csv('./sscad/fletcher-base-fix-size.csv')
-  fb <- machines |> cross_join(ex_fletcher_base)
 
-  fb_res_p <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-", str_sub(Machine, end = -2),
-                         "/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, function(lines) {
-       msamples <-  lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+   # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
+   # mostra o número total de threads), juntados com o patchwork. As cores são fixas por programa
+   # para serem as mesmas em todas as máquinas.
+   program_colors <- c(
+     "star-fletcher"           = "#1b9e77",
+     "fletcher-base (dynamic)" = "#d95f02",
+     "fletcher-base (static)"  = "#7570b3"
+   )
 
-       exec_time <-  lines |>
-        str_subset("Total execution time") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+   # nas máquinas com p-cores e e-cores, a partir de quantos cores começam os e-cores
+   # (ver cpu-topology.org)
+   pcore_count <- c(poti = 8, tupi = 8)
 
-       tribble(~Msamples, ~ExecTime,
-               msamples[1], exec_time[1])
-    })
+   scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE) {
+     machine_plot <- function(machine, is_last) {
+       d <- filter(stats, Machine == machine) |>
+         mutate(
+           y = .data[[paste0(metric, "_mean")]],
+           err = .data[[paste0(metric, "_error")]],
+           # na escala log2 o ponto com SMT precisa de um espaço maior para não colar no último ponto
+           X = if_else(SMT == 1, MaxPhysical * (if (log_x) 1.6 else 1.2), NumCPUs)
+         )
+       ticks <- distinct(d, X, NumCPUs, SMT) |>
+         mutate(Label = if_else(SMT == 1, paste0(NumCPUs, "\n(SMT)"), as.character(NumCPUs)))
+       max_physical <- first(d$MaxPhysical)
 
-  fb_res_p_dyn <- fb |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-size-p-core-dynamic/", Machine ,"/stdout-",  WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, function(lines) {
-       msamples <-  lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+       p <- ggplot(d, aes(x = X, y = y, color = Program)) +
+         geom_line(data = filter(d, SMT == 0), linewidth = 0.8)
+       if (any(d$SMT == 1)) {
+         # o trecho até o ponto com SMT é pontilhado, já que a distância não está em escala
+         p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.8)
+       }
+       if (machine %in% names(pcore_count)) {
+         # linha tracejada onde terminam os p-cores e começam a ser usados os e-cores
+         p <- p +
+           geom_vline(xintercept = pcore_count[[machine]], linetype = "dashed", color = "gray40") +
+           annotate("text", x = pcore_count[[machine]], y = Inf, label = " E-cores →",
+                    hjust = 0, vjust = 1.5, size = 3.5, color = "gray30")
+       }
+       
+       p +
+         geom_point(alpha = 0.8) +
+         # a largura da barra de erro é em unidades do eixo, que na escala log2 são bem maiores
+         geom_errorbar(aes(ymin = y - err, ymax = y + err), width = if (log_x) 0.15 else 0.5) +
+         (if (log_y) scale_y_log10() else scale_y_continuous(limits = c(0, NA))) +
+         scale_x_continuous(
+           transform = if (log_x) "log2" else "identity",
+           breaks = ticks$X,
+           labels = ticks$Label
+         ) +
+         scale_color_manual(values = program_colors, limits = names(program_colors)) +
+         facet_grid(
+           (if(unique(d$IO) |> length() == 1) ~ Machine else IO ~ Machine),
+           scales = "free_y",
+           labeller = labeller(Machine = \(m) paste0(m, " (Order ", na.omit(d$Order)[1], ")"))) +
+         labs(x = "Number of cores/threads", y = y_label, color = NULL) +
+         theme_bw(base_size = 15) +
+         theme(axis.text.x = element_text(size = 9)) +
+         # o rótulo do IO vale para a linha inteira, então só aparece no último gráfico
+         (if (is_last) NULL else theme(strip.text.y = element_blank(), strip.background.y = element_blank()))
+     }
 
-       exec_time <-  lines |>
-        str_subset("Total execution time") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
+     # só a máquina com mais programas mostra a legenda, para o patchwork juntar uma só
+     machines <- sort(unique(stats$Machine))
+     with_legend <- stats |> distinct(Machine, Program) |> count(Machine) |> slice_max(n, n = 1, with_ties = FALSE) |> pull(Machine)
 
-       tribble(~Msamples, ~ExecTime,
-               msamples[1], exec_time[1])
-    })
+     machines |>
+       map(\(m) machine_plot(m, m == last(machines)) + (if (m == with_legend) NULL else guides(color = "none"))) |>
+       wrap_plots(nrow = 1) +
+       plot_layout(guides = "collect", axis_titles = "collect") +
+       plot_annotation(
+         title = title,
+         subtitle = "Faceted by machine (columns) and IO (rows). The SMT point (all hardware threads) is not to scale."
+       ) &
+       theme(legend.position = "bottom")
+   }
 
+  scale_stats <- bind_rows(sf_scale, fb_scale) |>
+    mutate(
+      Machine = sub("\\d+$", "", Machine),
+      IO = factor(if_else(WithIO == 0, "Without IO", "IO every step"), levels = c("Without IO", "IO every step"))
+    ) |>
+    group_by(Machine, Program, IO, NumCPUs, SMT, Order) |>
+    summarize(
+      n = n(),
+      Msamples_mean = mean(Msamples),
+      Msamples_error = (3 * sd(Msamples)) / sqrt(n),
+      ExecTime_mean = mean(ExecTime),
+      ExecTime_error = (3 * sd(ExecTime)) / sqrt(n),
+      .groups = "drop"
+    ) |>
+    # O ponto com hyperthreading (SMT) não fica na escala do eixo X: ele é colocado um pouco
+    # depois do último ponto com cores físicos, para não ficar longe demais
+    group_by(Machine) |>
+    mutate(
+      MaxPhysical = max(NumCPUs[SMT == 0]),
+      X = if_else(SMT == 1, MaxPhysical * 1.2, NumCPUs)
+    ) |>
+    ungroup()
+
+   scale_stats |>
+     filter(X >= 4) |>
+     scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none 
-  ex_star_fletcher_order  <- read_csv('./sscad/star-fletcher-fix-order-64.csv')
-  sf_order <- machines |> cross_join(ex_star_fletcher_order)
-
-  sf_res_order <- sf_order |>
-    mutate(FILE = paste0(base_dir,"/star-fletcher-cpu-fix-order-64/", Machine ,"/stdout-", Schedulers, "-", BlockSeg, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, \(lines){
-      vals <- lines |>  map(\(l) as.numeric(str_extract(l, " \\d+.\\d+")))
-      tribble(~Msamples, ~ExecTime, 
-              vals[[6]], vals[[5]])
-    })
-
-  ex_fletcher_base_order <- read_csv('./sscad/fletcher-base-fix-order-64.csv')
-  fb_order <- machines |> cross_join(ex_fletcher_base_order)
-
-  fb_res_order <- fb_order |>
-    mutate(FILE = paste0(base_dir, "/fletcher-base-cpu-fix-order-64/", Machine ,"/stdout-", Width, "-", WithIO, "-", str_sub(Blocks, 3), ".out")) |>
-    parse_files(FILE, function(lines) {
-       msamples <-  lines |>
-        str_subset("MSamples/s") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
-
-       exec_time <-  lines |>
-        str_subset("Total execution time") |> 
-        str_extract("\\d+.\\d+") |> 
-        as.numeric()
-
-       tribble(~Msamples, ~ExecTime,
-               msamples[1], exec_time[1])
-    })
-#+END_SRC
 
 *** MSamples/s Plot                                                :ignore:
 
