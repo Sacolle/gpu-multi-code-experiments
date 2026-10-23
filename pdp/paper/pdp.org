@@ -333,17 +333,35 @@ The tested schedulers were: Work Stealing (ws), which moves tasks from filled qu
 **** GOAL
 - Show that Star-Fletcher is better than the alternative
   - Multiple CPU architectures
-**** Oi
+    Need to talk about the error bars, statistics and if the distributions are normal.
 ***** Overview of MSamples/s
+Facet it as a 2 x 3, each row tag as the kind of architecture
+Present here the fact that free thread with dynamic are better tahn pinned, then latter just use the best case
+32 might be bad due to cache (conjecture, not proven) -> task itself takes more time (observation)
 ***** Target IO example [an interesting case] x2
+Plot the cei, tupi and Grace machine in the case, again, a 3 x 3, each row being an IO case
+IO can improve or can worsen execution in relation to the other aplications, behavior is machine dependent
+Why grace worsens so much?
 ***** Scalibility analysis with Execution Time
-***** Why grace fails  => starvation explanation
-- When starvation happens?
-***** Iteration Overleap [plot]
-****** Lunaris
+Para responder essa pergunta, vamos a análise de escalabilidade:
+Pode-se observar que a aplicação escala melhor do que as demais (anotar a segmentação)
+Na grace há uma inversão no fim? Por quê? E porque a Lunaris é tão melhor.
+Plot de retângulos da Grace. -> Maior parte do tempo é IO, a task é muito rápida
+O tempo de submissão é o tempo de execução -> Tabela para todas as máquinas (quais parâmetros)
+Starving
+Plot de tamamnho maior aqui se terminar
+Lunaris overperformance
+Plot de kiteration da lunaris. -> tempo da iteração
 **** Conclusion
-***** Dynamic OpenMP is better than Static OpenMP [fletcher-base]
-***** Our performance is always the same or better
+Dynamic scheduleing is better than static on this implementation of fletcher
+Our application, ~when properly adjusted~, outperforms the base version
+It may need to dimension correctly the problem size to not have starvation and lose performance
+Different CPU architectures responde differently to the applications performance, being trivially better in
+heterogeneous cores and, for the tested one, AMD CPUs.
+For the rest,
+- it has the same performance
+- could easily add GPU to the setup to use full CPU <- Future Work.
+
 *** Introduction                                                   :ignore:
 
 This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and the StarPU scheduler to provide a performance overview with an industry standard metric. Next, StarVZ traces are examined to verify that the elimination of global synchronization enables computational overlap between iterations. Then, execution time differences with and without IO are evaluated to confirm that asynchronous IO further benefits performance. Finally, experiments restricted to p-cores only are used to identify the source of performance gains on heterogeneous machines, disentangling the contributions of CPU architecture heterogeneity from those of iteration overlap and asynchronous IO.
