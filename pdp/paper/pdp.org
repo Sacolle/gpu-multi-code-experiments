@@ -29,7 +29,7 @@
 # visual-line-mode [enable]
 # auto-fill-mode [disable]
 
-#   ;;;+PROPERTY: header-args :eval never
+#+PROPERTY: header-args :eval never-export :exports none
 
 # keywords:
 # Heterogeneous CPU Computing
