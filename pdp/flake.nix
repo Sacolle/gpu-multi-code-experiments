@@ -131,10 +131,10 @@
         fletcher-base-cpu = base-fletcher-base-cpu ./fletcher-base-exp.csv "fletcher-base-pdp-exp";
         fletcher-base-cpu-big = base-fletcher-base-cpu ./fletcher-base-exp-big.csv "fletcher-base-pdp-exp-big";
 
-        base-fletcher-base-cpu-bind = file:
+        base-fletcher-base-cpu-bind = file: name:
           let
             program = "${my-fletcher-base}/bin/fletcher-base";
-            experiment-name = "fletcher-base-pdp-exp-bind";
+            experiment-name = name;
             scratch-folder = mk-scratch-folder experiment-name;
             home-folder = mk-home-folder experiment-name;
           in
@@ -179,8 +179,8 @@
             '';
           };
 
-        fletcher-base-cpu-bind = base-fletcher-base-cpu-bind ./fletcher-base-exp.csv;
-        #fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv;
+        fletcher-base-cpu-bind = base-fletcher-base-cpu-bind ./fletcher-base-exp.csv "fletcher-base-pdp-exp-bind";
+        fletcher-base-cpu-bind-big = base-fletcher-base-cpu-bind ./fletcher-base-exp-big.csv "fletcher-base-pdp-exp-bind-big";
 
         fletcher-base-cpu-scalability = name: file:
           let
@@ -641,7 +641,7 @@
             fletcher-base-cpu-bind
             star-fletcher-cpu
             fletcher-base-cpu-big
-            #fletcher-base-cpu-bind-big
+            fletcher-base-cpu-bind-big
             star-fletcher-cpu-big
             star-fletcher-cpu-trace
             fio-exp
