@@ -286,11 +286,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1792182477,
-        "narHash": "sha256-Lq461EIVBf7KsUemKnuocdQkGC95BCL/2W/GI2jSCYc=",
+        "lastModified": 1792676225,
+        "narHash": "sha256-Iv29MCrWETCEjRuzkb30uxf9Fyf0r6uwLyMIVrTDGdo=",
         "owner": "Sacolle",
         "repo": "star-fletcher",
-        "rev": "279a40f04f7de918218c573000e78b16e2f2190c",
+        "rev": "72b5ee626fb68a0d3ff62ac24cc55841361da530",
         "type": "github"
       },
       "original": {
