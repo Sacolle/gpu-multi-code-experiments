@@ -550,6 +550,20 @@ Experimento do fletcher-base, com e sem bind
     }) |>
     mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
 
+  sf_direct_res <- sf_big |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = paste0(base_dir,"/star-fletcher-cpu-pdp-exp-big-direct/", Machine ,"/stdout-", BlockSeg, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <- lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <- lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time
+       )
+    }) |>
+    mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
+
   fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp-big.csv'))
 
   fb_no_bind_big_res <- fb_big |>
@@ -565,10 +579,23 @@ Experimento do fletcher-base, com e sem bind
          ExecTime = exec_time
        )
     }) |>
-    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite), Variant = "free")
+    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite), Variant = factor("free", levels = c("free", "bind")))
 
 #+END_SRC
 
+
+Colocando os dados da grace grande no lugar da grace pequena
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent 
+  fb_res <- fb_res |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(fb_no_bind_big_res)
+
+  sf_res <- sf_res |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(sf_big_res)
+
+#+END_SRC
 
 
 
@@ -578,7 +605,7 @@ Experimento do fletcher-base, com e sem bind
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
   msamples_plot <- function(sft, fbt) {
-    x_breaks <- sort(unique(sft$Order))
+    #x_breaks <- 1:(128/16) * 16 #sort(unique(sft$Order))
     
     fb_stats <- fbt |>
       mutate(Machine = sub("\\d+$", "", Machine)) |>
@@ -589,7 +616,7 @@ Experimento do fletcher-base, com e sem bind
         rep = n(),
         FB_Mean   = mean(Msamples),
         FB_Sd     = sd(Msamples),
-        FB_Error  = (3 * FB_Sd) / sqrt(n()),
+        FB_Error  = (qt(0.975, n() - 1) * FB_Sd) / sqrt(n()),
         .groups   = "drop" 
       ) |>
       mutate(Version = glue("{Schedulers} ({Variant} threads)"))
@@ -603,11 +630,11 @@ Experimento do fletcher-base, com e sem bind
         rep = n(),
         Msamples_mean = mean(Msamples),
         Msamples_sd = sd(Msamples),
-        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+        Msamples_error = (qt(0.975, rep - 1) * Msamples_sd) / sqrt(rep),
         
         ExecTime_mean = mean(ExecTime),
         ExecTime_sd = sd(ExecTime),
-        ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+        ExecTime_error = (qt(0.975, rep - 1) * ExecTime_sd) / sqrt(rep),
         .groups = "drop"
       ) 
 
@@ -623,7 +650,7 @@ Experimento do fletcher-base, com e sem bind
        alpha = 0.4
      ) +
      geom_hline(data = fb_stats, aes(yintercept = FB_Mean, linetype = Version, color = Version), linewidth = 0.8) +
-      scale_x_continuous(breaks = x_breaks) +
+     # scale_x_continuous(breaks = x_breaks) +
       #coord_cartesian(ylim = c(0, 500)) +
       #ylim(0, NA) +
       facet_grid(~ Machine) + #,scales = "free_y", nrow = 1) + 
@@ -662,7 +689,7 @@ Experimento do fletcher-base, com e sem bind
       n       = n(),
       Ms_mean = mean(Msamples),
       Ms_sd   = sd(Msamples),
-      Ms_err  = (3 * Ms_sd) / sqrt(n),
+      Ms_err  = (qt(0.975, n - 1) * Ms_sd) / sqrt(n),
           raw     = list(Msamples),
       .groups = "drop"
     ) |>
@@ -755,8 +782,10 @@ Experimento do fletcher-base, com e sem bind
         # Combined Standard Error for Independent Samples
         Combined_SE = sqrt((ExecTime_sf_sd^2 / sf_n) + (ExecTime_fb_sd^2 / fb_n)),
 
-        # 3x Error mapping
-        Diff_error = 3 * Combined_SE
+        # 95% confidence interval of the difference: Student's t with the Welch-Satterthwaite
+        # degrees of freedom (the two programs have different variances)
+        Welch_df = Combined_SE^4 / ((ExecTime_sf_sd^2 / sf_n)^2 / (sf_n - 1) + (ExecTime_fb_sd^2 / fb_n)^2 / (fb_n - 1)),
+        Diff_error = qt(0.975, Welch_df) * Combined_SE
       ) |> filter(Order < 100, Order > 12)
 
     
@@ -819,7 +848,7 @@ linhas horizontais. O MSamples/s só é mostrado sem IO.
       group_by(Machine, IO, Order) |>
       summarize(
         Mean = mean(y),
-        Error = (3 * sd(y)) / sqrt(n()),
+        Error = (qt(0.975, n() - 1) * sd(y)) / sqrt(n()),
         .groups = "drop"
       )
 
@@ -830,7 +859,7 @@ linhas horizontais. O MSamples/s só é mostrado sem IO.
       group_by(Machine, IO, Schedulers, Variant) |>
       summarize(
         Mean = mean(y),
-        Error = (3 * sd(y)) / sqrt(n()),
+        Error = (qt(0.975, n() - 1) * sd(y)) / sqrt(n()),
         .groups = "drop"
       ) |>
       mutate(Version = glue("{Schedulers} ({Variant} threads)"))
@@ -862,7 +891,9 @@ linhas horizontais. O MSamples/s só é mostrado sem IO.
 
   #order_plot(sf_res, fbt = fb_res, "Msamples", "Msamples/s", "MSamples/s vs. Block Order", ios = "Without IO")
   #order_plot(sf_res, fbt = fb_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
-  order_plot(sf_big_res, fbt = fb_no_bind_big_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order with big total volume.")
+
+  order_plot(sf_big_res, fbt = fb_no_bind_big_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order with big total volume.") + 
+  order_plot(sf_direct_res, fbt = fb_no_bind_big_res, "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order with big total volume.")
 #+END_SRC
 
 
@@ -1794,9 +1825,9 @@ eixo X, por isso a linha até ele é pontilhada.
     summarize(
       n = n(),
       Msamples_mean = mean(Msamples),
-      Msamples_error = (3 * sd(Msamples)) / sqrt(n),
+      Msamples_error = (qt(0.975, n - 1) * sd(Msamples)) / sqrt(n),
       ExecTime_mean = mean(ExecTime),
-      ExecTime_error = (3 * sd(ExecTime)) / sqrt(n),
+      ExecTime_error = (qt(0.975, n - 1) * sd(ExecTime)) / sqrt(n),
       .groups = "drop"
     ) |>
     # O ponto com hyperthreading (SMT) não fica na escala do eixo X: ele é colocado um pouco

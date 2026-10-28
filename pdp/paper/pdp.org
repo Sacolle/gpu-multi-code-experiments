@@ -29,7 +29,7 @@
 # visual-line-mode [enable]
 # auto-fill-mode [disable]
 
-#+PROPERTY: header-args :eval never-export :exports none
+#  #+PROPERTY: header-args :eval never-export :exports none
 
 # keywords:
 # Heterogeneous CPU Computing
@@ -245,7 +245,7 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 
 - All NIX and more reproducibility details get concentrad in the end [last paragraph] of methods and materials. Also cite the Star-Fletcher codebased [OPEN] + the companion.
 
-The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure \ref{fig:flowchart} illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
+The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure fig:flowchart illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
 
 *** Fletcher's Equations
 
@@ -268,6 +268,114 @@ Fletcher modeling is a technique for simulating wave propagation over time in di
 
 To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this algorithm, the neighboring points of it from $t$ and $t - 1$ are necessary. This paper uses /fletcher-base/ cite:fletcher_base, an implementation of this algorithm, to benchmark its own implementation using the STF paradigm. In it, two buffers are kept in memory,/curr/ and/prev/, to store all points at $t$ and $t - 1$, respectively. To compute $t + 1$, the buffer /prev/ ($t - 1$) has its values overwritten, after having them read to do the computation. After that, the buffers are swapped to compute the next iteration. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forward propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a later backward propagation phase. It can be chosen from three parallelization back-ends: CUDA, OpenCL, and OpenMP; the latter was used for comparison purposes against our work.
 
+#+BEGIN_SRC python :async yes :results output silent :exports none
+  import os
+  import numpy as np
+  import pyvista as pv
+  from PIL import Image
+
+  # ângulo da câmera (em graus), zoom, transparência e espaçamento: ajuste aqui
+  AZIMUTH = 25        # rotação em torno do eixo z
+  ELEVATION = 14      # altura da câmera acima do plano xy
+  ZOOM = 1.1
+  OPACITY_CROSS = 0.2   # opacidade dos quadrados das derivadas cruzadas, roxo (1 = opaco)
+  OPACITY_AXIS = 0.5    # opacidade dos quadrados dos eixos, coral
+  OPACITY_CENTER = 1.0  # opacidade do quadrado do centro, verde
+  THICKNESS = 1       # espessura dos planos
+  GAP = 0.7           # distância com que cada parte é afastada do centro
+  EDGE_WIDTH = 3.0    # espessura das linhas entre os quadrados
+  EDGE_OPACITY = 0.6  # opacidade das linhas
+  WINDOW = (1600, 1400)
+
+  pv.OFF_SCREEN = True
+  os.makedirs("figures", exist_ok=True)
+
+  # paleta (a mesma das outras figuras); a segunda cor é a das linhas
+  TEAL, TEAL_D = "#1D9E75", "#085041"
+  PURPLE, PURPLE_D = "#7F77DD", "#3C3489"
+  CORAL, CORAL_D = "#D85A30", "#712B13"
+  LOOK = dict(ambient=0.45, diffuse=0.65, specular=0.0)  # luz chapada, sem brilho
+
+  def set_view(plotter, azimuth, elevation, zoom):
+      az, el = np.radians(azimuth), np.radians(elevation)
+      plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
+      plotter.camera.zoom(zoom)
+
+  def crop_square(image):
+      # recorta a figura num quadrado justo: a caixa do que não é fundo branco, com o lado menor
+      # completado com branco para que a figura fique centrada
+      x0, y0, x1, y1 = Image.fromarray(255 - image.min(axis=2)).point(lambda v: 255 if v > 8 else 0).getbbox()
+      side = max(x1 - x0, y1 - y0)
+      square = Image.new("RGB", (side, side), "white")
+      square.paste(Image.fromarray(image[y0:y1, x0:x1]), ((side - (x1 - x0)) // 2, (side - (y1 - y0)) // 2))
+      return square
+
+  def grid(lower, cells, sizes):
+      # bloco dividido em células: canto inferior, número de células e tamanho de cada célula por eixo
+      return pv.ImageData(dimensions=[c + 1 for c in cells], spacing=sizes, origin=lower)
+
+  # Estêncil de 8ª ordem (raio 4), separado em partes que são afastadas do centro por GAP:
+  # - 1 cubo no centro: o ponto calculado (verde)
+  # - 6 braços de 4 células ao longo de ±x, ±y, ±z: as derivadas segundas (coral)
+  # - 12 quadrantes de 4 x 4 células, 4 em cada plano xy, xz e yz: as derivadas cruzadas (roxo)
+  r = 4
+  e = np.eye(3)
+  half = np.array([0.5, 0.5, 0.5])
+
+  parts = [(grid(-half, [1, 1, 1], [1, 1, 1]), TEAL, TEAL_D, OPACITY_CENTER)]
+  for k in range(3):
+      for s in (-1, 1):
+          cells, lower = [1, 1, 1], -half.copy()
+          cells[k] = r
+          lower[k] = 0.5 if s > 0 else -0.5 - r
+          parts.append((grid(lower + GAP * s * e[k], cells, [1, 1, 1]), CORAL, CORAL_D, OPACITY_AXIS))
+  for a, b in [(0, 1), (0, 2), (1, 2)]:
+      c = 3 - a - b  # eixo perpendicular ao plano
+      for sa in (-1, 1):
+          for sb in (-1, 1):
+              cells, sizes, lower = [1, 1, 1], [1, 1, 1], np.zeros(3)
+              cells[a], cells[b] = r, r
+              sizes[c] = THICKNESS
+              lower[a] = 0.5 if sa > 0 else -0.5 - r
+              lower[b] = 0.5 if sb > 0 else -0.5 - r
+              lower[c] = -THICKNESS / 2
+              parts.append((grid(lower + GAP * (sa * e[a] + sb * e[b]), cells, sizes), PURPLE, PURPLE_D, OPACITY_CROSS))
+
+  def render(lines):
+      # lines=False: faces coloridas e transparentes, sem linhas
+      # lines=True: as partes como sólidos brancos e opacos com as suas linhas; os sólidos escondem as linhas
+      #             de trás e as internas, como se as partes fossem opacas
+      plotter = pv.Plotter(off_screen=True, window_size=WINDOW)
+      plotter.set_background("white")
+      if lines:
+          for part, _, edge, _ in parts:
+              plotter.add_mesh(part, color="white", ambient=1.0, diffuse=0.0, specular=0.0,
+                               show_edges=True, edge_color=edge, line_width=EDGE_WIDTH)
+      else:
+          plotter.enable_depth_peeling()
+          for part, color, _, opacity in parts:
+              plotter.add_mesh(part, color=color, opacity=opacity, **LOOK)
+      set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
+      image = plotter.screenshot(return_img=True).astype(float)
+      plotter.close()
+      return image
+
+  faces, lines = render(False), render(True)
+  # onde a imagem das linhas não é branca há uma linha visível: ela é desenhada por cima das faces
+  alpha = np.clip((255 - lines.min(axis=2, keepdims=True)) / 120, 0, 1) * EDGE_OPACITY
+  image = faces * (1 - alpha) + lines * alpha
+
+  path = "figures/stencil.png"
+  crop_square(image.round().astype(np.uint8)).save(path)
+  return path
+#+END_SRC
+
+#+CAPTION: Computational stencil
+#+NAME: fig:stencil
+#+ATTR_LATEX: :placement [!htb] :width .6\linewidth
+[[file:figures/stencil.png]]
+
+
 *** Fletcher-base description
 - Brief, but with enough details so that all the remaining parts of the article became easier to understand [especially when talking about comparison against it]. IO, etc.
 *** Our Task-Based Implementation
@@ -278,6 +386,76 @@ To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this a
 /Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed among workers, which can represent CPU cores or GPUs, and execute the computations. StarPU is equipped with multiple scheduling policies, each with different rules that determine which worker a task goes to. Each worker has its own task queue, and it is the scheduler's job to distribute work between them. Work-stealing schedulers may distribute tasks equally, but workers then steal tasks from others when they become idle. Performance-based schedulers measure a task's performance on each worker it executes on and then distribute tasks to them based on the measured computing capability.
 
 In the implementation, the computed medium had to be segmented into cubes so that /star-fletcher/ could use task-based parallelism in first order. Each computed task is a section of the whole medium. This presented an opportunity to schedule tasks. Instead of using a single loop that, at each iteration, alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the whole. With this, to compute a cube $C_{i,j,k,t + 1}$, it needs its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by a swap of $prev$ and $curr$, /star-fletcher/ does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between block computations. Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
+
+
+#+BEGIN_SRC python :async yes :results output silent :exports none
+  import os
+  import itertools
+  import numpy as np
+  import pyvista as pv
+  from PIL import Image
+
+  # ângulo da câmera (em graus), zoom e transparência: ajuste aqui
+  AZIMUTH = -58
+  ELEVATION = 16
+  ZOOM = 1.0
+  OPACITY = 0.5    # opacidade dos blocos vizinhos (1 = opaco)
+  EDGE_WIDTH = 3.5 # espessura das arestas dos blocos
+
+  pv.OFF_SCREEN = True
+  os.makedirs("figures", exist_ok=True)
+
+  # cores dos blocos e das suas arestas (mais escuras)
+  TEAL, TEAL_D = "#1D9E75", "#085041"
+  PURPLE, PURPLE_D = "#7F77DD", "#3C3489"
+  CORAL, CORAL_D = "#D85A30", "#712B13"
+  AMBER_D = "#633806"
+  LOOK = dict(ambient=0.45, diffuse=0.65, specular=0.0)
+
+  def set_view(plotter, azimuth, elevation, zoom):
+      az, el = np.radians(azimuth), np.radians(elevation)
+      plotter.view_vector((np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)), viewup=(0, 0, 1))
+      plotter.camera.zoom(zoom)
+
+  def crop_square(image):
+      # recorta a figura num quadrado justo: a caixa do que não é fundo branco, com o lado menor
+      # completado com branco para que a figura fique centrada
+      x0, y0, x1, y1 = Image.fromarray(255 - image.min(axis=2)).point(lambda v: 255 if v > 8 else 0).getbbox()
+      side = max(x1 - x0, y1 - y0)
+      square = Image.new("RGB", (side, side), "white")
+      square.paste(Image.fromarray(image[y0:y1, x0:x1]), ((side - (x1 - x0)) // 2, (side - (y1 - y0)) // 2))
+      return square
+
+  # Blocos lidos por uma tarefa wave_propagation: o próprio bloco e os vizinhos de t-1 nas 6 faces (coral,
+  # como as derivadas nos eixos) e nas 12 arestas (roxo, como as derivadas cruzadas). Os 8 cantos não são
+  # necessários (não há derivada cruzada xyz) e ficam só em arame.
+  spacing = 1.45
+  blocks = {0: [], 1: [], 2: [], 3: []}  # número de coordenadas diferentes de zero
+  for d in itertools.product((-1, 0, 1), repeat=3):
+      blocks[sum(c != 0 for c in d)].append(pv.Cube(center=[spacing * c for c in d]))
+  print({k: len(v) for k, v in blocks.items()})
+
+  plotter = pv.Plotter(off_screen=True, window_size=(1600, 1400))
+  plotter.set_background("white")
+  plotter.enable_depth_peeling()
+
+  plotter.add_mesh(pv.merge(blocks[0]), color=TEAL, show_edges=True, edge_color=TEAL_D, line_width=EDGE_WIDTH, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[1]), color=CORAL, show_edges=True, edge_color=CORAL_D, line_width=EDGE_WIDTH,
+                   opacity=OPACITY, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[2]), color=PURPLE, show_edges=True, edge_color=PURPLE_D, line_width=EDGE_WIDTH,
+                   opacity=OPACITY, **LOOK)
+  plotter.add_mesh(pv.merge(blocks[3]), style="wireframe", color=AMBER_D, opacity=0.5, line_width=2)
+
+  set_view(plotter, AZIMUTH, ELEVATION, ZOOM)
+  path = "figures/neighbors.png"
+  crop_square(plotter.screenshot(return_img=True)).save(path)
+  return path
+#+END_SRC
+
+#+CAPTION: Block Neighbors.
+#+NAME: fig:stencil
+#+ATTR_LATEX: :placement [!htb] :width .6\linewidth
+[[file:figures/neighbors.png]]
 
 *** Experimental Methodology for Performance Evaluation
 <<sec:methodology>>
@@ -357,7 +535,7 @@ heterogeneous cores and, for the tested one, AMD CPUs.
 For the rest,
 - it has the same performance
 - could easily add GPU to the setup to use full CPU <- Future Work.
-
+  
 *** Introduction                                                   :ignore:
 
 This Section presents the experimental outcomes of comparing /star-fletcher/ against /fletcher-base/ across five machines. First, MSamples/s is analyzed as a function of block order and the StarPU scheduler to provide a performance overview with an industry standard metric. Next, StarVZ traces are examined to verify that the elimination of global synchronization enables computational overlap between iterations. Then, execution time differences with and without IO are evaluated to confirm that asynchronous IO further benefits performance. Finally, experiments restricted to p-cores only are used to identify the source of performance gains on heterogeneous machines, disentangling the contributions of CPU architecture heterogeneity from those of iteration overlap and asynchronous IO.
@@ -437,53 +615,9 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
     mutate(Variant = factor(Variant, levels = c("free", "bind")))
 #+END_SRC
 
-
-**** Scaling Experiment Parsing                                  :ignore:
-#+BEGIN_SRC R :session *R* :async yes :results output silent
-  # Lê os resultados de escalabilidade. Cada máquina tem o seu csv em ./pdp/scalability e as
-  # pastas de resultado têm o nome do nó (cei1, draco6, ...), por isso o csv é escolhido pelo
-  # nome da máquina sem o número. Uma máquina pode ter mais de um csv, como o grace, que tem
-  # replicações a mais em star-fletcher-scal-grace-extra.csv: todos são lidos.
-  load_scalability <- function(program, exp_folder, parse_fn) {
-    list.dirs(glue("{base_dir}/{exp_folder}"), recursive = FALSE) |>
-      basename() |>
-      map(\(node) {
-        csvs <- list.files("./pdp/scalability", full.names = TRUE,
-                           pattern = glue("^{program}-scal-{sub('\\\\d+$', '', node)}(-.+)?\\.csv$"))
-        map(csvs, \(f) read_csv(f, show_col_types = FALSE)) |>
-          list_rbind() |>
-          mutate(Machine = node)
-      }) |>
-      list_rbind() |>
-      mutate(
-        Steps = floor(as.numeric(OutputTime) / as.numeric(TimeStep)),
-        Config = if (program == "star-fletcher") BlockSeg else Schedulers,
-        FILE = glue("{base_dir}/{exp_folder}/{Machine}/stdout-{NumCPUs}-{Config}-{Steps}-{Blocks}.out")
-      ) |>
-      parse_files(FILE, parse_fn) |>
-      select(-Config)
-  }
-
-  sf_scale <- load_scalability("star-fletcher", "star-fletcher-cpu-pdp-exp-scale", function(lines) {
-    tibble(
-      Msamples = lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
-      ExecTime = lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
-    )
-  }) |>
-    mutate(Program = "star-fletcher", Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg)
-
-  fb_scale <- load_scalability("fletcher-base", "fletcher-base-pdp-exp-scale", function(lines) {
-    tibble(
-      Msamples = lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
-      ExecTime = lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
-    )
-  }) |>
-    mutate(Program = paste0("fletcher-base (", Schedulers, ")"))
-#+END_SRC
-
 **** Big Volume in Grace                                          :ignore:
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent 
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
   ex_star_fletcher_big <- read_csv('./pdp/star-fletcher-exp-big.csv')
   sf_big <- machines |> cross_join(ex_star_fletcher_big)
 
@@ -501,11 +635,11 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
     }) |>
     mutate(Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg) 
 
-  fb_big <- machines |> cross_join(read_csv('./pdp/fletcher-base-exp.csv'))
 
-  fb_no_bind_big_res <- fb_big |>
+  fb_no_bind_big_res <- cross_join(machines, read_csv('./pdp/fletcher-base-exp-big.csv')) |>
     mutate(
-      TimeToWrite = as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep)),
+      # the runs without IO were saved with 0 in the file name
+      TimeToWrite = if_else(WithIO == 0, 0, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
       FILE = paste0(base_dir,"/fletcher-base-pdp-exp-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
     parse_files(FILE, function(lines){
        msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
@@ -515,91 +649,330 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
          ExecTime = exec_time
        )
     }) |>
-    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite), Variant = "free")
+    mutate(TimeToWrite = if_else(TimeToWrite == 0, 10000, TimeToWrite))
+
+  fb_bind_big_res <- cross_join(machines, read_csv('./pdp/fletcher-base-exp-big.csv')) |>
+    mutate(
+      # the runs without IO were saved with 0 in the file name
+      TimeToWrite = if_else(WithIO == 0, 1, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
+      FILE = paste0(base_dir,"/fletcher-base-pdp-exp-bind-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
+    parse_files(FILE, function(lines){
+       msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
+       exec_time <-  lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       threads <- lines |> str_subset("OMP_NUM_THREADS") |> str_extract("\\d+") |> as.numeric()
+       tibble(
+         Msamples = msamples,
+         ExecTime = exec_time,
+         UsedThreads = threads
+       )
+    })
+
+  fb_big_res <- list(
+    free = fb_no_bind_big_res,
+    bind = fb_bind_big_res
+  ) |>
+    list_rbind(names_to = "Variant") |>
+    mutate(Variant = factor(Variant, levels = c("free", "bind")))
 
 #+END_SRC
 
 
+**** Colocando os dados da grace grande no lugar da grace pequena :ignore:
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+  fb_res <- fb_res |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(fb_big_res)
+
+  sf_res <- sf_res |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(sf_big_res)
+
+#+END_SRC
+
+
+**** Scaling Experiment Parsing                                  :ignore:
+#+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
+    # Lê os resultados de escalabilidade. Cada máquina tem o seu csv em ./pdp/scalability e as
+    # pastas de resultado têm o nome do nó (cei1, draco6, ...), por isso o csv é escolhido pelo
+    # nome da máquina sem o número. Uma máquina pode ter mais de um csv, como o grace, que tem
+    # replicações a mais em star-fletcher-scal-grace-extra.csv: todos são lidos.
+    load_scalability <- function(program, exp_folder, parse_fn) {
+      list.dirs(glue("{base_dir}/{exp_folder}"), recursive = FALSE) |>
+        basename() |>
+        map(\(node) {
+          csvs <- list.files("./pdp/scalability", full.names = TRUE,
+                             pattern = glue("^{program}-scal-{sub('\\\\d+$', '', node)}(-.+)?\\.csv$"))
+          map(csvs, \(f) read_csv(f, show_col_types = FALSE)) |>
+            list_rbind() |>
+            mutate(Machine = node)
+        }) |>
+        list_rbind() |>
+        mutate(
+          Steps = floor(as.numeric(OutputTime) / as.numeric(TimeStep)),
+          Config = if (program == "star-fletcher") BlockSeg else Schedulers,
+          FILE = glue("{base_dir}/{exp_folder}/{Machine}/stdout-{NumCPUs}-{Config}-{Steps}-{Blocks}.out")
+        ) |>
+        parse_files(FILE, parse_fn) |>
+        select(-Config)
+    }
+
+    sf_scale <- load_scalability("star-fletcher", "star-fletcher-cpu-pdp-exp-scale", function(lines) {
+      tibble(
+        Msamples = lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+        ExecTime = lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+      )
+    }) |>
+      mutate(Program = "star-fletcher", Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg)
+
+    fb_scale <- load_scalability("fletcher-base", "fletcher-base-pdp-exp-scale", function(lines) {
+      tibble(
+        Msamples = lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+        ExecTime = lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+      )
+    }) |>
+      mutate(Program = paste0("fletcher-base (", Schedulers, ")"))
+
+
+
+  sf_big_scale_res <- cross_join(machines, read_csv('./pdp/scalability/star-fletcher-scal-big-grace.csv')) |>
+    mutate(
+      TimeToWrite = if_else(OutputTime == 0, 1, as.numeric(as.character(OutputTime))) / as.numeric(as.character(TimeStep)),
+      FILE = glue("{base_dir}/star-fletcher-cpu-pdp-exp-scale-big/{Machine}/stdout-{NumCPUs}-{BlockSeg}-{TimeToWrite}-{Blocks}.out")) |>
+    parse_files(FILE, function(lines){
+       tibble(
+         Msamples = lines |> str_subset("Msamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+         ExecTime = lines |> str_subset("Computation Elapsed time") |> str_extract("\\d+.\\d+") |> as.numeric()
+       )
+    }) |>
+    mutate(Program = "star-fletcher", Order = (Width + 2 * (AbsorbSize + 4)) / BlockSeg)
+
+
+    fb_big_scale_res <- cross_join(machines, read_csv('./pdp/scalability/fletcher-base-scal-big-grace.csv')) |>
+      mutate(
+        # as execuções sem IO têm 10000 no nome do arquivo (OutputTime 1 / TimeStep)
+        TimeToWrite = if_else(WithIO == 0, 10000, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
+        FILE = glue("{base_dir}/fletcher-base-pdp-exp-scale-big/{Machine}/stdout-{NumCPUs}-{Schedulers}-{TimeToWrite}-{ Blocks}.out")) |>
+      parse_files(FILE, function(lines){
+          # o fletcher-base imprime "MSamples/s" e "Total execution time"
+          tibble(
+          Msamples = lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric(),
+          ExecTime = lines |> str_subset("Total execution time") |> str_extract("\\d+.\\d+") |> as.numeric()
+          )
+      }) |>
+      mutate(Program = paste0("fletcher-base (", Schedulers, ")"))
+
+  sf_scale <- sf_scale |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(sf_big_scale_res)
+
+  fb_scale <- fb_scale |>
+    filter(sub("\\d+$", "", Machine) != "grace") |>
+    bind_rows(fb_big_scale_res)
+
+#+END_SRC
+
 *** Msamples/s Plot :ignore:
 
+For this experiments, it was used a medium size of 384 units on the 3 dimensions, with a proximate total of $5.5 \cdot 10^{7}$ points. For each computation there were executed 20 iterations. The size of 384 units was not a workload big enough to stress the grace machine, in that case, there was used a size of 720 units on each dimension, with a proximate total of $3.7 \cdot 10^{8}$ with the same number of iterations.
 
-#+BEGIN_SRC R :async yes :session *R* :results output silent
-      # :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 10 :height 10
+Figure [[fig:msamples]] uses the industry standard metric. Msamples/s
+1. The X axis is the order of block chosen for /star-fletcher/ and the Y axis is the Msamples/s
+2. It is facet by Machine, which were grouped by their characteristics:
+   - The top row are the homogeneous machines using an inter x86_64 processor, common in HPC contexts
+   - The middle row are the heterogeneous intel x86_64 machines, whose CPUs have a mixture of p-cores and e-cores. They're more common in consumer hardware.
+   - The bottom row contains two cases, both machines were made for HPC use cases:
+     - The one on the left is an homogeneous AMD x86_64 machine
+     - The one on the right is an homogeneous Grace aarch64 machine.
+3. ? How to integrate the machine table in this text ?
+4. The black dots are the data points from the executions of /star-fletcher/ with different orders (define order before)
+   - The vertical bars on the dots are the standard error of that measurement. 
+   - There were 10 replications for every execution.
+   - It was used a confidence interval of 95\%, with Student's t distribution: $t_{0.975,\,n-1} \cdot sd(v) / \sqrt{n}$
+     > Claude:
+        Each configuration was executed 10 times in randomized order. Error bars are 95% confidence intervals of the mean, computed with Student's t distribution. Run-to-run variability was low: across the 255 configurations, the median coefficient of variation of the execution time is 1.2%, and 73% of the intervals are narrower than ±2% of the mean. Shapiro–Wilk tests rejected normality in only 6 configurations after Bonferroni correction (8 for MSamples/s). The t-based intervals are therefore adequate, and 10 replications are sufficient to distinguish the compared versions.
+5. The horizontal lines different are /fletcher-base/ executions which are represented as such because they are not parameterized by the block order. Each line represents one of the four cases dynamic and static run-times without binding threads to cores, and dynamic and static run-times with binding threads to cores with a one to one correspondence.
+   - The runtime should be elaborated in the fletcher-base section, but the bind or free needs to be talked here?
+   - The translucent color around the lines are the standard error of that measurement with a confidence interval of 95%
 
-  mach_charact <- tibble(
+#+BEGIN_SRC R :session *R* :async yes :results output silent  :colnames yes :exports none
+
+  # Melhor MSamples/s médio sem IO de cada programa nessas máquinas: o star-fletcher na melhor ordem e o
+  # fletcher-base na melhor versão (escalonador e threads, sem o guided, como no gráfico), e quanto o
+  # star-fletcher fica abaixo dele
+  best <- function(d, ...) d |>
+    filter(WithIO == 0) |>
+    mutate(Machine = sub("\\d+$", "", Machine)) |>
+    group_by(Machine, ...) |>
+    summarize(Msamples = mean(Msamples), .groups = "drop") |>
+    slice_max(Msamples, n = 1, with_ties = FALSE, by = Machine)
+
+  inner_join(
+    best(sf_res, Order) |> rename(SF_Order = Order, SF_Msamples = Msamples),
+    best(filter(fb_res, Schedulers != "guided"), Schedulers, Variant) |>
+      transmute(Machine, FB_Version = paste(Schedulers, Variant), FB_Msamples = Msamples),
+    by = "Machine"
+  ) |>
+    mutate(
+      SF_Slower_pct = 100 * (1 - SF_Msamples / FB_Msamples),
+      across(where(is.double), \(x) round(x, 2))
+    )
+#+END_SRC
+      
+Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/ by , on the best scenario, $5.54\%$, $50.6\%$ and $12.2\%$ respectively. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/ by  $-0.29\%$, $8.39\%$ and $7.45\%$ respectively. It is to note that, on machines with greater the Msamples/s yields, the /star-fletcher/ tends to outperform.
+Another interesting point is that, for the /fletcher-base/ all of the best executions were using the dynamic scheduling with non-bound threads, with exception of grace that used dynamic bound threads.
+
+#+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
+
+mach_charact <- tibble(
     Machine = c("cei", "draco", "poti", "tupi", "lunaris", "grace"),
     Kind = c("Homogeneous Intel x86_64", "Homogeneous Intel x86_64",
-             "Heterogeneous Intel x86_64", "Heterogeneous Intel x86_64",
-             "Homogeneous AMD x86_64", "Homogeneous Grace aarch64")
-  )
+            "Heterogeneous Intel x86_64", "Heterogeneous Intel x86_64",
+            "Homogeneous AMD x86_64", "Homogeneous Grace aarch64")
+)
 
-                                          # Panel order, read left to right, top to bottom
-  machine_order <- c("poti", "tupi", "cei", "draco", "lunaris", "grace")
+                                        # Panel order, read left to right, top to bottom
+machine_order <- c("poti", "tupi", "cei", "draco", "lunaris", "grace")
 
-  msamples_plot <- function(sft, fbt) {
-    x_breaks <- c(12, 32, 48, 64, 96, 128)
+# Draws the Kind labels and the dashed rounded boxes on top of the
+# finished ggplot. Rows 1-2: one box per row, Kind written vertically
+# on the right. Last row: one box per panel, Kind written below it.
+add_kind_boxes <- function(p, mach_charact, machine_order,
+                            side_rows = 1:2, pad = unit(2, "pt")) {
+    # a página nova vem antes do ggplotGrob, que já abre uma página no dispositivo: depois
+    # dele, o grid.newpage() criava uma página em branco no começo do PDF da figura
+    grid.newpage()
+    g <- ggplotGrob(p)
+
+    # Panels in reading order (top to bottom, left to right) = machine_order
+    panels <- g$layout |>
+    filter(grepl("^panel", name)) |>
+    arrange(t, l) |>
+    mutate(Machine = machine_order) |>
+    left_join(mach_charact, by = "Machine") |>
+    mutate(Kind = sub(" ", "\n", Kind))  # "Homogeneous\nIntel x86_64"
+
+    # New column right after the right-most panels for the vertical labels
+    label_col <- max(panels$r) + 1
+    g <- gtable_add_cols(g, unit(2.2, "lines"), pos = label_col - 1)
+
+    # New row under the last panel row (after its x axis) for bottom labels
+    bottom_t <- max(panels$b)
+    g <- gtable_add_rows(g, unit(2.2, "lines"), pos = bottom_t + 1)
+    label_row <- bottom_t + 2
+
+    box <- function(name) {
+    roundrectGrob(
+        x = 0.5, y = 0.5,
+        width  = unit(1, "npc") + 2 * pad,
+        height = unit(1, "npc") + 2 * pad,
+        r = unit(5, "pt"),
+        gp = gpar(fill = NA, lty = "dashed", lwd = 0.8, col = "grey30"),
+        name = name
+    )
+    }
+    # extent of a panel group: strip above (t-1), y axis left (l-1), x axis below (b+1)
+    row_tops <- sort(unique(panels$t))
+
+    # Side-labelled rows
+    for (i in side_rows) {
+    rp <- filter(panels, t == row_tops[i])
+    t <- min(rp$t) - 1; b <- max(rp$b) + 1
+    g <- gtable_add_grob(
+        g, textGrob(rp$Kind[1], rot = -90, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+        t = t, b = b, l = label_col, clip = "off", name = paste0("kind-side-", i)
+    )
+    g <- gtable_add_grob(g, box(paste0("box-row-", i)),
+                            t = t, b = b, l = min(rp$l) - 1, r = label_col,
+                            z = Inf, clip = "off")
+    }
+
+    # Bottom-labelled panels (every row not in side_rows)
+    for (i in setdiff(seq_along(row_tops), side_rows)) {
+    rp <- filter(panels, t == row_tops[i])
+    for (j in seq_len(nrow(rp))) {
+        pj <- rp[j, ]
+        lab_t <- if (pj$b == bottom_t) label_row else pj$b + 2
+        g <- gtable_add_grob(
+        g, textGrob(pj$Kind, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+        t = lab_t, l = pj$l, r = pj$r, clip = "off",
+        name = paste0("kind-bottom-", pj$Machine)
+        )
+        box_r <- if (pj$r == max(panels$r)) label_col else pj$r  # align with rows above
+        g <- gtable_add_grob(g, box(paste0("box-", pj$Machine)),
+                            t = pj$t - 1, b = lab_t, l = pj$l - 1, r = box_r,
+                            z = Inf, clip = "off")
+    }
+    }
+
+    grid.draw(g)
+    invisible(g)
+}
+
+msamples_plot <- function(sft, fbt) {
+    #x_breaks <- c(12, 32, 48, 64, 96, 128)
 
     fb_stats <- fbt |>
-      mutate(Machine = sub("\\d+$", "", Machine)) |>
-      filter(WithIO == 0, Schedulers != "guided") |>
-      select(-FILE) |>
-      group_by(Machine, Schedulers, Variant) |>
-      summarize(
+    mutate(Machine = sub("\\d+$", "", Machine)) |>
+    filter(WithIO == 0, Schedulers != "guided") |>
+    select(-FILE) |>
+    group_by(Machine, Schedulers, Variant) |>
+    summarize(
         rep      = n(),
         FB_Mean  = mean(Msamples),
         FB_Sd    = sd(Msamples),
-        FB_Error = (3 * FB_Sd) / sqrt(n()),
+        FB_Error = (qt(0.975, n() - 1) * FB_Sd) / sqrt(n()),
         .groups  = "drop"
-      ) |>
-      mutate(Version = glue("{Schedulers} ({Variant} threads)")) |>
-      left_join(mach_charact, by = "Machine") |>
-      mutate(Machine = factor(Machine, levels = machine_order))
+    ) |>
+    mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
+    left_join(mach_charact, by = "Machine") |>
+    mutate(Machine = factor(Machine, levels = machine_order))
 
     sf_msamples_plot <- sft |>
-      select(-FILE) |>
-      filter(WithIO == 0) |>
-      mutate(Machine = sub("\\d+$", "", Machine)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
+    select(-FILE) |>
+    filter(WithIO == 0) |>
+    mutate(Machine = sub("\\d+$", "", Machine)) |>
+    group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+    summarize(
         rep = n(),
         Msamples_mean  = mean(Msamples),
         Msamples_sd    = sd(Msamples),
-        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
+        Msamples_error = (qt(0.975, rep - 1) * Msamples_sd) / sqrt(rep),
         ExecTime_mean  = mean(ExecTime),
         ExecTime_sd    = sd(ExecTime),
-        ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
+        ExecTime_error = (qt(0.975, rep - 1) * ExecTime_sd) / sqrt(rep),
         .groups = "drop"
-      ) |>
-      left_join(mach_charact, by = "Machine") |>
-      mutate(Machine = factor(Machine, levels = machine_order))
+    ) |>
+    left_join(mach_charact, by = "Machine") |>
+    mutate(Machine = factor(Machine, levels = machine_order))
 
     p <- ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
-      geom_rect(
+    geom_rect(
         data = fb_stats,
         aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Version),
         xmin = -Inf, xmax = Inf,
         inherit.aes = FALSE, alpha = 0.4
-      ) +
-      geom_hline(data = fb_stats,
-                 aes(yintercept = FB_Mean, linetype = Version, color = Version),
-                 linewidth = 0.5, linewidth = 0.4) +
-      geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
+    ) +
+    geom_hline(data = fb_stats,
+                aes(yintercept = FB_Mean, linetype = Version, color = Version),
+                linewidth = 0.5, linewidth = 0.4) +
+    geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
                         ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
-      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
-      scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
-      scale_x_continuous(breaks = x_breaks) +
-      facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
-      labs(x = "Block Size", y = "Msamples/s",
-           fill = "Fletcher-base Versions", color = "Fletcher-base Versions",
-           linetype = "Fletcher-base Versions") +
-      guides(
+    geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
+    scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+    #scale_x_continuous(breaks = x_breaks) +
+    facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
+    labs(x = "Block Size", y = "Msamples/s",
+            fill = NULL, color = NULL,
+            linetype = NULL) +
+    guides(
         fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
         color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
         linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
         shape    = guide_legend(order = 2)
-      ) +
-      theme_bw(base_size = 7) +
-      theme(
+    ) +
+    theme_bw(base_size = 7) +
+    theme(
         legend.position = "bottom",
         legend.box = "vertical",
         legend.box.just = "left",
@@ -613,96 +986,29 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
         plot.margin = margin(2, 6, 2, 2),
         panel.spacing.x = unit(6, "pt"),
         panel.spacing.y = unit(10, "pt")
-      )
+    )
 
     add_kind_boxes(p, mach_charact, machine_order)
-  }
+}
 
-  msamples_plot(sf_res, fb_res)
+msamples_plot(sf_res, fb_res)
 
-  # Draws the Kind labels and the dashed rounded boxes on top of the
-  # finished ggplot. Rows 1-2: one box per row, Kind written vertically
-  # on the right. Last row: one box per panel, Kind written below it.
-  add_kind_boxes <- function(p, mach_charact, machine_order,
-                             side_rows = 1:2, pad = unit(2, "pt")) {
-    g <- ggplotGrob(p)
-
-    # Panels in reading order (top to bottom, left to right) = machine_order
-    panels <- g$layout |>
-      filter(grepl("^panel", name)) |>
-      arrange(t, l) |>
-      mutate(Machine = machine_order) |>
-      left_join(mach_charact, by = "Machine") |>
-      mutate(Kind = sub(" ", "\n", Kind))  # "Homogeneous\nIntel x86_64"
-
-    # New column right after the right-most panels for the vertical labels
-    label_col <- max(panels$r) + 1
-    g <- gtable_add_cols(g, unit(2.2, "lines"), pos = label_col - 1)
-
-    # New row under the last panel row (after its x axis) for bottom labels
-    bottom_t <- max(panels$b)
-    g <- gtable_add_rows(g, unit(2.2, "lines"), pos = bottom_t + 1)
-    label_row <- bottom_t + 2
-
-    box <- function(name) {
-      roundrectGrob(
-        x = 0.5, y = 0.5,
-        width  = unit(1, "npc") + 2 * pad,
-        height = unit(1, "npc") + 2 * pad,
-        r = unit(5, "pt"),
-        gp = gpar(fill = NA, lty = "dashed", lwd = 0.8, col = "grey30"),
-        name = name
-      )
-    }
-    # extent of a panel group: strip above (t-1), y axis left (l-1), x axis below (b+1)
-    row_tops <- sort(unique(panels$t))
-
-    # Side-labelled rows
-    for (i in side_rows) {
-      rp <- filter(panels, t == row_tops[i])
-      t <- min(rp$t) - 1; b <- max(rp$b) + 1
-      g <- gtable_add_grob(
-        g, textGrob(rp$Kind[1], rot = -90, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
-        t = t, b = b, l = label_col, clip = "off", name = paste0("kind-side-", i)
-      )
-      g <- gtable_add_grob(g, box(paste0("box-row-", i)),
-                           t = t, b = b, l = min(rp$l) - 1, r = label_col,
-                           z = Inf, clip = "off")
-    }
-
-    # Bottom-labelled panels (every row not in side_rows)
-    for (i in setdiff(seq_along(row_tops), side_rows)) {
-      rp <- filter(panels, t == row_tops[i])
-      for (j in seq_len(nrow(rp))) {
-        pj <- rp[j, ]
-        lab_t <- if (pj$b == bottom_t) label_row else pj$b + 2
-        g <- gtable_add_grob(
-          g, textGrob(pj$Kind, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
-          t = lab_t, l = pj$l, r = pj$r, clip = "off",
-          name = paste0("kind-bottom-", pj$Machine)
-        )
-        box_r <- if (pj$r == max(panels$r)) label_col else pj$r  # align with rows above
-        g <- gtable_add_grob(g, box(paste0("box-", pj$Machine)),
-                             t = pj$t - 1, b = lab_t, l = pj$l - 1, r = box_r,
-                             z = Inf, clip = "off")
-      }
-    }
-
-    grid.newpage()
-    grid.draw(g)
-    invisible(g)
-  }
 #+END_SRC
+
+#+CAPTION: ...
+#+NAME: fig:msamples
+#+ATTR_LATEX: :placement [!htb] :width \linewidth
+[[file:figures/msamples.pdf]]
 
 *** Exec Time Plot :ignore:
 
-#+BEGIN_SRC R :session *R* :async yes :results output silent
+#+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/exec_time.pdf" :exports none :width 3.5 :height 3.8
   # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
   # ou "ExecTime"). O star-fletcher são os pontos com a barra de erro, o fletcher-base (sem escalonador
   # guided) são as linhas horizontais com a faixa do erro, uma por versão (escalonador e threads).
   # `ios` escolhe os níveis de IO mostrados; o MSamples/s só vale sem IO.
   order_plot <- function(sft, fbt, metric, y_label, title, ios = c("Without IO", "Output every 1 steps", "Output every 5 steps")) {
-    x_breaks <- c(12, 32, 48, 64, 96, 128) #sort(unique(sft$Order))
+    #x_breaks <- c(12, 32, 48, 64, 96, 128) #sort(unique(sft$Order))
 
     io_label <- function(df) {
       df |>
@@ -721,7 +1027,7 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
       group_by(Machine, IO, Order) |>
       summarize(
         Mean = mean(y),
-        Error = (3 * sd(y)) / sqrt(n()),
+        Error = (qt(0.975, n() - 1) * sd(y)) / sqrt(n()),
         .groups = "drop"
       )
 
@@ -732,10 +1038,10 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
       group_by(Machine, IO, Schedulers, Variant) |>
       summarize(
         Mean = mean(y),
-        Error = (3 * sd(y)) / sqrt(n()),
+        Error = (qt(0.975, n() - 1) * sd(y)) / sqrt(n()),
         .groups = "drop"
       ) |>
-      mutate(Version = glue("{Schedulers} ({Variant} threads)")) |>
+      mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
       slice_min(Mean, n = 1, with_ties = FALSE, by = c(Machine, IO))
 
       ylims <- fb_stats |>
@@ -759,7 +1065,7 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
       geom_point(alpha = 0.8) +
       geom_line(linewidth = 0.5) +
       geom_errorbar(aes(ymin = Mean - Error, ymax = Mean + Error), width = 0.5) +
-      scale_x_continuous(breaks = x_breaks) +
+      #scale_x_continuous(breaks = x_breaks) +
       # facet_wrap para que cada painel tenha o seu eixo Y (no facet_grid os painéis da mesma linha
       # compartilham o eixo); uma coluna por máquina, então cada linha é um nível de IO
       facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
@@ -767,8 +1073,8 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
       scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
       labs(x = "Block Size", y = "Exection Time (s)",
-           fill = "Fletcher-base Versions", color = "Fletcher-base Versions",
-           linetype = "Fletcher-base Versions") +
+           fill = NULL, color = NULL,
+           linetype = NULL) +
       guides(
         fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
         color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
@@ -797,12 +1103,14 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
   order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Execution Time (s)", "Execution Time vs. Block Order")
 #+END_SRC
 
+#+CAPTION: ...
+#+NAME: fig:exec_time
+#+ATTR_LATEX: :placement [!htb] :width \linewidth
+[[file:figures/exec_time.pdf]]
+
 *** Scale Plot :ignore:
 
-Scale plot with exec time
-
-
-#+BEGIN_SRC R :session *R* :async yes :results output silent
+#+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
    # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
    # mostra o número total de threads), juntados com o patchwork. As cores são fixas por programa
    # para serem as mesmas em todas as máquinas.
@@ -816,6 +1124,10 @@ Scale plot with exec time
    # (ver cpu-topology.org)
    pcore_count <- c(poti = 8, tupi = 8)
 
+   # números de cores marcados no eixo X das máquinas em que eles ficam muito próximos e os rótulos
+   # se sobrepõem (os pontos continuam em todos os números de cores); 72 é um socket inteiro da grace
+   x_ticks <- list(grace = c(8, 32, 72, 144))
+
    scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE) {
      machine_plot <- function(machine, is_last) {
        d <- filter(stats, Machine == machine) |>
@@ -826,21 +1138,22 @@ Scale plot with exec time
            X = if_else(SMT == 1, MaxPhysical * (if (log_x) 1.6 else 1.2), NumCPUs)
          )
        ticks <- distinct(d, X, NumCPUs, SMT) |>
-         mutate(Label = if_else(SMT == 1, paste0(NumCPUs, "\n(SMT)"), as.character(NumCPUs)))
+         mutate(Label = if_else(SMT == 1, paste0(NumCPUs, "\n(SMT)"), as.character(NumCPUs))) |>
+         filter(!(machine %in% names(x_ticks)) | NumCPUs %in% x_ticks[[machine]])
        max_physical <- first(d$MaxPhysical)
 
        p <- ggplot(d, aes(x = X, y = y, color = Program)) +
-         geom_line(data = filter(d, SMT == 0), linewidth = 0.8)
+         geom_line(data = filter(d, SMT == 0), linewidth = 0.5)
        if (any(d$SMT == 1)) {
          # o trecho até o ponto com SMT é pontilhado, já que a distância não está em escala
-         p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.8)
+         p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.5)
        }
        if (machine %in% names(pcore_count)) {
          # linha tracejada onde terminam os p-cores e começam a ser usados os e-cores
          p <- p +
            geom_vline(xintercept = pcore_count[[machine]], linetype = "dashed", color = "gray40") +
            annotate("text", x = pcore_count[[machine]], y = Inf, label = " E-cores →",
-                    hjust = 0, vjust = 1.5, size = 3.5, color = "gray30")
+                    hjust = 0, vjust = 1.5, size = 2, color = "gray30")
        }
        
        p +
@@ -859,8 +1172,8 @@ Scale plot with exec time
            scales = "free_y",
            labeller = labeller(Machine = \(m) paste0(m, " (Order ", na.omit(d$Order)[1], ")"))) +
          labs(x = "Number of cores/threads", y = y_label, color = NULL) +
-         theme_bw(base_size = 15) +
-         theme(axis.text.x = element_text(size = 9)) +
+         theme_bw(base_size = 7) +
+         theme(axis.text.x = element_text(size = 5.5), plot.margin = margin(2, 2, 2, 2)) +
          # o rótulo do IO vale para a linha inteira, então só aparece no último gráfico
          (if (is_last) NULL else theme(strip.text.y = element_blank(), strip.background.y = element_blank()))
      }
@@ -873,11 +1186,9 @@ Scale plot with exec time
        map(\(m) machine_plot(m, m == last(machines)) + (if (m == with_legend) NULL else guides(color = "none"))) |>
        wrap_plots(nrow = 1) +
        plot_layout(guides = "collect", axis_titles = "collect") +
-       plot_annotation(
-         title = title,
-         subtitle = "Faceted by machine (columns) and IO (rows). The SMT point (all hardware threads) is not to scale."
-       ) &
-       theme(legend.position = "bottom")
+       # sem título: a descrição fica na legenda da figura no artigo
+       plot_annotation(title = NULL) &
+       theme(legend.position = "bottom", legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(2, "pt"))
    }
 
   scale_stats <- bind_rows(sf_scale, fb_scale) |>
@@ -889,9 +1200,9 @@ Scale plot with exec time
     summarize(
       n = n(),
       Msamples_mean = mean(Msamples),
-      Msamples_error = (3 * sd(Msamples)) / sqrt(n),
+      Msamples_error = (qt(0.975, n - 1) * sd(Msamples)) / sqrt(n),
       ExecTime_mean = mean(ExecTime),
-      ExecTime_error = (3 * sd(ExecTime)) / sqrt(n),
+      ExecTime_error = (qt(0.975, n - 1) * sd(ExecTime)) / sqrt(n),
       .groups = "drop"
     ) |>
     # O ponto com hyperthreading (SMT) não fica na escala do eixo X: ele é colocado um pouco
@@ -908,231 +1219,171 @@ Scale plot with exec time
      scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
+#+CAPTION: ...
+#+NAME: fig:scalability
+#+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
+[[file:figures/scalability.pdf]]
+
+*** Overlap Plot :ignore:
+
+
+#+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 2.3
+  library(starvz)
+
+  trace_root <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree"
+  lunaris_blockseg <- 8
+  lunaris_cores <- 24
+
+  kiteration_compare <- function(sf, fb_phases, title){
+    # as tarefas passam a se chamar Compute e IO (as de inserção da fonte são ignoradas),
+    # com as mesmas cores dos gráficos de barras
+    sf$Application <- sf$Application |>
+      filter(Value != "wave_insertion") |>
+      mutate(Value = if_else(Value == "write_block", "IO", "Compute"))
+    sf$Colors <- tibble(Value = c("Compute", "IO"), Color = c("#377eb8", "#e41a1c"))
+
+    fb <- sf
+    fb$Application <- fb_phases |>
+      transmute(
+        Iteration, Subiteration = -1L, Node = factor(0), ResourceId = "CPU0",
+        Value = if_else(Phase == "io", "IO", "Compute"),
+        Start, End, Duration
+      )
+
+    x_end <- max(max(sf$Application$End), max(fb$Application$End))
+
+    # tempo médio de uma iteração: do início da primeira tarefa ao fim da última de cada iteração
+    # (no star-fletcher as iterações se sobrepõem, então a soma delas é maior que o makespan)
+    bind_rows(
+      sf$Application |> mutate(Program = "star-fletcher"),
+      fb$Application |> mutate(Program = "fletcher-base (dynamic)")
+    ) |>
+      filter(Iteration >= 1) |>
+      group_by(Program, Iteration) |>
+      summarize(iteration_ms = max(End) - min(Start), .groups = "drop_last") |>
+      summarize(iterations = n(), mean_iteration_ms = mean(iteration_ms), sd_iteration_ms = sd(iteration_ms)) |>
+      print()
+
+    # Para a largura toda da página do IEEE (figure*, 7,16 pol.): fonte pequena, sem título (fica na
+    # legenda da figura), margens mínimas e o eixo X em segundos. O nome do programa fica no título do
+    # eixo Y e os dois painéis compartilham o eixo X, que só aparece embaixo. A legenda fica dentro do
+    # painel do star-fletcher, no espaço vazio à direita (ele termina antes do fletcher-base).
+    size <- 8
+    panel <- \(data, name) {
+      p <- panel_kiteration(data, base_size = size, x_start = 0, x_end = x_end, sub_ite = FALSE)
+      # as curvas que contornam as iterações são grossas demais nesse tamanho
+      for (i in seq_along(p$layers)) {
+        if (inherits(p$layers[[i]]$geom, "GeomCurve")) p$layers[[i]]$aes_params$linewidth <- 0.3
+      }
+      p +
+        scale_x_continuous(labels = \(x) x / 1000, expand = c(0, 0)) +
+        scale_y_reverse(breaks = c(0, 10, 20)) +
+        labs(x = "Time [s]", y = name)
+    }
+
+    (panel(sf, "star-fletcher") +
+       theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1))) /
+      (panel(fb, "fletcher-base\n(dynamic)") + guides(fill = "none")) +
+      plot_layout(axes = "collect") +
+      plot_annotation(title = title) &
+      theme(
+        plot.margin = margin(1, 4, 1, 1),
+        axis.title.y = element_text(size = size - 1, margin = margin(r = 2)),
+        axis.title.x = element_text(size = size, margin = margin(t = 1)),
+        axis.text = element_text(size = size - 1),
+        axis.ticks = element_line(linewidth = 0.3),
+        axis.ticks.length = unit(2, "pt"),
+        panel.border = element_rect(fill = NA, color = "grey30", linewidth = 0.4),
+        legend.title = element_blank(),
+        legend.text = element_text(size = size - 1),
+        legend.key.size = unit(8, "pt"),
+        legend.background = element_rect(fill = "white", color = "grey70", linewidth = 0.3),
+        legend.margin = margin(1, 3, 1, 3)
+      )
+  }
+
+  lunaris_io <- TRUE
+  io <- if_else(lunaris_io, "IO every step", "Without IO")
+
+  lunaris_sf <- starvz_read(
+    file.path(trace_root, "lunaris", if (lunaris_io) "OutputTime-0.0001" else "OutputTime-1", paste0("BlockSeg-", lunaris_blockseg)),
+    selective = FALSE
+  )
+
+  # Lê só a execução do fletcher-base com trace usada no gráfico (stdout-<NumCPUs>-<Schedulers>-<Steps>.out),
+  # que imprime o início e o fim da computação e do IO de cada iteração ("Iter N, comp_start: <segundos>").
+  # Uma linha por fase de cada iteração, com os tempos em ms a partir do primeiro comp_start.
+  lunaris_fb <- tibble(Machine = "lunaris", NumCPUs = lunaris_cores, Schedulers = "dynamic", Steps = if (lunaris_io) 1 else 10000) |>
+    mutate(FILE = glue("{base_dir}/fletcher-base-pdp-exp-scale-trace/{Machine}/stdout-{NumCPUs}-{Schedulers}-{Steps}.out")) |>
+    parse_files(FILE, function(lines) {
+      lines |>
+        str_match("^Iter (\\d+), (comp|io)_(start|end): ([0-9.]+)$") |>
+        as_tibble(.name_repair = ~ c("line", "Iteration", "Phase", "Edge", "Time")) |>
+        filter(!is.na(line)) |>
+        select(-line) |>
+        mutate(Iteration = as.integer(Iteration), Time = as.numeric(Time)) |>
+        pivot_wider(names_from = Edge, values_from = Time)
+    }) |>
+    mutate(
+      Start = 1000 * (start - min(start[Phase == "comp"])),
+      End = 1000 * (end - min(start[Phase == "comp"])),
+      Duration = End - Start
+    ) |>
+    select(Iteration, Phase, Start, End, Duration) |>
+    arrange(Iteration, Phase)
+
+  kiteration_compare(lunaris_sf, lunaris_fb, title = NULL)
+#+END_SRC
+
+#+CAPTION: ...
+#+NAME: fig:overlap
+#+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
+[[file:figures/overlap.pdf]]
 
 
 *** MSamples/s Plot                                                :ignore:
 
-#+latex: \linebreak
 
 #+latex: \noindent
 *Performance Overview with Industry Standard Metric.*
 #+latex: %
-The Figure [[fig:msamples_plot]] displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dark horizontal line represents the mean MSamples/s obtained with /fletcher-base/, with the gray band around it being its standard error. The dots show the mean MSamples/s as a function of the block order increase, in the /star-fletcher/ application. The lines crossing them being their standard error.
+The Figure fig:msamples_plot displays the recorded MSamples/s in the Y-axis as a function of the growth of the block order in the X-axis. It is faceted horizontally by the scheduler and vertically by the machine. The dark horizontal line represents the mean MSamples/s obtained with /fletcher-base/, with the gray band around it being its standard error. The dots show the mean MSamples/s as a function of the block order increase, in the /star-fletcher/ application. The lines crossing them being their standard error.
 #+latex: %
 Except for the draco machine, the hypothesis that, for every machine, there would be an order size at which computation would be faster in /star-fletcher/ than /fletcher-base/ holds.
 #+latex: %
 The draco machine nearly matched both programs' performance, even with /fletcher-base/ coming on top. The interesting performances come from grace, tupi, and poti, with the latter two having multiple configurations that surpass the baseline. This was expected as their CPU architecture is heterogeneous, with performance cores sharing space with energy cores, making OpenMP partitioning less effective than StarPU's schedulers. The grace machine's performance was unexpected, given how much above the baseline it rose, considering it is a homogeneous machine. Considering that most order configurations on it did not cross the baseline, its performance can probably be attributed to /star-fletcher/ matching the machine's ideal granularity. Another possibility is that /star-fletcher/ does not need to synchronize after every step. With that, a slow thread does not bottleneck the execution.
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/msamples_plot.pdf" :exports none :width 10 :height 10 :session *R*
-  msamples_plot <- function(sft, fbt) {
-    #x_breaks <- sort(unique(sft$Order))
-
-    x_breaks <- c(12, 32, 48, 64, 96)
-    
-    fb_stats <- fbt |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      filter(WithIO == 0) |>
-      group_by(Machine) |>
-      summarize(
-        rep = n(),
-        FB_Mean   = mean(Msamples),
-        FB_Sd     = sd(Msamples),
-        FB_Error  = (3 * FB_Sd) / sqrt(n()),
-        .groups   = "drop" 
-      )
-
-    sf_msamples_plot <- sft |>
-      select(-FILE) |>
-      filter(WithIO == 0) |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
-        rep = n(),
-        Msamples_mean = mean(Msamples),
-        Msamples_sd = sd(Msamples),
-        Msamples_error = (3 * Msamples_sd) / sqrt(rep),
-        #ExecTime_mean = mean(ExecTime),
-        #ExecTime_sd = sd(ExecTime),
-        #ExecTime_error = (3 * ExecTime_sd) / sqrt(rep),
-        .groups = "drop"
-      ) 
-
-    ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
-      
-      geom_point(alpha = 0.8) +
-      geom_errorbar(
-        aes(ymin = Msamples_mean - Msamples_error, ymax = Msamples_mean + Msamples_error),
-        width = 0.5) +
-      geom_rect(
-  	data = fb_stats, 
-  	aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error),
-  	  xmin = -Inf,
-  	  xmax = Inf,
-  	  inherit.aes = FALSE,
-  	  alpha = 0.4
-      ) +
-      geom_hline(data = fb_stats, aes(yintercept = FB_Mean), linetype = "solid", linewidth = 0.8) +
-      scale_x_continuous(breaks = x_breaks) +
-      ylim(0, NA) +
-      facet_grid(Machine ~ Schedulers, scales = "free_y") + 
-      labs(
-    	title = paste0("MSamples vs. Block Order"),
-    	subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
-    	x = "Block Size",
-    	y = "Msamples/s"
-      ) +
-      theme_bw(base_size = 15) +
-      theme(legend.position = "bottom")
-  }
-
-  msamples_plot(sf_res, fb_res)
-#+END_SRC
-
-#+CAPTION: Growth of MSamples/s as the order size increasses. It is faceted horizontally by machine and vertically by scheduler. The dots are the /star-fletcher/ values as the order grows and the line is the performance of /fletcher-base/ in that machine. The error bars on the dots have a confidence interval of $99\%$.
-#+NAME: fig:msamples_plot
-#+ATTR_LATEX: :placement [!htb] :width .9\linewidth
-[[file:msamples_plot.pdf]]
 
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
 The experiment to verify the absence of global synchronization used a StarPU compiled with options enabling the runtime to generate detailed traces of task execution. The traces have been processed using StarVZ cite:garcia2018visual with a modern data science workflow to generate tabular data for this analysis.
 #+latex: %
-Figure \ref{fig:iteration_plot} displays StarVZ's K-iteration panel depicting ten iterations executed on the grace machine. Tasks are represented by rectangles, with their color indicating the type of task (wave_insertion, wave_propagation, and write_block) and their x-coordinate spanning the duration during which they execute. The y-axis tells which iteration each task belongs to. The black lines above and below connect the beginning and end of each iteration, respectively. Together, this type of representation serves as a signature of the behavior from the application perspective, as one can tell how many iterations could execute simultaneously.
+Figure fig:iteration_plot displays StarVZ's K-iteration panel depicting ten iterations executed on the grace machine. Tasks are represented by rectangles, with their color indicating the type of task (wave_insertion, wave_propagation, and write_block) and their x-coordinate spanning the duration during which they execute. The y-axis tells which iteration each task belongs to. The black lines above and below connect the beginning and end of each iteration, respectively. Together, this type of representation serves as a signature of the behavior from the application perspective, as one can tell how many iterations could execute simultaneously.
 #+latex: %
 Because we designed /star-fletcher/ to have no global synchronization between iterations, we can clearly see how the StarPU scheduler can seamlessly overlap iterations. We can see that in about 30% of the run, we have tasks from three different iterations running at the same time; while in the middle of the execution, we can see tasks coming from four iterations executing at the same time. This expected overlap mechanism helps faster workers avoid stopping computation at synchronization points.
-
-#+name: run-starvz
-#+begin_src bash :async yes :exports none  :results silent
-  FILE="../results/traces/grace/starvz.pdf"
-  CONFIG="config.yaml"
-
-  if [ ! -f "$FILE" ]; then
-      starvz -c "$CONFIG" $(dirname "$FILE")
-  fi
-#+end_src
-
-#+BEGIN_EXPORT latex
-\begin{figure}[!htb]
-    \centering
-    \includegraphics[page=1, trim=0cm 13.63cm 0cm 0cm, clip, width=\linewidth, height=0.15\textheight]{../results/traces/grace/starvz.pdf}
-    \caption{Iteration Panel of the execution of \emph{star-fletcher} with 10 iteration on the grace machine with order 64.}
-    \label{fig:iteration_plot}
-\end{figure}
-#+END_EXPORT
 
 *** Time Plot                                                      :ignore:
 
 #+latex: \noindent
 *IO Overlaping Verification.*
 #+latex: %
-Figure \ref{fig:iteration_plot} also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section [[sec:methodology]]. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure [[fig:time_diff]] the same trends as in Figure [[fig:msamples_plot]]. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $99\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the baseline.
+Figure fig:iteration_plot also displays another element, the /write_block/ task. To assess performance with IO, Execution time is the metric to be observed, as per the limitations listed in Section sec:methodology. Using the same runs, but now examining Execution Time with respect to order size, we can observe in Figure fig:time_diff the same trends as in Figure fig:msamples_plot. The dots are the mean difference between the /star-fletcher/ execution and the /fletcher-base/ execution, with the error bars being the standard error of the difference of two means, with a confidence interval of $95\%$. When the dots are below the dashed line, it means /star-fletcher/'s execution time is faster than the baseline.
 #+latex: %
-Figure [[fig:time_diff]] plots the cases when IO is being used and, in that case, /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei, and tupi machines, though in the last, the effect is marginal. The machines for which this trend is not observed (draco and grace) are those for which execution time did not show a significant improvement over the baseline or showed no improvement at all. This indicates that the IO optimizations were ineffective on machines where execution time did not improve over the baseline. The schedulers did not play a significant positive role in execution times, given that StarPU's default scheduler is ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not generally perform better than the simple ones (ws and lws). This demonstrates that, for CPU-only applications, schedulers may be only a small source of potential speedup. 
+Figure fig:time_diff plots the cases when IO is being used and, in that case, /star-fletcher/ has more performance gains over /fletcher-base/ when considering them. This can be seen in the poti, cei, and tupi machines, though in the last, the effect is marginal. The machines for which this trend is not observed (draco and grace) are those for which execution time did not show a significant improvement over the baseline or showed no improvement at all. This indicates that the IO optimizations were ineffective on machines where execution time did not improve over the baseline. The schedulers did not play a significant positive role in execution times, given that StarPU's default scheduler is ws. As observed in all plots, a poor scheduler, such as random, can ruin the execution times. The schedulers based on performance models (dm and dmdar) did not generally perform better than the simple ones (ws and lws). This demonstrates that, for CPU-only applications, schedulers may be only a small source of potential speedup. 
 #+latex: %
-
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/time_plot.pdf" :exports none :width 10 :height 10 :session *R*
-  time_plot <- function(sft, fbt) {
-    x_breaks <- c(12, 32, 48, 64, 96)
-    
-    fb_stats <- fbt |>
-      select(-FILE) |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
-        fb_n = n(),
-        ExecTime_fb_mean = mean(ExecTime, na.rm = TRUE),
-        ExecTime_fb_sd = sd(ExecTime, na.rm = TRUE),
-        .groups = "drop"
-      )
-
-    sf_comb <- sft |>
-      select(-FILE) |>
-      mutate(Machine = str_sub(Machine, end = -2)) |>
-      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-      summarize(
-        sf_n = n(),
-        ExecTime_sf_mean = mean(ExecTime, na.rm = TRUE),
-        ExecTime_sf_sd = sd(ExecTime, na.rm = TRUE),
-        .groups = "drop"
-      ) |>
-      left_join(fb_stats, by = c("Machine", "WithIO")) |>
-      mutate(
-        # Difference of Means
-        Diff_mean = ExecTime_sf_mean - ExecTime_fb_mean,
-        
-        # Combined Standard Error for Independent Samples
-        Combined_SE = sqrt((ExecTime_sf_sd^2 / sf_n) + (ExecTime_fb_sd^2 / fb_n)),
-        
-        # 3x Error mapping
-        Diff_error = 3 * Combined_SE
-      )
-
-    # 3. Plot (Exact same plotting code as above)
-    ggplot(sf_comb, aes(x = Order, y = Diff_mean, color = factor(WithIO))) +
-      geom_hline(yintercept = 0, linetype = "dashed") +
-      geom_point(alpha = 0.8) +
-      geom_line(linewidth = 0.8) +
-      geom_errorbar(
-        aes(ymin = Diff_mean - Diff_error, ymax = Diff_mean + Diff_error), 
-        width = 0.5
-      ) +
-      coord_cartesian(ylim = c(-7.5, 7.5)) +
-      scale_x_continuous(breaks = x_breaks) +
-      facet_grid(Machine ~ Schedulers) +
-      scale_color_discrete(
-        name = NULL,
-        labels = c("0" = "without IO", "1" = "with IO")
-      ) +
-      labs(
-        title = "Execution Time Difference vs. Block Order",
-        subtitle = "Faceted by Scheduler (X axis) and Machine (Y axis)",
-        x = "Block Size",
-        y = "Execution Time Difference (s)"
-      ) +
-      theme_bw(base_size=15) +
-      theme(
-        legend.position = "bottom",
-        legend.margin = margin(t = -10, b = -10),
-        axis.text.x = element_text(size = 10)
-      )
-  }
-
-  time_plot(sf_res, fb_res) 
-#+END_SRC
-
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. It is faceted horizontally by machine and vertically by scheduler. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
-#+NAME: fig:time_diff
-#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
-[[file:time_plot.pdf]]
 
 
 #+latex: \noindent
 *Source of Performance Gains on Heterogeneous Machines.*
 #+latex: %
-In the previous analysis, the heterogeneous machines (tupi and poti) performed well. This is probably due to StarPU ability to use a machine's heterogeneous architecture to its fullest. To validate that, one experiment was conducted on the tupi and poti machines, in which only the machines' p-cores were used to run both applications. Figure [[fig:pcore_time_diff]] shows their relative performance in the same form as Figure [[fig:time_diff]]. In/star-fletcher/'s case, it was configured with only 8 workers, each bound to a p-core. In/fletcher-base/'s case, it was configured with only 8 threads, each pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much milder when considering the ones in Figure [[fig:time_diff]].
+In the previous analysis, the heterogeneous machines (tupi and poti) performed well. This is probably due to StarPU ability to use a machine's heterogeneous architecture to its fullest. To validate that, one experiment was conducted on the tupi and poti machines, in which only the machines' p-cores were used to run both applications. Figure fig:pcore_time_diff shows their relative performance in the same form as Figure fig:time_diff. In/star-fletcher/'s case, it was configured with only 8 workers, each bound to a p-core. In/fletcher-base/'s case, it was configured with only 8 threads, each pinned to one of the CPU's p-cores. The gains observed now from /star-fletcher/ are much milder when considering the ones in Figure fig:time_diff.
 #+latex: %
-The Figure [[fig:pcore_time_diff]] shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain from using only p-cores. The computational overlap among iterations is responsible for the persistence of performance gains in the p-core-only environment, as shown in Figure \ref{fig:iteration_plot}. The CPU clock speed, which is above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast, small computations.
+The Figure fig:pcore_time_diff shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain from using only p-cores. The computational overlap among iterations is responsible for the persistence of performance gains in the p-core-only environment, as shown in Figure fig:iteration_plot. The CPU clock speed, which is above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast, small computations.
 
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_time_plot.pdf" :exports none :width 10 :height 5 :session *R*
-  time_plot(sf_res_p, fb_res_p) 
-#+END_SRC
 
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, and only the processor's p-cores. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
-#+NAME: fig:pcore_time_diff
-#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
-[[file:pcore_time_plot.pdf]]
+Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefore, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure fig:pcore_dyn_time_diff was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as they were when going from all cores to only p-cores. This does not show that the Fletcher algorithm is inadequate for static partitioning, only that the remaining /star-fletcher/ gains can be attributed to optimizations for IO and iteration overlap.
 
-Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefore, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure [[fig:pcore_dyn_time_diff]] was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as they were when going from all cores to only p-cores. This does not show that the Fletcher algorithm is inadequate for static partitioning, only that the remaining /star-fletcher/ gains can be attributed to optimizations for IO and iteration overlap.
-
-#+BEGIN_SRC R :async yes :results graphics file silent :file "sscad/paper/pcore_dyn_time_plot.pdf" :exports none :width 10 :height 5 :session *R*
-  time_plot(sf_res_p, fb_res_p_dyn) 
-#+END_SRC
-
-#+CAPTION: Growth of execution time difference of /star-fletcher/ from the baseline execution time of /fletcher-base/ as the block order increasses. Faceted by scheduler and machine, only the processor's p-cores and using the dynamic runtime in OpenMP for /fletcher-base/. The error bars on the dots are the standard error of the difference of two independent means and have a confidence interval of $99\%$.
-#+NAME: fig:pcore_dyn_time_diff
-#+ATTR_LATEX: :placement [!htb] :width .9\textwidth
-[[file:pcore_dyn_time_plot.pdf]]
 
 ** Conclusion
 <<sec:conclusion>>
