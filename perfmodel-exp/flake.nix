@@ -34,7 +34,6 @@
 
         nixglhost = "${nix-gl-host.defaultPackage.${system}}/bin/nixglhost";
 
-        tail1 = s: builtins.substring 1 (-1) s;
 
         experimentScriptBase = name: options: 
           let
@@ -64,7 +63,6 @@
             '';
             
             bashRunFn = { 
-                WithIO,
                 BlockSeg,
                 Schedulers,
                 Blocks,
@@ -73,16 +71,12 @@
                 BorderSize,
                 TotalTime,
                 TimeStep,
-                OutputTime,
                 ...
             }: 
               let
-                filename = "${Schedulers}-${BlockSeg}-${WithIO}-${tail1 Blocks}";
+                filename = "${Schedulers}-${BlockSeg}-${Blocks}";
                 stdout-file = "${scratch-folder}/stdout-${filename}.out";
-                rsf-file = "${scratch-folder}/out-${filename}.rsf";
-                rsf-at-file = "${rsf-file}@";
-                # one perfmodel dir per config, shared by all replications (Blocks)
-                perfmodel-name = "perfmodel-${Schedulers}-${BlockSeg}-${WithIO}";
+                perfmodel-name = "perfmodel-${Schedulers}-${BlockSeg}";
                 perfmodel-dir = "${scratch-folder}/${perfmodel-name}";
             in
             ''
@@ -91,17 +85,12 @@
                 STARPU_PERF_MODEL_DIR=${perfmodel-dir} \
                 STARPU_CALIBRATE=1 \
                 STARPU_SCHED=${Schedulers} \
-                OUTPUT_FOLDER=${scratch-folder} \
-                OUTPUT_FILE=${filename} \
-                ENABLE_IO=${WithIO} \
+                ENABLE_IO=0 \
                 ${nixglhost} ${program} TTI ${Width} ${Width} ${Width} \
                 ${AbsorbSize} 12.5 12.5 12.5 \
-                ${TimeStep} ${TotalTime} ${BlockSeg} ${OutputTime} 2>&1 > ${stdout-file}
+                ${TimeStep} ${TotalTime} ${BlockSeg} 1 2>&1 > ${stdout-file}
 
                 cat ${stdout-file}
-
-                rm ${rsf-file} ${rsf-at-file}
-
                 cp ${stdout-file} ${home-folder}
                 tar -czf ${home-folder}/${perfmodel-name}.tar.gz -C ${scratch-folder} ${perfmodel-name}
             '';
