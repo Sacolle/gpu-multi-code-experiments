@@ -774,12 +774,12 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 
 *** Msamples/s Plot :ignore:
 
-For this experiments, it was used a medium size of 384 units on the 3 dimensions, with a proximate total of $5.5 \cdot 10^{7}$ points. For each computation there were executed 20 iterations. The size of 384 units was not a workload big enough to stress the grace machine, in that case, there was used a size of 720 units on each dimension, with a proximate total of $3.7 \cdot 10^{8}$ with the same number of iterations.
+For these experiments, it was used cubed medium with width of 384 points, with an approximate total of $5.5 \cdot 10^{7}$ points. (Justifique o tamanho do volume). For each computation there were executed 20 iterations (Já explicou o que é uma iteração?). This size wasn't big enough to stress the grace machine. In that case, it was used a cubed medium with width of 720 points on each dimension, with an approximate total of $3.7 \cdot 10^{8}$ with the same number of iterations.
 
 Figure [[fig:msamples]] uses the industry standard metric. Msamples/s
 1. The X axis is the order of block chosen for /star-fletcher/ and the Y axis is the Msamples/s
 2. It is facet by Machine, which were grouped by their characteristics:
-   - The top row are the homogeneous machines using an inter x86_64 processor, common in HPC contexts
+   - The top row are the homogeneous machines using an intel x86_64 processor, common in HPC contexts
    - The middle row are the heterogeneous intel x86_64 machines, whose CPUs have a mixture of p-cores and e-cores. They're more common in consumer hardware.
    - The bottom row contains two cases, both machines were made for HPC use cases:
      - The one on the left is an homogeneous AMD x86_64 machine
@@ -791,6 +791,8 @@ Figure [[fig:msamples]] uses the industry standard metric. Msamples/s
    - It was used a confidence interval of 95\%, with Student's t distribution: $t_{0.975,\,n-1} \cdot sd(v) / \sqrt{n}$
      > Claude:
         Each configuration was executed 10 times in randomized order. Error bars are 95% confidence intervals of the mean, computed with Student's t distribution. Run-to-run variability was low: across the 255 configurations, the median coefficient of variation of the execution time is 1.2%, and 73% of the intervals are narrower than ±2% of the mean. Shapiro–Wilk tests rejected normality in only 6 configurations after Bonferroni correction (8 for MSamples/s). The t-based intervals are therefore adequate, and 10 replications are sufficient to distinguish the compared versions.
+        -> Reduizir o tamanho do texto
+        -> 10 reptições random -> shapiro -> Bonferroni -> decide student t 95% -> Mover para a parte de metodologia
 5. The horizontal lines different are /fletcher-base/ executions which are represented as such because they are not parameterized by the block order. Each line represents one of the four cases dynamic and static run-times without binding threads to cores, and dynamic and static run-times with binding threads to cores with a one to one correspondence.
    - The runtime should be elaborated in the fletcher-base section, but the bind or free needs to be talked here?
    - The translucent color around the lines are the standard error of that measurement with a confidence interval of 95%
@@ -819,179 +821,182 @@ Figure [[fig:msamples]] uses the industry standard metric. Msamples/s
     )
 #+END_SRC
       
-Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/ by , on the best scenario, $5.54\%$, $50.6\%$ and $12.2\%$ respectively. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/ by  $-0.29\%$, $8.39\%$ and $7.45\%$ respectively. It is to note that, on machines with greater the Msamples/s yields, the /star-fletcher/ tends to outperform.
+Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/ by, on the best scenario, $5.54\%$, $50.6\%$ and $12.2\%$ respectively. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/ by  $-0.29\%$, $8.39\%$ and $7.45\%$ respectively. On machines with greater the Msamples/s yields, the /star-fletcher/ tends to outperform.
 Another interesting point is that, for the /fletcher-base/ all of the best executions were using the dynamic scheduling with non-bound threads, with exception of grace that used dynamic bound threads.
+- Anotate the graph and talk about the anotated points
+  - Legendas em cima
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
 
-mach_charact <- tibble(
-    Machine = c("cei", "draco", "poti", "tupi", "lunaris", "grace"),
-    Kind = c("Homogeneous Intel x86_64", "Homogeneous Intel x86_64",
-            "Heterogeneous Intel x86_64", "Heterogeneous Intel x86_64",
-            "Homogeneous AMD x86_64", "Homogeneous Grace aarch64")
-)
+  mach_charact <- tibble(
+      Machine = c("cei", "draco", "poti", "tupi", "lunaris", "grace"),
+      Kind = c("Homogeneous Intel x86_64", "Homogeneous Intel x86_64",
+              "Heterogeneous Intel x86_64", "Heterogeneous Intel x86_64",
+              "Homogeneous AMD x86_64", "Homogeneous Grace aarch64")
+  )
 
-                                        # Panel order, read left to right, top to bottom
-machine_order <- c("poti", "tupi", "cei", "draco", "lunaris", "grace")
+                                          # Panel order, read left to right, top to bottom
+  machine_order <- c("poti", "tupi", "cei", "draco", "lunaris", "grace")
 
-# Draws the Kind labels and the dashed rounded boxes on top of the
-# finished ggplot. Rows 1-2: one box per row, Kind written vertically
-# on the right. Last row: one box per panel, Kind written below it.
-add_kind_boxes <- function(p, mach_charact, machine_order,
-                            side_rows = 1:2, pad = unit(2, "pt")) {
-    # a página nova vem antes do ggplotGrob, que já abre uma página no dispositivo: depois
-    # dele, o grid.newpage() criava uma página em branco no começo do PDF da figura
-    grid.newpage()
-    g <- ggplotGrob(p)
+  # Draws the Kind labels and the dashed rounded boxes on top of the
+  # finished ggplot. Rows 1-2: one box per row, Kind written vertically
+  # on the right. Last row: one box per panel, Kind written below it.
+  add_kind_boxes <- function(p, mach_charact, machine_order,
+                              side_rows = 1:2, pad = unit(2, "pt")) {
+      # a página nova vem antes do ggplotGrob, que já abre uma página no dispositivo: depois
+      # dele, o grid.newpage() criava uma página em branco no começo do PDF da figura
+      grid.newpage()
+      g <- ggplotGrob(p)
 
-    # Panels in reading order (top to bottom, left to right) = machine_order
-    panels <- g$layout |>
-    filter(grepl("^panel", name)) |>
-    arrange(t, l) |>
-    mutate(Machine = machine_order) |>
-    left_join(mach_charact, by = "Machine") |>
-    mutate(Kind = sub(" ", "\n", Kind))  # "Homogeneous\nIntel x86_64"
+      # Panels in reading order (top to bottom, left to right) = machine_order
+      panels <- g$layout |>
+      filter(grepl("^panel", name)) |>
+      arrange(t, l) |>
+      mutate(Machine = machine_order) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Kind = sub(" ", "\n", Kind))  # "Homogeneous\nIntel x86_64"
 
-    # New column right after the right-most panels for the vertical labels
-    label_col <- max(panels$r) + 1
-    g <- gtable_add_cols(g, unit(2.2, "lines"), pos = label_col - 1)
+      # New column right after the right-most panels for the vertical labels
+      label_col <- max(panels$r) + 1
+      g <- gtable_add_cols(g, unit(2.2, "lines"), pos = label_col - 1)
 
-    # New row under the last panel row (after its x axis) for bottom labels
-    bottom_t <- max(panels$b)
-    g <- gtable_add_rows(g, unit(2.2, "lines"), pos = bottom_t + 1)
-    label_row <- bottom_t + 2
+      # New row under the last panel row (after its x axis) for bottom labels
+      bottom_t <- max(panels$b)
+      g <- gtable_add_rows(g, unit(2.2, "lines"), pos = bottom_t + 1)
+      label_row <- bottom_t + 2
 
-    box <- function(name) {
-    roundrectGrob(
-        x = 0.5, y = 0.5,
-        width  = unit(1, "npc") + 2 * pad,
-        height = unit(1, "npc") + 2 * pad,
-        r = unit(5, "pt"),
-        gp = gpar(fill = NA, lty = "dashed", lwd = 0.8, col = "grey30"),
-        name = name
-    )
-    }
-    # extent of a panel group: strip above (t-1), y axis left (l-1), x axis below (b+1)
-    row_tops <- sort(unique(panels$t))
+      box <- function(name) {
+      roundrectGrob(
+          x = 0.5, y = 0.5,
+          width  = unit(1, "npc") + 2 * pad,
+          height = unit(1, "npc") + 2 * pad,
+          r = unit(5, "pt"),
+          gp = gpar(fill = NA, lty = "dashed", lwd = 0.8, col = "grey30"),
+          name = name
+      )
+      }
+      # extent of a panel group: strip above (t-1), y axis left (l-1), x axis below (b+1)
+      row_tops <- sort(unique(panels$t))
 
-    # Side-labelled rows
-    for (i in side_rows) {
-    rp <- filter(panels, t == row_tops[i])
-    t <- min(rp$t) - 1; b <- max(rp$b) + 1
-    g <- gtable_add_grob(
-        g, textGrob(rp$Kind[1], rot = -90, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
-        t = t, b = b, l = label_col, clip = "off", name = paste0("kind-side-", i)
-    )
-    g <- gtable_add_grob(g, box(paste0("box-row-", i)),
-                            t = t, b = b, l = min(rp$l) - 1, r = label_col,
-                            z = Inf, clip = "off")
-    }
+      # Side-labelled rows
+      for (i in side_rows) {
+      rp <- filter(panels, t == row_tops[i])
+      t <- min(rp$t) - 1; b <- max(rp$b) + 1
+      g <- gtable_add_grob(
+          g, textGrob(rp$Kind[1], rot = -90, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+          t = t, b = b, l = label_col, clip = "off", name = paste0("kind-side-", i)
+      )
+      g <- gtable_add_grob(g, box(paste0("box-row-", i)),
+                              t = t, b = b, l = min(rp$l) - 1, r = label_col,
+                              z = Inf, clip = "off")
+      }
 
-    # Bottom-labelled panels (every row not in side_rows)
-    for (i in setdiff(seq_along(row_tops), side_rows)) {
-    rp <- filter(panels, t == row_tops[i])
-    for (j in seq_len(nrow(rp))) {
-        pj <- rp[j, ]
-        lab_t <- if (pj$b == bottom_t) label_row else pj$b + 2
-        g <- gtable_add_grob(
-        g, textGrob(pj$Kind, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
-        t = lab_t, l = pj$l, r = pj$r, clip = "off",
-        name = paste0("kind-bottom-", pj$Machine)
-        )
-        box_r <- if (pj$r == max(panels$r)) label_col else pj$r  # align with rows above
-        g <- gtable_add_grob(g, box(paste0("box-", pj$Machine)),
-                            t = pj$t - 1, b = lab_t, l = pj$l - 1, r = box_r,
-                            z = Inf, clip = "off")
-    }
-    }
+      # Bottom-labelled panels (every row not in side_rows)
+      for (i in setdiff(seq_along(row_tops), side_rows)) {
+      rp <- filter(panels, t == row_tops[i])
+      for (j in seq_len(nrow(rp))) {
+          pj <- rp[j, ]
+          lab_t <- if (pj$b == bottom_t) label_row else pj$b + 2
+          g <- gtable_add_grob(
+          g, textGrob(pj$Kind, gp = gpar(fontsize = 6.5, lineheight = 0.9, fontface = "bold")),
+          t = lab_t, l = pj$l, r = pj$r, clip = "off",
+          name = paste0("kind-bottom-", pj$Machine)
+          )
+          box_r <- if (pj$r == max(panels$r)) label_col else pj$r  # align with rows above
+          g <- gtable_add_grob(g, box(paste0("box-", pj$Machine)),
+                              t = pj$t - 1, b = lab_t, l = pj$l - 1, r = box_r,
+                              z = Inf, clip = "off")
+      }
+      }
 
-    grid.draw(g)
-    invisible(g)
-}
+      grid.draw(g)
+      invisible(g)
+  }
 
-msamples_plot <- function(sft, fbt) {
-    #x_breaks <- c(12, 32, 48, 64, 96, 128)
+  msamples_plot <- function(sft, fbt) {
+      #x_breaks <- c(12, 32, 48, 64, 96, 128)
 
-    fb_stats <- fbt |>
-    mutate(Machine = sub("\\d+$", "", Machine)) |>
-    filter(WithIO == 0, Schedulers != "guided") |>
-    select(-FILE) |>
-    group_by(Machine, Schedulers, Variant) |>
-    summarize(
-        rep      = n(),
-        FB_Mean  = mean(Msamples),
-        FB_Sd    = sd(Msamples),
-        FB_Error = (qt(0.975, n() - 1) * FB_Sd) / sqrt(n()),
-        .groups  = "drop"
-    ) |>
-    mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
-    left_join(mach_charact, by = "Machine") |>
-    mutate(Machine = factor(Machine, levels = machine_order))
+      fb_stats <- fbt |>
+      mutate(Machine = sub("\\d+$", "", Machine)) |>
+      filter(WithIO == 0, Schedulers != "guided") |>
+      select(-FILE) |>
+      group_by(Machine, Schedulers, Variant) |>
+      summarize(
+          rep      = n(),
+          FB_Mean  = mean(Msamples),
+          FB_Sd    = sd(Msamples),
+          FB_Error = (qt(0.975, n() - 1) * FB_Sd) / sqrt(n()),
+          .groups  = "drop"
+      ) |>
+      mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Machine = factor(Machine, levels = machine_order))
 
-    sf_msamples_plot <- sft |>
-    select(-FILE) |>
-    filter(WithIO == 0) |>
-    mutate(Machine = sub("\\d+$", "", Machine)) |>
-    group_by(across(-c(Msamples, ExecTime, Blocks))) |>
-    summarize(
-        rep = n(),
-        Msamples_mean  = mean(Msamples),
-        Msamples_sd    = sd(Msamples),
-        Msamples_error = (qt(0.975, rep - 1) * Msamples_sd) / sqrt(rep),
-        ExecTime_mean  = mean(ExecTime),
-        ExecTime_sd    = sd(ExecTime),
-        ExecTime_error = (qt(0.975, rep - 1) * ExecTime_sd) / sqrt(rep),
-        .groups = "drop"
-    ) |>
-    left_join(mach_charact, by = "Machine") |>
-    mutate(Machine = factor(Machine, levels = machine_order))
+      sf_msamples_plot <- sft |>
+      select(-FILE) |>
+      filter(WithIO == 0) |>
+      mutate(Machine = sub("\\d+$", "", Machine)) |>
+      group_by(across(-c(Msamples, ExecTime, Blocks))) |>
+      summarize(
+          rep = n(),
+          Msamples_mean  = mean(Msamples),
+          Msamples_sd    = sd(Msamples),
+          Msamples_error = (qt(0.975, rep - 1) * Msamples_sd) / sqrt(rep),
+          ExecTime_mean  = mean(ExecTime),
+          ExecTime_sd    = sd(ExecTime),
+          ExecTime_error = (qt(0.975, rep - 1) * ExecTime_sd) / sqrt(rep),
+          .groups = "drop"
+      ) |>
+      left_join(mach_charact, by = "Machine") |>
+      mutate(Machine = factor(Machine, levels = machine_order))
 
-    p <- ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
-    geom_rect(
-        data = fb_stats,
-        aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Version),
-        xmin = -Inf, xmax = Inf,
-        inherit.aes = FALSE, alpha = 0.4
-    ) +
-    geom_hline(data = fb_stats,
-                aes(yintercept = FB_Mean, linetype = Version, color = Version),
-                linewidth = 0.5, linewidth = 0.4) +
-    geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
-                        ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
-    geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
-    scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
-    #scale_x_continuous(breaks = x_breaks) +
-    facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
-    labs(x = "Block Size", y = "Msamples/s",
-            fill = NULL, color = NULL,
-            linetype = NULL) +
-    guides(
-        fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        shape    = guide_legend(order = 2)
-    ) +
-    theme_bw(base_size = 7) +
-    theme(
-        legend.position = "bottom",
-        legend.box = "vertical",
-        legend.box.just = "left",
-        legend.margin = margin(0, 0, 0, 0),
-        legend.box.spacing = unit(3, "pt"),
-        legend.spacing.y = unit(0, "pt"),
-        legend.key.size = unit(8, "pt"),
-        legend.text = element_text(size = 6, margin = margin(r = 8)),
-        legend.title = element_text(size = 7),
-        strip.text = element_text(margin = margin(2, 2, 2, 2)),
-        plot.margin = margin(2, 6, 2, 2),
-        panel.spacing.x = unit(6, "pt"),
-        panel.spacing.y = unit(10, "pt")
-    )
+      p <- ggplot(sf_msamples_plot, aes(x = Order, y = Msamples_mean)) +
+      geom_rect(
+          data = fb_stats,
+          aes(ymin = FB_Mean - FB_Error, ymax = FB_Mean + FB_Error, fill = Version),
+          xmin = -Inf, xmax = Inf,
+          inherit.aes = FALSE, alpha = 0.4
+      ) +
+      geom_line(alpha = 0.3) +
+      geom_hline(data = fb_stats,
+                  aes(yintercept = FB_Mean, linetype = Version, color = Version),
+                  linewidth = 0.5, linewidth = 0.4) +
+      geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
+                          ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
+      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
+      #scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+      #scale_x_continuous(breaks = x_breaks) +
+      facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
+      labs(x = "Block Size", y = "Msamples/s",
+              fill = NULL, color = NULL,
+              linetype = NULL) +
+      guides(
+          fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+          color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+          linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+          shape    = guide_legend(order = 2)
+      ) +
+      theme_bw(base_size = 7) +
+      theme(
+          legend.position = "top",
+          legend.box = "vertical",
+          legend.box.just = "left",
+          legend.margin = margin(0, 0, 0, 0),
+          legend.box.spacing = unit(1, "pt"),
+          legend.spacing.y = unit(0, "pt"),
+          legend.key.size = unit(8, "pt"),
+          legend.text = element_text(size = 6, margin = margin(r = 8)),
+          legend.title = element_text(size = 7),
+          strip.text = element_text(margin = margin(2, 2, 2, 2)),
+          plot.margin = margin(2, 6, 2, 2),
+          panel.spacing.x = unit(6, "pt"),
+          panel.spacing.y = unit(10, "pt")
+      )
 
-    add_kind_boxes(p, mach_charact, machine_order)
-}
+      add_kind_boxes(p, mach_charact, machine_order)
+  }
 
-msamples_plot(sf_res, fb_res)
+  msamples_plot(sf_res, fb_res)
 
 #+END_SRC
 
@@ -1000,7 +1005,15 @@ msamples_plot(sf_res, fb_res)
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/msamples.pdf]]
 
-*** Exec Time Plot :ignore:
+*** Exec Time Plot                                                :ignore:
+
+commentar do IO direct
+- Anotar no eixo y o valor da linha
+- Não fala do Direct IO
+  - Tem que escolher
+    - Escolher so o dynamic (free) nas plots -> tom de cinza
+      Mudar a cor
+      Geomline com alfa 0.3
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/exec_time.pdf" :exports none :width 3.5 :height 3.8
   # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
@@ -1042,6 +1055,7 @@ msamples_plot(sf_res, fb_res)
         .groups = "drop"
       ) |>
       mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
+      filter(Version == "fletcher-base dynamic (free)") |>
       slice_min(Mean, n = 1, with_ties = FALSE, by = c(Machine, IO))
 
       ylims <- fb_stats |>
@@ -1068,22 +1082,25 @@ msamples_plot(sf_res, fb_res)
       #scale_x_continuous(breaks = x_breaks) +
       # facet_wrap para que cada painel tenha o seu eixo Y (no facet_grid os painéis da mesma linha
       # compartilham o eixo); uma coluna por máquina, então cada linha é um nível de IO
-      facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
-      facetted_pos_scales(y = y_scales) + 
+      #facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
+      # no facet_grid o free_y só libera o eixo Y por linha (aqui, por nível de IO), então as máquinas da
+      # mesma linha dividiam o eixo; o facet_grid2 com independent = "y" dá um eixo Y para cada painel
+      ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y") +
+      # facetted_pos_scales(y = y_scales) + 
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
       scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
       labs(x = "Block Size", y = "Exection Time (s)",
            fill = NULL, color = NULL,
            linetype = NULL) +
-      guides(
-        fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-        shape    = guide_legend(order = 2)
-      ) +
+     # guides(
+     #   fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+     #   color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+     #   linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
+     #   shape    = guide_legend(order = 2)
+     # ) +
       theme_bw(base_size = 7) +
       theme(
-        legend.position = "bottom",
+        legend.position = "none",
         legend.box = "vertical",
         legend.box.just = "left",
         legend.margin = margin(0, 0, 0, 0),
@@ -1109,6 +1126,11 @@ msamples_plot(sf_res, fb_res)
 [[file:figures/exec_time.pdf]]
 
 *** Scale Plot :ignore:
+
+Caixinhas
+Tirar o potilahdo do SMT e fazer linear (manter a anotação no X de smt)
+Inset nas facetas da grace que faz um zoom no 128-144, posicionado sobre o gráfico
+
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
    # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
@@ -1227,6 +1249,12 @@ msamples_plot(sf_res, fb_res)
 *** Overlap Plot :ignore:
 
 
+Quantificação do overlap da lunares em um gráfico novo ->  pathwork
+Remover a legnda do eixo X do atual e colocar o novo abaixo.
+
+A esquerda tem q ser a legenda do exio Y
+O nome vem de um facet wrap -> do Lado direito
+
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 2.3
   library(starvz)
 
@@ -1339,6 +1367,10 @@ msamples_plot(sf_res, fb_res)
 #+NAME: fig:overlap
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/overlap.pdf]]
+
+
+
+Analise do overlap em função de alguma coisa
 
 
 *** MSamples/s Plot                                                :ignore:

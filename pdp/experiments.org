@@ -1207,7 +1207,6 @@ Estatísticas da duração das tarefas por máquina, segmentação (tarefas por 
 | tupi    |    48 |        8 |          512 |      32 | IO every 5 steps | write_block      |  2560 |    1.51 |   1.81 | 119.63 |      0.54 |    5.76 |    8.13 |           0.74 |
 | tupi    |    32 |       12 |         1728 |      32 | IO every 5 steps | write_block      |  8640 |     0.5 |   0.77 | 153.75 |      0.15 |    2.08 |    4.55 |           0.21 |
 | tupi    |    24 |       16 |         4096 |      32 | IO every 5 steps | write_block      | 20480 |    0.36 |   0.76 |  211.9 |      0.05 |    1.79 |    19.5 |           0.23 |
-|         |       |          |              |         |                  |                  |       |         |        |        |           |         |         |                |
 
 *** Traces de escalabilidade
 
@@ -1432,6 +1431,7 @@ mesmo eixo de tempo, para mostrar a sobreposição das iterações no /star-flet
 Usa as mesmas execuções do gráfico acima (BlockSeg 8, 24 cores) e o =trace_root= de [[*Comparação entre máquinas]].
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
+  library(starvz)
   # Painel de iterações (panel_kiteration do StarVZ) do star-fletcher e do fletcher-base, um acima do
   # outro e com o mesmo eixo de tempo. Recebe o trace do star-fletcher já lido com starvz_read (sf) e as
   # fases de uma execução do fletcher-base (linhas de fb_scale_trace_phases). O fletcher-base não tem
@@ -1519,6 +1519,44 @@ O mesmo painel para o grace, com IO a cada passo e 144 cores: o trace de escalab
     facet_grid(IO ~ NumCPUs, scales = "free")
 
 #+END_SRC
+
+Plot de overlap de iterações
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  # make a table with iteration count, start time and end time
+  # count how many iterations contain time x -> that is Y
+
+  max_time = max(lunaris_fb$End)
+  granularity = 1000
+
+  time_steps = tibble(Time = (0:granularity) * (max_time / granularity))
+
+  plot_overlap_iter <- function(data){
+    d <- data |> map(\(table) table |>
+                         summarize(Start = min(Start), End = max(End), .by = Iteration) |>
+                         mutate(Iteration = if_else(Iteration == -1, 0, Iteration))
+                ) |>
+      list_rbind(names_to = "Kind")
+    
+   plot_data <- time_steps |>
+      cross_join(select(d, Kind) |> unique()) |>
+      mutate(ActiveIter = map2_int(Time, Kind,
+          \(time, kind) (filter(d, Start <= time, End >= time, Kind == kind) |> tally())$n)
+             )
+
+    ggplot(plot_data, aes(x = Time, y = ActiveIter, color = Kind)) + geom_line()
+
+  }
+
+  plot_overlap_iter(list(sf = lunaris_sf$Application, fb = lunaris_fb))
+
+#+END_SRC
+
+
+
+
+
 *** Fome dos workers
 
 Quanto tempo os workers do /star-fletcher/ ficam sem tarefas (/starving/) e se a submissão de tarefas
