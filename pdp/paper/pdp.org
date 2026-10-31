@@ -826,6 +826,9 @@ Another interesting point is that, for the /fletcher-base/ all of the best execu
 - Anotate the graph and talk about the anotated points
   - Legendas em cima
 
+NOTE: Add another figure here to show the relative gain of each aplication on its best case scenário, as to not use percentages above.
+
+
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
 
   mach_charact <- tibble(
@@ -1010,10 +1013,22 @@ Another interesting point is that, for the /fletcher-base/ all of the best execu
 commentar do IO direct
 - Anotar no eixo y o valor da linha
 - Não fala do Direct IO
-  - Tem que escolher
-    - Escolher so o dynamic (free) nas plots -> tom de cinza
-      Mudar a cor
-      Geomline com alfa 0.3
+  - Escolher so o dynamic (free) nas plots -> tom de cinza
+    Mudar a cor
+    Geomline com alfa 0.3
+    Mudar a ordem -> sem io 5 e 1 que dai vai aumentando o IO com o decescimento do gráfico.
+
+Figure [[fig:exec_time]] shows the other available metric, execution time.
+- The X axis is the block order and the Y axis is the execution time in seconds.
+  - Execution time counts computational + I/O time and not the time to inititalize the data.
+- It is faceted by machine horizontally and by amount of IO vertically.
+  - Those machines were choosen (maybe change the tupi on the plot to the poti)
+    to summarize the three cases IO can have on the application with this new model.
+    It can improve, stay the same worsen.
+- IO slows down the execution significantly, there is an incresse on the execution time from the without I/O cases to with IO. In Figure [[fig:exec_time]], /fletcher-base/ finishes at () seconds without IO. With it every step, it jumps to ().
+  
+The plot shows a gain in performance on /star-fletcher/ on the tupi and cei machines when the IO is incremented, but not as much on grace. For a certain execution, it is necessaary to also consider the dimensioning of the program. The current mmap aproach struggles to handle large sizes, which is the case on grace. Using a form of direct IO may imporve performance significally.
+NOTE: O que mais eu posso falar desse gráfico aqui? Acho que não muito, 
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/exec_time.pdf" :exports none :width 3.5 :height 3.8
   # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
@@ -1131,6 +1146,26 @@ Caixinhas
 Tirar o potilahdo do SMT e fazer linear (manter a anotação no X de smt)
 Inset nas facetas da grace que faz um zoom no 128-144, posicionado sobre o gráfico
 
+Figure [[fig:scalabilty]] shows the application's scallability as the number of cores incresseasses.
+- It is using Exec Time to also show the behavior when using IO.
+- The X axis is the amount of cores being used to execute the application.
+- The Y axis is the execution time
+- It is facet horizontally by machine and vertically by the amount of IO used (none or at every step)
+- It shows the version using a dynamic and a static scheduler for /fletcher-base/
+- The experiment binded threads to cores, so it is the bind cases on Figure [[fig:exec_time]].
+
+It shows that /star-fletcher/ scales better in all machines for almost all core amounts.
+For the Homogenous set (draco and cei), the different tends to petter off as the core count increasses, but it stays above.
+- What does that mean
+For the Heterogeneous, as marked in the figure, when the e-cores are introduced, the performance of a static distribution falls off,
+aproaching the others only when using SMT. This transition seemed to not affect the performance on the dynamic versions, although
+/star-fletcher/ stayed ahead.
+- Just that?
+For the Grace machine, /star-fletcher/ is superior for lower core counts, but as they increasse, the difference is reduced.
+- Talk about the tip top
+- The chunks for the static are propably small enough as to not be of such penalty when one core does more work than another,
+  because that relative difference is smaller.
+For the Lunaris, there is a clear dominance. It does not seem to make a difference with either static of dynamic schedulers. This gains can be attributed to the iteration overlap.
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
    # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
@@ -1248,12 +1283,26 @@ Inset nas facetas da grace que faz um zoom no 128-144, posicionado sobre o gráf
 
 *** Overlap Plot :ignore:
 
-
 Quantificação do overlap da lunares em um gráfico novo ->  pathwork
 Remover a legnda do eixo X do atual e colocar o novo abaixo.
 
 A esquerda tem q ser a legenda do exio Y
 O nome vem de um facet wrap -> do Lado direito
+
+The Figure [[fig:overlap]] shows the iteration overlap of an execution on the Lunaris machine. It is a kiteration plot (citar o Lucas?)
+- The X axis is time
+- The Y axis is the iteration count, that goes from 1 to 20.
+- The two pannels above are the iteration overlap of /star-fletcher/ and the one below is of /fletcher-base/
+- The Black lines above and bellow the rectangles show the start and end of each iteration.
+- The panel at the bottom is graph of iteration overlap in a function of time. The time is in the same scale as the plots above.
+
+It shows that Lunaris is   
+
+
+Add a graph of Iteration x iteraion time, with Iteration on the X axis, and the total time used on the task on the Y axis.
+- It is not End - Start. It is sum(End - Start) for each task to see the total computed time of the iteration.
+ - to show that the Lunaris iterations take longer, but the overlap masks.
+
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 2.3
   library(starvz)
@@ -1369,8 +1418,8 @@ O nome vem de um facet wrap -> do Lado direito
 [[file:figures/overlap.pdf]]
 
 
-
-Analise do overlap em função de alguma coisa
+- Esses dois plots de overlap talvez seja o chan do trabalho.
+  - Mesmo que a iteração demora um pouco mais -> Podemos fazer um overlap de forma fácil e bem gerido pelo escalonador.
 
 
 *** MSamples/s Plot                                                :ignore:
