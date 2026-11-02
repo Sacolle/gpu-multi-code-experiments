@@ -1146,7 +1146,7 @@ Caixinhas
 Tirar o potilahdo do SMT e fazer linear (manter a anotação no X de smt)
 Inset nas facetas da grace que faz um zoom no 128-144, posicionado sobre o gráfico
 
-Figure [[fig:scalabilty]] shows the application's scallability as the number of cores incresseasses.
+Figure [[fig:scalability]] shows the application's scallability as the number of cores incresseasses.
 - It is using Exec Time to also show the behavior when using IO.
 - The X axis is the amount of cores being used to execute the application.
 - The Y axis is the execution time
