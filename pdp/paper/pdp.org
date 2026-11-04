@@ -22,6 +22,8 @@
 #+LATEX_HEADER: \usepackage{tikz}
 #+LATEX_HEADER: \usetikzlibrary{positioning, arrows.meta}
 #+LATEX_HEADER: \usepackage{float}
+#+LATEX_HEADER: \usepackage{algorithm}
+#+LATEX_HEADER: \usepackage{algpseudocode}
 
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
@@ -29,7 +31,7 @@
 # visual-line-mode [enable]
 # auto-fill-mode [disable]
 
-#  #+PROPERTY: header-args :eval never-export :exports none
+#+PROPERTY: header-args :eval never-export :exports none
 
 # keywords:
 # Heterogeneous CPU Computing
@@ -241,17 +243,14 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 <<sec:methodsandmaterials>>
 
 *** Introduction                                                   :ignore:
-- Just mention internal structure of the section, eventually justifying some choices. First explain Fletcher’s Equations, then the baseline, then your solution, then the experimental method to evaluate your solution against the baseline.
-
-- All NIX and more reproducibility details get concentrad in the end [last paragraph] of methods and materials. Also cite the Star-Fletcher codebased [OPEN] + the companion.
-
-The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure fig:flowchart illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
+This paper's methods and materials are divided in the following sub-sections. In sub-section [[sec:fletchereq]], Fletcher's equations are presented and their computational forms are explained. In sub-section [[sec:fletcherbase]], the baseline program, /fletcher-base/, is introduced and its intricacies are detailed. In sub-section [[sec:fletcherstar]], the new implementation, /star-fletcher/, is explained, the improvements and design decisions taken with the use of StarPU. In the last sub-section [[sec:methodology]], the experimental method is described, including the artifacts necessary for the execution of the experiments.
 
 *** Fletcher's Equations
+<<sec:fletchereq>>
 
-- Figura cinza das célculas
+- Figura cinza das células
 
-Fletcher modeling is a technique for simulating wave propagation over time in different types of media, with the Tilted Transverse Isotopic (TTI) medium highlighted. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by  Equation \ref{eq:equacao2}. in them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
+Fletcher's equations are used to simulate wave propagations over time in different types of media, with the Tilted Transverse Isotopic (TTI) medium highlighted. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by  Equation \ref{eq:equacao2}. in them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
 #+BEGIN_EXPORT latex
 \begin{equation}
@@ -266,7 +265,7 @@ Fletcher modeling is a technique for simulating wave propagation over time in di
 \end{equation}
 #+END_EXPORT
 
-To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this algorithm, the neighboring points of it from $t$ and $t - 1$ are necessary. This paper uses /fletcher-base/ cite:fletcher_base, an implementation of this algorithm, to benchmark its own implementation using the STF paradigm. In it, two buffers are kept in memory,/curr/ and/prev/, to store all points at $t$ and $t - 1$, respectively. To compute $t + 1$, the buffer /prev/ ($t - 1$) has its values overwritten, after having them read to do the computation. After that, the buffers are swapped to compute the next iteration. /Fletcher-base/ is a simplification of the full-RTM method, computing only the forward propagation of the wave, saving to file every $k$ steps to simulate the IO requirements of a later backward propagation phase. It can be chosen from three parallelization back-ends: CUDA, OpenCL, and OpenMP; the latter was used for comparison purposes against our work.
+To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, it needs to compute a 9 point stencil. It uses the second and cross derivative in all directions, which can be seen in Figure [[fig:stencil]]. The center green cube is the point being computed, the orange squares are the ones for the second derivative computations and the purple and orange ones for the cross derivative computation. The equations are also discretized according to time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs the neighboring points of it from $t$ and itself from $t - 1$. 
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
   import os
@@ -377,15 +376,53 @@ To compute a point $p(x, y, z, t + 1)$ in the numerical implementation of this a
 
 
 *** Fletcher-base description
-- Brief, but with enough details so that all the remaining parts of the article became easier to understand [especially when talking about comparison against it]. IO, etc.
+<<sec:fletcherbase>>
+
+
+This paper uses /fletcher-base/ cite:fletcher_base, an implementation of the Fletcher algorithm which only considers the forwards propagation, to benchmark /star-fletcher/, which uses the same numerical kernel. /Fletcher-base/ computes $t$ iterations of a wave's propagation on a volume $V$, saving to disk every $k$ steps. Algorithm \ref{alg:fletcher-base} describes the computational process, where $P$ is the previous volume and $C$ is the current volume. The volume $P$ is used to write the next iteration. $F$ represents the numeric methods on the volume, described in sub-section [[sec:fletchereq]]. /Fletcher-base/ computation is parallelized by making the computation of points in an iteration a parallel section, where the points are distributed between the available threads. After every iteration, all threads are synchronized, the volume may be saved to disk and then the buffers are swapped so that the computation can resume.
+
+#+BEGIN_EXPORT latex
+\begin{algorithm}[!htb]
+    \caption{Computation \textit{fletcher-base}.}
+    \label{alg:fletcher-base}
+    \begin{algorithmic}[1]
+        \For{$1..t$}
+            \ForAll{$(x, y, z) \in \text{dim}(P)$} \Comment{Parallel section}
+                \State $P(x, y, z) \gets F(C, x, y, z) - P(x, y, z)$
+            \EndFor
+            \If{$t \bmod k = 0$} \Comment{Save every k steps}
+                \State $\text{writeToDisk}(P)$
+            \EndIf
+            \State $P \leftrightarrow C$ \Comment{Swap pointers}
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
+#+END_EXPORT
+
+[[cite:fletcher_base]]'s (TODO: fazer citação textual) paper presents has four implementations: baseline, Der1Der1, Der1Der1LM, Der1Der1HM. This paper based it's benchmarks and implementation of /star-fletcher/ on the baseline version. Each other one presents an optimization to the numerical computation by reusing first derivative computations of the $x$ and $y$ planes to speed-up the computations of the cross derivatives. This kernel level optimization is not of concern of this paper, which looks at the effects of the runtime on design and performance of applications.
+
+
+
 *** Our Task-Based Implementation
+<<sec:fletcherstar>>
 
 - Figura das dependências dos blocos em algum lugar aqui
   - Com a explicação do segundo parágrafo da eval
 
-/Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed among workers, which can represent CPU cores or GPUs, and execute the computations. StarPU is equipped with multiple scheduling policies, each with different rules that determine which worker a task goes to. Each worker has its own task queue, and it is the scheduler's job to distribute work between them. Work-stealing schedulers may distribute tasks equally, but workers then steal tasks from others when they become idle. Performance-based schedulers measure a task's performance on each worker it executes on and then distribute tasks to them based on the measured computing capability.
+/Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed among workers, which can represent CPU cores or GPUs, and execute the computations.
+~StarPU is equipped with multiple scheduling policies, each with different rules that determine which worker a task goes to. Each worker has its own task queue, and it is the scheduler's job to distribute work between them. Work-stealing schedulers may distribute tasks equally, but workers then steal tasks from others when they become idle. Performance-based schedulers measure a task's performance on each worker it executes on and then distribute tasks to them based on the measured computing capability.~
 
-In the implementation, the computed medium had to be segmented into cubes so that /star-fletcher/ could use task-based parallelism in first order. Each computed task is a section of the whole medium. This presented an opportunity to schedule tasks. Instead of using a single loop that, at each iteration, alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the whole. With this, to compute a cube $C_{i,j,k,t + 1}$, it needs its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by a swap of $prev$ and $curr$, /star-fletcher/ does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no synchronization points, allowing the IO to be weaved between block computations. Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
+In the implementation, the computed medium had to be segmented into cubes so that /star-fletcher/ could use task-based parallelism in first order (what does that mean?). Each computed task is a section of the whole medium. This presented an opportunity to schedule tasks.
+
+
+% Esse bloco tá uma merda
+
+Instead of using a single loop that, at each iteration, alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the whole. With this, to compute a cube $C_{i,j,k,t + 1}$, it needs its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by a swap of $prev$ and $curr$, /star-fletcher/ does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no global synchronization points, allowing for the overlap of iterations and for the IO to be weaved between block computations.
+
+
+Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
+
+
 
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
@@ -486,9 +523,15 @@ To find that, the experiments were run on PCAD's infrastructure, which is the hi
 | cei       | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz   |
 | grace     | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
 | tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
+| lunaris   | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
 
 #+latex: \noindent
 *Software*. Nix and stuff. All the version, etc. URL.
+
+- All NIX and more reproducibility details get concentrad in the end [last paragraph] of methods and materials. Also cite the Star-Fletcher codebased [OPEN] + the companion.
+
+The development of /star-fletcher/ was based on the original /fletcher-base/ implementation. To improve reproducibility and ease execution on any machines, the Nix package manager was used. All experiments are also automated with Nix. All the packages required to execute are version locked, and the experiments are available on github[fn::Git repo - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/sscad}]. With that, Figure fig:flowchart illustrates the project's process: make an experimental project, execute it using Nix on INF/UFRGS's PCAD, gather the data, and analyze it using modern data science libraries. All the graphs in this paper are built using the principles of declarative programming, and the paper's source code includes the code that generated them.
+
 
 #+latex: \noindent
 *Design of Experiments*.
@@ -502,7 +545,8 @@ It fixed the total number of computed points to $384^3$, and then varied the blo
 
 # The second one measured how the growth of the total volume effected the performance of both applications. For /star-fletcher/, this experiment was ran with both block order of 32 and 64, with 64 presenting superior results. The same total volumes where used to compute the /fletcher-base/ experiments. It was expected that as the size grew, the /star-fletcher/ application would outperform the /fletcher-base/ one due to it's overhead being less significant. But it also had the possibility that for any of the total volume sizes, the fixed chosen block order would not be the best one, degrading /star-fletcher/'s performance.
 
-The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. These last two schedulers, the performance-based ones, are better suited to different kinds of nodes, like CPU plus GPU. The performance models can consider each CPU core's performance without generalizing, but no significant performance gains are observed from that cite:sscad_perf_model.
+
+~The tested schedulers were: Work Stealing (ws), which moves tasks from filled queues less full one's; Local Work Stealing (lws), which is similar to ws, but prioritizes workers queues near; Random (random), which distributes the tasks randomly; Deque Model (dm), which records the performance of the task on each kind of computational node and distributes the tasks accordingly (for mixed p-core/e-core CPUs, it considers them to be the same); and Deque Model Data Aware Ready (dmdar), which is like dm, but considers data transfer times and if the data is already available at the device. These last two schedulers, the performance-based ones, are better suited to different kinds of nodes, like CPU plus GPU. The performance models can consider each CPU core's performance without generalizing, but no significant performance gains are observed from that cite:sscad_perf_model.~
 
 ** Results
 <<sec:results>>
@@ -821,12 +865,10 @@ Figure [[fig:msamples]] uses the industry standard metric. Msamples/s
     )
 #+END_SRC
       
-Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/ by, on the best scenario, $5.54\%$, $50.6\%$ and $12.2\%$ respectively. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/ by  $-0.29\%$, $8.39\%$ and $7.45\%$ respectively. On machines with greater the Msamples/s yields, the /star-fletcher/ tends to outperform.
+Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/. These relative results, the comparisson between the best configuration for /star-fletcher/ against /fletcher-base/ can be seen in Figure [[fig:cmp_msamples]].
 Another interesting point is that, for the /fletcher-base/ all of the best executions were using the dynamic scheduling with non-bound threads, with exception of grace that used dynamic bound threads.
 - Anotate the graph and talk about the anotated points
-  - Legendas em cima
 
-NOTE: Add another figure here to show the relative gain of each aplication on its best case scenário, as to not use percentages above.
 
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
@@ -1007,6 +1049,73 @@ NOTE: Add another figure here to show the relative gain of each aplication on it
 #+NAME: fig:msamples
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/msamples.pdf]]
+
+
+NOTE: Add another figure here to show the relative gain of each aplication on its best case scenário, as to not use percentages above.
+
+#+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 3.5 :height 1.5
+
+  best_compare_msamples_plot <- function(sft_in, fbt_in) {
+
+    sft <- sft_in |> filter(WithIO == 0) |>
+      mutate(Machine = sub("\\d+$", "", Machine))
+
+    fbt <- fbt_in |> filter(WithIO == 0, Schedulers != "guided") |>
+      mutate(Machine = sub("\\d+$", "", Machine))
+    
+    fb_best <- fbt |>
+      summarize(Mean = mean(Msamples), .by = c(Machine, Schedulers, Variant)) |>
+      slice_max(Mean, n = 1, with_ties = FALSE, by = Machine)
+
+    sf_best <- sft |>
+      summarize(Mean = mean(Msamples), .by = c(Machine, BlockSeg)) |>
+      slice_max(Mean, n = 1, with_ties = FALSE, by = Machine)
+
+    table <- sft |>
+      semi_join(sf_best, by = c("Machine", "BlockSeg")) |>
+      full_join(
+        semi_join(fbt, fb_best, by = c("Machine", "Variant", "Schedulers")
+      ), by = "Machine", suffix = c(".sf", ".fb"), relationship = "many-to-many") |>
+      unique() |>
+      mutate(
+      #  Diff = Msamples.sf - Msamples.fb
+        Diff = (Msamples.sf / Msamples.fb) - 1
+      )
+
+    ggplot(table, aes(x = factor(Machine), y = Diff)) +
+      geom_boxplot() +
+      geom_hline(yintercept = 0, linetype = "dashed") +
+      labs(
+    	title = paste0("MSamples Difference vs. Machine"),
+    	x = "Machine",
+    	y = "Msamples/s Difference"
+      ) +
+      theme_bw(base_size = 7) +
+      theme(
+          legend.position = "top",
+          legend.box = "vertical",
+          legend.box.just = "left",
+          legend.margin = margin(0, 0, 0, 0),
+          legend.box.spacing = unit(1, "pt"),
+          legend.spacing.y = unit(0, "pt"),
+          legend.key.size = unit(8, "pt"),
+          legend.text = element_text(size = 6, margin = margin(r = 8)),
+          legend.title = element_text(size = 7),
+          strip.text = element_text(margin = margin(2, 2, 2, 2)),
+          plot.margin = margin(2, 6, 2, 2),
+          panel.spacing.x = unit(6, "pt"),
+          panel.spacing.y = unit(10, "pt")
+      )
+  }
+
+  best_compare_msamples_plot(sf_res, fb_res)
+
+#+END_SRC
+
+#+CAPTION: ...
+#+NAME: fig:cmp_msamples
+#+ATTR_LATEX: :placement [!htb] :width \linewidth
+[[file:figures/msamples_cmp.pdf]]
 
 *** Exec Time Plot                                                :ignore:
 
@@ -1304,14 +1413,41 @@ Add a graph of Iteration x iteraion time, with Iteration on the X axis, and the 
  - to show that the Lunaris iterations take longer, but the overlap masks.
 
 
-#+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 2.3
+#+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 3
   library(starvz)
 
   trace_root <- "./pdp/results/star-fletcher-cpu-pdp-trace-tree"
   lunaris_blockseg <- 8
   lunaris_cores <- 24
 
+  plot_overlap_iter <- function(data, granularity = 200){
+    d <- data |> map(\(table)
+                     table |>
+                         summarize(Start = min(Start), End = max(End), .by = Iteration) |>
+                         mutate(Iteration = if_else(Iteration == -1, 0, Iteration))
+                ) |>
+      list_rbind(names_to = "Kind")
+
+    max_time = max(d$End)
+
+    time_steps = tibble(Time = (0:granularity) * (max_time / granularity))
+    
+    plot_data <- time_steps |>
+      cross_join(select(d, Kind) |> unique()) |>
+      mutate(ActiveIter = map2_int(Time, Kind,
+          \(time, kind) (filter(d, Start <= time, End >= time, Kind == kind) |> tally())$n)
+             )
+
+    ggplot(plot_data, aes(x = Time, y = ActiveIter, color = Kind)) +
+      geom_line() +
+      scale_y_continuous(breaks = 0:7)
+
+  }
+
   kiteration_compare <- function(sf, fb_phases, title){
+
+
+    overlap_plot <- plot_overlap_iter(list(sf = sf$Application, fb = fb_phases))
     # as tarefas passam a se chamar Compute e IO (as de inserção da fonte são ignoradas),
     # com as mesmas cores dos gráficos de barras
     sf$Application <- sf$Application |>
@@ -1346,27 +1482,45 @@ Add a graph of Iteration x iteraion time, with Iteration on the X axis, and the 
     # eixo Y e os dois painéis compartilham o eixo X, que só aparece embaixo. A legenda fica dentro do
     # painel do star-fletcher, no espaço vazio à direita (ele termina antes do fletcher-base).
     size <- 8
+    # eixo de tempo comum aos três painéis, em segundos e começando no 0, para eles ficarem alinhados
+    time_axis <- scale_x_continuous(labels = \(x) x / 1000, limits = c(0, x_end), expand = c(0, 0))
+    # os dois painéis de cima não mostram o eixo X: o tempo só aparece no painel de baixo
+    no_x_axis <- theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
     panel <- \(data, name) {
+      # o nome do programa fica numa faixa à direita do painel (um facet com um só valor)
+      data$Application <- data$Application |> mutate(Program = name)
       p <- panel_kiteration(data, base_size = size, x_start = 0, x_end = x_end, sub_ite = FALSE)
       # as curvas que contornam as iterações são grossas demais nesse tamanho
       for (i in seq_along(p$layers)) {
         if (inherits(p$layers[[i]]$geom, "GeomCurve")) p$layers[[i]]$aes_params$linewidth <- 0.3
       }
       p +
-        scale_x_continuous(labels = \(x) x / 1000, expand = c(0, 0)) +
+        facet_grid(rows = vars(Program)) +
+        time_axis +
         scale_y_reverse(breaks = c(0, 10, 20)) +
-        labs(x = "Time [s]", y = name)
+        labs(y = "Iteration") +
+        no_x_axis
     }
 
+    # número de iterações ativas ao longo do tempo, com a legenda numa caixa dentro do painel
+    overlap_plot <- overlap_plot +
+      time_axis +
+      scale_color_manual(values = c(sf = "#1b9e77", fb = "#d95f02"),
+                         labels = c(sf = "star-fletcher", fb = "fletcher-base (dynamic)")) +
+      labs(x = "Time [s]", y = "Active\niterations") +
+      theme_bw(base_size = size) +
+      theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1),
+            panel.grid.minor = element_blank(), axis.title.x = element_text(size = size, margin = margin(t = 1)))
+
     (panel(sf, "star-fletcher") +
-       theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1))) /
-      (panel(fb, "fletcher-base\n(dynamic)") + guides(fill = "none")) +
-      plot_layout(axes = "collect") +
+       theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1))
+    ) /
+      (panel(fb, "fletcher-base\n(dynamic)") + guides(fill = "none")) / overlap_plot +
       plot_annotation(title = title) &
       theme(
         plot.margin = margin(1, 4, 1, 1),
         axis.title.y = element_text(size = size - 1, margin = margin(r = 2)),
-        axis.title.x = element_text(size = size, margin = margin(t = 1)),
         axis.text = element_text(size = size - 1),
         axis.ticks = element_line(linewidth = 0.3),
         axis.ticks.length = unit(2, "pt"),
@@ -1375,7 +1529,8 @@ Add a graph of Iteration x iteraion time, with Iteration on the X axis, and the 
         legend.text = element_text(size = size - 1),
         legend.key.size = unit(8, "pt"),
         legend.background = element_rect(fill = "white", color = "grey70", linewidth = 0.3),
-        legend.margin = margin(1, 3, 1, 3)
+        legend.margin = margin(1, 3, 1, 3),
+        strip.text.y = element_text(size = size - 1, margin = margin(1, 2, 1, 2))
       )
   }
 

@@ -668,6 +668,47 @@ Colocando os dados da grace grande no lugar da grace pequena
 
 #+END_SRC
 
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  best_compare_msamples_plot <- function(sft_in, fbt_in) {
+
+    sft <- sft_in |> filter(WithIO == 0) |>
+      mutate(Machine = sub("\\d+$", "", Machine))
+
+    fbt <- fbt_in |> filter(WithIO == 0, Schedulers != "guided") |>
+      mutate(Machine = sub("\\d+$", "", Machine))
+    
+    fb_best <- fbt |>
+      summarize(Mean = mean(Msamples), .by = c(Machine, Schedulers, Variant)) |>
+      slice_max(Mean, n = 1, with_ties = FALSE, by = Machine)
+
+    sf_best <- sft |>
+      summarize(Mean = mean(Msamples), .by = c(Machine, BlockSeg)) |>
+      slice_max(Mean, n = 1, with_ties = FALSE, by = Machine)
+
+    table <- sft |>
+      semi_join(sf_best, by = c("Machine", "BlockSeg")) |>
+      full_join(
+        semi_join(fbt, fb_best, by = c("Machine", "Variant", "Schedulers")
+      ), by = "Machine", suffix = c(".sf", ".fb"), relationship = "many-to-many") |>
+      unique() |>
+      mutate(Diff = Msamples.sf - Msamples.fb)
+
+    ggplot(table, aes(x = factor(Machine), y = Diff)) +
+      geom_boxplot() +
+      labs(
+    	title = paste0("MSamples Difference vs. Machine"),
+    	x = "Machine",
+    	y = "Msamples/s Difference"
+      ) +
+      theme_bw(base_size = 15) +
+      theme(legend.position = "bottom")
+  }
+
+  best_compare_msamples_plot(sf_res, fb_res)
+
+#+END_SRC
+
 
 #+BEGIN_SRC R :session *R* :async yes :colnames yes
 
@@ -716,24 +757,24 @@ Colocando os dados da grace grande no lugar da grace pequena
 #+RESULTS:
 | Machine | Schedulers | Ms_mean_base | Ms_mean_bind | Gain_pct | p_value |
 |---------+------------+--------------+--------------+----------+---------|
-| cei     | dynamic    |        58.56 |        49.46 |   -15.54 | 1.5e-23 |
-| cei     | guided     |           55 |        48.23 |   -12.31 |   2e-21 |
-| cei     | static     |        52.15 |        45.18 |   -13.35 | 3.7e-21 |
-| draco   | dynamic    |        26.26 |        23.88 |    -9.05 |   4e-13 |
-| draco   | guided     |        25.35 |        23.44 |    -7.55 | 8.1e-22 |
-| draco   | static     |        24.93 |        22.44 |    -9.98 | 5.4e-11 |
-| grace   | dynamic    |        440.7 |       476.23 |     8.06 | 2.3e-05 |
-| grace   | guided     |        399.1 |       448.81 |    12.45 | 2.3e-07 |
-| grace   | static     |       342.53 |       456.23 |     33.2 | 1.1e-08 |
-| lunaris | dynamic    |        89.59 |        71.72 |   -19.95 | 1.9e-10 |
-| lunaris | guided     |        87.51 |        71.39 |   -18.41 | 1.4e-08 |
-| lunaris | static     |        85.46 |        70.25 |    -17.8 |   1e-08 |
-| poti    | dynamic    |        92.86 |        76.44 |   -17.69 | 6.6e-19 |
-| poti    | guided     |        77.48 |        57.01 |   -26.43 | 8.7e-20 |
-| poti    | static     |         52.9 |         35.7 |   -32.51 |   1e-23 |
-| tupi    | dynamic    |       106.33 |              |          |         |
-| tupi    | guided     |        90.35 |              |          |         |
-| tupi    | static     |        68.89 |              |          |         |
+| cei     | dynamic    |        54.01 |        49.46 |    -8.43 | 0.00034 |
+| cei     | guided     |        51.61 |        48.23 |    -6.56 | 0.00035 |
+| cei     | static     |        48.66 |        45.18 |    -7.16 | 0.00034 |
+| draco   | dynamic    |        25.07 |        23.88 |    -4.74 | 0.00035 |
+| draco   | guided     |        24.39 |        23.44 |    -3.92 | 0.00035 |
+| draco   | static     |        23.68 |        22.44 |    -5.25 | 0.00037 |
+| grace   | dynamic    |       634.72 |       476.23 |   -24.97 | 3.1e-15 |
+| grace   | guided     |       565.31 |       448.81 |   -20.61 |   1e-16 |
+| grace   | static     |       579.76 |       456.23 |   -21.31 | 1.4e-10 |
+| lunaris | dynamic    |        80.65 |        71.72 |   -11.08 | 0.00038 |
+| lunaris | guided     |        79.45 |        71.39 |   -10.14 | 0.00044 |
+| lunaris | static     |        77.86 |        70.25 |    -9.77 | 0.00045 |
+| poti    | dynamic    |        84.65 |        76.44 |     -9.7 | 0.00037 |
+| poti    | guided     |        67.24 |        57.01 |   -15.22 | 0.00035 |
+| poti    | static     |         44.3 |         35.7 |   -19.41 | 0.00034 |
+| tupi    | dynamic    |       102.44 |        98.55 |    -3.79 | 0.00034 |
+| tupi    | guided     |         81.2 |        72.06 |   -11.26 | 0.00036 |
+| tupi    | static     |        57.04 |        45.19 |   -20.78 |  0.0011 |
 
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
@@ -1524,32 +1565,99 @@ Plot de overlap de iterações
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent
 
-  # make a table with iteration count, start time and end time
-  # count how many iterations contain time x -> that is Y
 
-  max_time = max(lunaris_fb$End)
-  granularity = 1000
-
-  time_steps = tibble(Time = (0:granularity) * (max_time / granularity))
-
-  plot_overlap_iter <- function(data){
-    d <- data |> map(\(table) table |>
+  plot_overlap_iter <- function(data, granularity = 200){
+    d <- data |> map(\(table)
+                     table |>
                          summarize(Start = min(Start), End = max(End), .by = Iteration) |>
                          mutate(Iteration = if_else(Iteration == -1, 0, Iteration))
                 ) |>
       list_rbind(names_to = "Kind")
+
+    max_time = max(d$End)
+
+    time_steps = tibble(Time = (0:granularity) * (max_time / granularity))
     
-   plot_data <- time_steps |>
+    plot_data <- time_steps |>
       cross_join(select(d, Kind) |> unique()) |>
       mutate(ActiveIter = map2_int(Time, Kind,
           \(time, kind) (filter(d, Start <= time, End >= time, Kind == kind) |> tally())$n)
              )
 
-    ggplot(plot_data, aes(x = Time, y = ActiveIter, color = Kind)) + geom_line()
+    ggplot(plot_data, aes(x = Time, y = ActiveIter, color = Kind)) +
+      geom_line() +
+      scale_y_continuous(breaks = 0:7)
 
   }
 
   plot_overlap_iter(list(sf = lunaris_sf$Application, fb = lunaris_fb))
+
+#+END_SRC
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+
+
+  kiteration_compare(lunaris_sf, lunaris_fb, paste0("lunaris, ", lunaris_cores, " cores, ", io)) /
+  plot_overlap_iter(list(sf = lunaris_sf$Application, fb = lunaris_fb))
+
+#+END_SRC
+
+Add plot of Iteration x iteration Time
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  # make a table with iteration count, start time and end time
+  # count how many iterations contain time x -> that is Y
+
+  plot_iter_time <- function(data){
+    d <- data |> map(\(table) table |>
+                         summarize(
+                           Start = min(Start),
+                           End = max(End),
+                           TotalTime = max(End) - min(Start),
+                           .by = Iteration
+                         ) |>
+                         mutate(Iteration = if_else(Iteration == -1, 0, Iteration))
+                ) |>
+      list_rbind(names_to = "Kind")
+
+
+    ggplot(d, aes(x = Iteration, y = TotalTime, color = Kind)) + geom_line()
+
+  }
+
+  plot_iter_time(list(sf = lunaris_sf$Application, fb = lunaris_fb))
+
+#+END_SRC
+
+Add plot of Iteration x iteration Compute Time
+The total computed time in an iteration
+
+#+BEGIN_SRC R :session *R* :async yes :results output silent
+
+  # make a table with iteration count, start time and end time
+  # count how many iterations contain time x -> that is Y
+
+  plot_iter_time <- function(data){
+    d <- data |>
+      map(\(table)
+          table |>
+          mutate(Iteration = if_else(Iteration == -1, 0, Iteration)) |>
+          summarize(TotalTime = sum(Duration), .by = Iteration)
+          ) |>
+      list_rbind(names_to = "Kind")
+
+    #print(slice_max(filter(d, Kind == "sf"), Duration))
+
+    
+
+    ggplot(d, aes(x = Iteration, y = TotalTime, color = Kind)) +
+      geom_line() # + scale_y_continuous(breaks = sort(unique(d$TotalTime)))
+
+  }
+
+  plot_iter_time(list(sf = lunaris_sf$Application, fb = lunaris_fb))
 
 #+END_SRC
 
