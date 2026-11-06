@@ -20,6 +20,50 @@ As cinco primeiras foram usadas no paper do SSCAD, acho interessante adicionar a
 | tupi[3-6] | Intel(R) Core(TM) i9-14900KF      |      32 |    24 | 3.2 GHz    | não          |
 | lunaris   | AMD Ryzen Threadripper PRO 5965WX |      48 |    24 | 3.8 GHz    | sim          |
 
+
+#+BEGIN_SRC R :session *R* :async yes :colnames yes
+  source("./libExp.R")
+  options(scipen = 999)
+  #library(rlist)
+
+  cores_dir <- "./pdp/results/machine-cores"
+
+  policies <- list.files(cores_dir, full.names = TRUE) |>
+    map(\(x) {
+      lines <- read_lines(x)
+      tibble(
+        CPU = lines |>
+          str_subset("analyzing CPU") |>
+          str_extract("\\d+") |>
+          as.numeric(),
+        Governor = lines |>
+          str_subset("The governor") |>
+          str_extract("\".*?\"") |>
+          str_sub(2, -2)
+      ) |>
+        unique() |>
+        cross_join(tibble(Machine = basename(x)))
+    }) |>
+    list_rbind() |>
+    select(Machine, CPU, Governor)
+
+  policies |> count(Machine, Governor)
+
+#+END_SRC
+
+#+RESULTS:
+| Machine | Governor    |   n |
+|---------+-------------+-----|
+| cei1    | performance |  48 |
+| draco1  | performance |  32 |
+| grace1  | performance | 144 |
+| lunaris | performance |  48 |
+| poti1   | performance |  28 |
+| tupi1   | performance |  16 |
+
+Todas as máquinas tem, em todos os seus cores, a política de performance.
+
+
 ** Parâmetros
 
 Fixamos um volume grande o suficiente e alteramos a granularidade das tarefas.
@@ -1640,24 +1684,27 @@ The total computed time in an iteration
   # count how many iterations contain time x -> that is Y
 
   plot_iter_time <- function(data){
+    THREAD_COUNT = 24
+
     d <- data |>
       map(\(table)
           table |>
+          filter(Phase == "comp") |>
           mutate(Iteration = if_else(Iteration == -1, 0, Iteration)) |>
-          summarize(TotalTime = sum(Duration), .by = Iteration)
+          summarize(TotalTime = sum(Duration) / if_else(n() == 1, THREAD_COUNT, n()), .by = Iteration)
           ) |>
       list_rbind(names_to = "Kind")
 
     #print(slice_max(filter(d, Kind == "sf"), Duration))
-
-    
 
     ggplot(d, aes(x = Iteration, y = TotalTime, color = Kind)) +
       geom_line() # + scale_y_continuous(breaks = sort(unique(d$TotalTime)))
 
   }
 
-  plot_iter_time(list(sf = lunaris_sf$Application, fb = lunaris_fb))
+  local_luna_sf <- lunaris_sf$Application |> mutate(Phase = if_else(Value == "wave_propagation", "comp", "io"))
+
+  plot_iter_time(list(sf = local_luna_sf, fb = lunaris_fb))
 
 #+END_SRC
 

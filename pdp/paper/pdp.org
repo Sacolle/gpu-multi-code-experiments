@@ -24,6 +24,7 @@
 #+LATEX_HEADER: \usepackage{float}
 #+LATEX_HEADER: \usepackage{algorithm}
 #+LATEX_HEADER: \usepackage{algpseudocode}
+#+LATEX_HEADER: \usepackage{tabularx}
 
 # PDF generation can be done by make (thanks Luka Stanisic)
 #   or C-c C-e l p (thanks Vinicius Garcia)
@@ -192,7 +193,7 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
 ** Introduction
 <<sec:intro>>
 
-*** Structure                                                    :noexport:
+*** Structure                                                   :noexport:
 **** Context [problema identificação]
 1. RTM => Fletcher é uma forma de fazer RTM that considers Tilted Transverse Isotropic (TTI)
    - How it works? Multiple shots are computed, it is their aggregation that allows a seismic image to be created
@@ -379,7 +380,7 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
 <<sec:fletcherbase>>
 
 
-This paper uses /fletcher-base/ cite:fletcher_base, an implementation of the Fletcher algorithm which only considers the forwards propagation, to benchmark /star-fletcher/, which uses the same numerical kernel. /Fletcher-base/ computes $t$ iterations of a wave's propagation on a volume $V$, saving to disk every $k$ steps. Algorithm \ref{alg:fletcher-base} describes the computational process, where $P$ is the previous volume and $C$ is the current volume. The volume $P$ is used to write the next iteration. $F$ represents the numeric methods on the volume, described in sub-section [[sec:fletchereq]]. /Fletcher-base/ computation is parallelized by making the computation of points in an iteration a parallel section, where the points are distributed between the available threads. After every iteration, all threads are synchronized, the volume may be saved to disk and then the buffers are swapped so that the computation can resume.
+This paper uses /fletcher-base/ cite:fletcher_base, an implementation of the Fletcher algorithm which only considers the forwards propagation, to benchmark /star-fletcher/, which uses the same numerical kernel. /Fletcher-base/ computes $t$ iterations of a wave's propagation on a volume $V$, saving to a file every $k$ steps. Algorithm \ref{alg:fletcher-base} describes the computational process, where $P$ is the previous volume and $C$ is the current volume. The volume $P$ is used to write the next iteration. $F$ represents the numeric methods on the volume, described in sub-section [[sec:fletchereq]]. /Fletcher-base/ computation is parallelized by making the computation of points in an iteration a parallel section, where the points are distributed between the available threads using OpenMP. After every iteration, all threads are synchronized, the volume may be saved to disk and then the buffers are swapped so that the computation can resume.
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
@@ -399,29 +400,63 @@ This paper uses /fletcher-base/ cite:fletcher_base, an implementation of the Fle
 \end{algorithm}
 #+END_EXPORT
 
-[[cite:fletcher_base]]'s (TODO: fazer citação textual) paper presents has four implementations: baseline, Der1Der1, Der1Der1LM, Der1Der1HM. This paper based it's benchmarks and implementation of /star-fletcher/ on the baseline version. Each other one presents an optimization to the numerical computation by reusing first derivative computations of the $x$ and $y$ planes to speed-up the computations of the cross derivatives. This kernel level optimization is not of concern of this paper, which looks at the effects of the runtime on design and performance of applications.
+[[cite:fletcher_base]]'s (TODO: fazer citação textual) paper presents has four implementations: baseline, Der1Der1, Der1Der1LM, Der1Der1HM. This paper based it's benchmarks and implementation of /star-fletcher/ on the baseline version. Each other one presents an optimization to the numerical computation by reusing first derivative computations of the $x$ and $y$ planes to speed-up the computations of the cross derivatives. This kernel level optimization is not of concern of this paper, which looks at the effects of the runtime on design and performance of applications. It also implements for CPU and GPU parallelism, for which only the CPU parallelism was analyzed. For this runtime, the program was changed to receive as a parameter the kind of OpenMP runtime to use, as to enrich the data analysis.
 
 
 
 *** Our Task-Based Implementation
 <<sec:fletcherstar>>
 
-- Figura das dependências dos blocos em algum lugar aqui
-  - Com a explicação do segundo parágrafo da eval
+TODO: Join the text.
 
-/Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. These are distributed among workers, which can represent CPU cores or GPUs, and execute the computations.
-~StarPU is equipped with multiple scheduling policies, each with different rules that determine which worker a task goes to. Each worker has its own task queue, and it is the scheduler's job to distribute work between them. Work-stealing schedulers may distribute tasks equally, but workers then steal tasks from others when they become idle. Performance-based schedulers measure a task's performance on each worker it executes on and then distribute tasks to them based on the measured computing capability.~
+This paper's developed /star-fletcher/, a task-based implementation of Fletcher's algorithm when considering only the forward propagation.
 
-In the implementation, the computed medium had to be segmented into cubes so that /star-fletcher/ could use task-based parallelism in first order (what does that mean?). Each computed task is a section of the whole medium. This presented an opportunity to schedule tasks.
+/Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks.
+
+It reuses the numerical kernel of /fletcher-base/ to present more acurate benchmarks?
+
+Tasks are units of work that are computed by workers, which in this program's case are the CPU's cores.
+
+Using StarPU, /star-fletcher/ is more capable to explore a machine's heterogeneous resources, doing better load balancing.
+This load balancing capabilities, along with the task design, afforded /star-fletcher/ new design space to distribute parallel computation. This resulted in an implementation that breaks /fletcher-base/ global synchronization points and weaves IO between computation. 
+
+Some unexplored areas in this paper, which are future work, is StarPU's capability to explore multiple accelerators and expand more easily to different topologies.
 
 
-% Esse bloco tá uma merda
+- Related Work
+    - Alonzai paper
+    - 2014 paper
 
-Instead of using a single loop that, at each iteration, alternates between two buffers, pausing the computation to save the IO, each block became an independent unit, detached from the whole. With this, to compute a cube $C_{i,j,k,t + 1}$, it needs its neighbors and the previous cubes in time: $C_{i,j,k,t}$ and $C_{i,j,k,t-1}$. All those allocations are dynamically achieved through StarPU, which frees the memory once no other task needs the allocated block. This means that, whilst /fletcher-base/ has to synchronize all threads after every iteration, due to the need to swap buffers, $prev := F(curr, prev)$, followed by a swap of $prev$ and $curr$, /star-fletcher/ does not because it considers per block computation, calculating $C_{t} := F(C_{t-1}) + C_{t-2}$. This results in no global synchronization points, allowing for the overlap of iterations and for the IO to be weaved between block computations.
+
+To use this first-order task parallelism, the volume (*still to define what the volume is*) is segmented into cubes of a certain order (the side of the cube) based on the task granularity. So, for a cube volume of side 200, using cubes of order 20 will result in $(200 / 20)^3 = 1000$ tasks per iteration. An application's performance may be affected if there are too many tasks, by straining the runtime, and too few tasks, by starving the workers. With this notion, there is an ideal task granularity for any volume size. 
+
+StarPU has an automatic memory management system, where a tasks data can be automatically freed when no other tasks depends on it. With that, /fletcher-base/ computational model with synchronizations can be changed. 
+
+The task based model and automatic memory management allowed /star-fletcher/ to break global synchronization steps, which /fletcher-base/ had. Instead of alternating between two buffers, /star-fletcher/ makes each block an individual unit that depends on its neighbors and itself from a previous iteration. Algorithm \ref{alg:star-fletcher} shows this relation, where for each block of the medium, to compute a block at $t + 1$, it needs the blocks at $t$ and its neighbors for function $F$ and the itself at $t - 1$. This neighborhood can be visualized in Figure [[fig:neighborhood]]. It mirrors the Fletcher stencil of Figure [[fig:stencil]], where to compute the border regions of the center block, the second derivative of the stencil will require the face block neighbors, and the cross derivative will also require the edge neighbors. The corner neighbors are not required. With this decision, there isn't necessary to stop the execution to swap the pointers or write the buffer, allowing the overlap of iterations and asynchronous I/O. Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
 
 
-Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
 
+#+BEGIN_EXPORT latex
+\begin{algorithm}[!htb]
+    \caption{Computation \textit{star-fletcher}.}
+    \label{alg:star-fletcher}
+    \begin{algorithmic}[1]
+        %\State $\text{Blocks} \gets \text{segment(V)}$ \Comment{}
+        \For{$1..t$}
+            \ForAll{$B \in \text{Blocks}$} \Comment{Submit tasks.}
+                \State $task("propagate", B_{t + 1}, B_{t}, B_{t - 1})$ 
+                \If{$t \bmod k = 0$} 
+                    \State $task("save", B_{t + 1})$ \Comment{Save to Disk.}
+                \EndIf
+            \EndFor
+        \EndFor
+        
+        %\ForAll{$(x, y, z) \in \text{dim}(B)$} \Comment{Parallel section}
+        %   \State $B(x, y, z, t) \gets F(B, x, y, z, t - 1) - B(x, y, z, t - 2)$
+        %\EndFor
+    \end{algorithmic}
+\end{algorithm}
+#+END_EXPORT
 
 
 
@@ -490,7 +525,7 @@ Not only that, but this pattern mimics time-tilling optimizations, enabling futu
 #+END_SRC
 
 #+CAPTION: Block Neighbors.
-#+NAME: fig:stencil
+#+NAME: fig:neighborhood
 #+ATTR_LATEX: :placement [!htb] :width .6\linewidth
 [[file:figures/neighbors.png]]
 
@@ -515,15 +550,15 @@ To find that, the experiments were run on PCAD's infrastructure, which is the hi
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
-#+ATTR_LATEX: :booktabs t
-| Machine   | Processor                        | Threads | Cores | Frequency |
-|-----------+----------------------------------+---------+-------+-----------|
-| draco     | 2 x Intel(R) Xeon(R) E5-2640 v2  |      32 |    16 | 2.0 GH    |
-| poti      | Intel(R) Core(TM) i7-14700KF     |      28 |    20 | 3.4 GHz   |
-| cei       | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz   |
-| grace     | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
-| tupi[3-6] | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
-| lunaris   | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
+#+ATTR_LATEX:  :environment tabularx :width \linewidth :align l X r r l :booktabs t
+| Machine | Processor                        | Threads | Cores | Frequency |
+|---------+----------------------------------+---------+-------+-----------|
+| draco   | 2 x Intel(R) Xeon(R) E5-2640 v2  |      32 |    16 | 2.0 GHz   |
+| poti    | Intel(R) Core(TM) i7-14700KF     |      28 |    20 | 3.4 GHz   |
+| cei     | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz   |
+| grace   | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
+| tupi    | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
+| lunaris | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
 
 #+latex: \noindent
 *Software*. Nix and stuff. All the version, etc. URL.
