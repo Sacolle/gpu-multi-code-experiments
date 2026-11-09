@@ -1247,30 +1247,12 @@ NOTE: O que mais eu posso falar desse gráfico aqui? Acho que não muito,
 
 *** Scale Plot :ignore:
 
-Caixinhas
-Tirar o potilahdo do SMT e fazer linear (manter a anotação no X de smt)
-Inset nas facetas da grace que faz um zoom no 128-144, posicionado sobre o gráfico
+For this experiment, threads were bind to cores (because), so the only policy used was bind. It is the bind cases on Figure [[fig:exec_time]].
 
-Figure [[fig:scalability]] shows the application's scallability as the number of cores incresseasses.
-- It is using Exec Time to also show the behavior when using IO.
-- The X axis is the amount of cores being used to execute the application.
-- The Y axis is the execution time
-- It is facet horizontally by machine and vertically by the amount of IO used (none or at every step)
-- It shows the version using a dynamic and a static scheduler for /fletcher-base/
-- The experiment binded threads to cores, so it is the bind cases on Figure [[fig:exec_time]].
+Figure [[fig:scalability]] shows the application's scalability as the number of cores increases. The X axis is the amount of cores being used to execute the application and the Y axis is the execution time. It is facet horizontally by machine and vertically by the amount of IO used. It shows three versions, /star-fletcher/ using it's best block order for the size, and /fletcher-base/ with /dynamic/ scheduling and /static/ scheduling. 
 
-It shows that /star-fletcher/ scales better in all machines for almost all core amounts.
-For the Homogenous set (draco and cei), the different tends to petter off as the core count increasses, but it stays above.
-- What does that mean
-For the Heterogeneous, as marked in the figure, when the e-cores are introduced, the performance of a static distribution falls off,
-aproaching the others only when using SMT. This transition seemed to not affect the performance on the dynamic versions, although
-/star-fletcher/ stayed ahead.
-- Just that?
-For the Grace machine, /star-fletcher/ is superior for lower core counts, but as they increasse, the difference is reduced.
-- Talk about the tip top
-- The chunks for the static are propably small enough as to not be of such penalty when one core does more work than another,
-  because that relative difference is smaller.
-For the Lunaris, there is a clear dominance. It does not seem to make a difference with either static of dynamic schedulers. This gains can be attributed to the iteration overlap.
+It shows that /star-fletcher/ scales better in all machines for almost all core amounts. The gap tends to narrow for machines using simultaneous multi-threading (SMT). As expected, on the heterogeneous machines, the usage of e-cores slowed down significantly the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the /star-fletcher/ implementation. The machine lunaris showed the largest gaps, independent of the amount of cores used.
+The one exception for all this trends is the machine grace. In it, /star-fletcher/ is superior for lower core counts, but as they increase, the difference is reduced to the point that, when using I/O, it is worse than any /fletcher-base/ versions. This penalty for doing I/O indicates an space of opportunity for future work.
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
    # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
@@ -1303,6 +1285,15 @@ For the Lunaris, there is a clear dominance. It does not seem to make a differen
    # trecho no painel e a ampliação vai no canto superior direito, onde não há pontos (o tempo cai
    # com o número de cores). A ampliação é um recorte do gráfico: usa também o ponto anterior ao
    # trecho, para a linha que chega no primeiro ponto aparecer entrando pela borda esquerda.
+   # O ggplotGrob abre uma página no dispositivo atual: no PDF da figura isso deixava a primeira
+   # página em branco. A ampliação é montada num dispositivo descartável, sem tocar no da figura.
+   offscreen_grob <- function(p) {
+     current <- dev.cur()
+     pdf(NULL)
+     on.exit({ dev.off(); if (current > 1) dev.set(current) })
+     ggplotGrob(p)
+   }
+
    zoom_layers <- function(d, range) {
      pad <- 0.15 * diff(range)
      inside <- filter(d, X >= range[1], X <= range[2])
@@ -1339,7 +1330,7 @@ For the Lunaris, there is a clear dominance. It does not seem to make a differen
        y_top <- max(filter(d, IO == io)$y + filter(d, IO == io)$err, na.rm = TRUE)
        layer(data = tibble(IO = io), geom = ggplot2:::GeomCustomAnn, stat = "identity",
              position = "identity", inherit.aes = FALSE,
-             params = list(grob = ggplotGrob(zoom_plot), xmin = max(d$X) - zoom_width * x_span, xmax = Inf,
+             params = list(grob = offscreen_grob(zoom_plot), xmin = max(d$X) - zoom_width * x_span, xmax = Inf,
                            ymin = (1 - zoom_height) * y_top, ymax = Inf))
      })
      c(list(marks), insets)
