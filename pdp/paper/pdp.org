@@ -225,18 +225,21 @@ As in the current version.
 *** Previous text :ignore:
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
-This common parallelization approach will not work when nodes' architectures become increasingly heterogeneous: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs. In 2013, Dongarra cite:dongarra already proposed the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF enables exploration of all available computational resources by segmenting computations into dependent tasks and balancing their distribution across resources.
+This common parallelization approach will not work when nodes' architectures become increasingly heterogeneous: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs. In 2013, Dongarra cite:dongarra already proposed (HE DID NOT PROPOSE ANYTHING) the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF enables exploration of all available computational resources by segmenting computations into dependent tasks and balancing their distribution across resources.
 
-This task-based paradigm is relevant to RTM applications, which are IO-bound. The forward step saves the computed volume every $k$ iterations, which the backward step then reads back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory. Modern research focuses on overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate data transfer between GPUs, leveraging load-balancing capabilities to balance per-node, multi-GPU RTM computation.
+
++This task-based paradigm is relevant to RTM applications, which are IO-bound. The forward step saves the computed volume every $k$ iterations, which the backward step then reads back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory.+
+
+Modern research focuses on overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate data transfer between GPUs, leveraging load-balancing capabilities to balance per-node, multi-GPU RTM computation.
 
 Considering these characteristics, this paper presents /star-fletcher/, an implementation of the /fletcher/ algorithm using the StarPU runtime under the Sequential Task Flow (STF) paradigm. It improves on a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the computational domain into blocks and scheduling them as dependent tasks. The contributions of this paper are:
 
 1. The elimination of global synchronization points between iteration steps by adopting a per-block task dependency model, which allows the StarPU scheduler to seamlessly overlap the execution of tasks from different iterations, keeping workers busy and avoiding synchronization bottlenecks.
 2. The natural overlap of computation with asynchronous IO, made possible by the task-based design: write tasks are woven between block computations at fine granularity, so IO does not stall computation, yielding additional execution time gains on machines where computation already improves over the baseline.
-3. A comprehensive performance evaluation varying block order across five StarPU schedulers (ws, lws, random, dm, dmdar) on five machines with distinct CPU architectures, including hybrid p-core/e-core systems (tupi and poti), a homogeneous ARM machine (grace), and dual-socket x86 servers (cei and draco), using MSamples/s and execution time as complementary metrics.
-4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only p-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.
+3. A comprehensive performance evaluation on six machines, covering four kinds of CPU architectures, including hybrid p-core/e-core systems, homogeneous ARM machine, dual-socket x86 servers, single socket x86 AMD server, using MSamples/s and execution time as metrics.
++4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only p-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.+
 
-Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid p-core/e-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating p-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.
++Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid p-core/e-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating p-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.+
 
 This paper is structured as follows. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Section [[sec:conclusion]] presents this paper's conclusions.
 
@@ -244,7 +247,7 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 <<sec:methodsandmaterials>>
 
 *** Introduction                                                   :ignore:
-This paper's methods and materials are divided in the following sub-sections. In sub-section [[sec:fletchereq]], Fletcher's equations are presented and their computational forms are explained. In sub-section [[sec:fletcherbase]], the baseline program, /fletcher-base/, is introduced and its intricacies are detailed. In sub-section [[sec:fletcherstar]], the new implementation, /star-fletcher/, is explained, along with its the improvements and design decisions taken with the use of StarPU. In the last sub-section [[sec:methodology]], the experimental method is described, including the artifacts necessary for the execution of the experiments.
+This paper's methods and materials are divided into sub-sections that talk about Fletcher's equations, in sub-section [[sec:fletchereq]]; the baseline program, /fletcher-base/, in sub-section [[sec:fletcherbase]]; this paper's program, /star-fletcher/, in sub-section [[sec:fletcherstar]]; and lastly, this work's used hardware, software and design of experiments used, in sub-section [[sec:methodology]].
 
 *** Fletcher's Equations
 <<sec:fletchereq>>
@@ -264,7 +267,7 @@ Fletcher's equations are used to simulate wave propagations over time in differe
 \end{equation}
 #+END_EXPORT
 
-To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, it needs to compute a 9 point stencil using  second and cross derivative. This stencil can be seen in Figure [[fig:stencil]]. The center green cube is the point being computed, the orange squares are the ones for the second derivative computations and the purple and orange ones for the cross derivative computation. The equations are also discretized according to time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs the neighboring points of it from $t$ and itself from $t - 1$. 
+To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a 9 point stencil using second and cross derivative can be used. This stencil can be seen in Figure [[fig:stencil]]. The center green cube is the point being computed, the orange squares are the ones for the second derivative computations and the purple and orange ones for the cross derivative computation. The equations are also discretized according to time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs the neighboring points of it from $t$ and itself from $t - 1$. 
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
   import os
@@ -404,18 +407,14 @@ Serpa's [[cite:fletcher_base]] paper has four implementations for /fletcher-base
 *** Our Task-Based Implementation
 <<sec:fletcherstar>>
 
-TODO: Join the text.
+This paper's developed /star-fletcher/, a task-based implementation of Fletcher's algorithm when considering only the forward propagation of the wave. It reuses the numerical kernel of /fletcher-base/ baseline, but implements its parallelization using the STF with the StarPU runtime cite:starpu-paper. StarPU is a powerful STF runtime that schedule tasks executions and manages data transfers between those tasks dependencies. Tasks are units of work that are computed by workers, which in this program's case are the CPU's cores. This new choice of runtime afforded /star-fletcher/ new design space to distribute and schedule parallel computation, resulting in an implementation that breaks /fletcher-base/ global synchronization points and weaves IO between computation. 
 
-This paper's developed /star-fletcher/, a task-based implementation of Fletcher's algorithm when considering only the forward propagation. It reuses the numerical kernel of /fletcher-base/ baseline, for better compartison between the two applications. /Star-fletcher/'s implementation uses the StarPU cite:starpu-paper runtime, which is a powerful STF runtime that automatically manages data transfers between tasks. Tasks are units of work that are computed by workers, which in this program's case are the CPU's cores. 
-Using StarPU, /star-fletcher/ is more capable to explore a machine's heterogeneous resources, using its more intricate load balancing capabilities and the STF model's ability to better change a problems granularity. This load balancing capabilities, along with the task design, afforded /star-fletcher/ new design space to distribute parallel computation. This resulted in an implementation that breaks /fletcher-base/ global synchronization points and weaves IO between computation. 
+This task based approach for seismic analysis is not new, but very rare. (PELO QUE PROCURAMOS) only two other papers applied a task-based model to RTM applications, although none used Fletcher's equations for their numerical methods.
+*AlOnazi*'s work [[cite:alonazi_asynchronous_2019]], focused in using StarPU's out of core (OOC) capabilities to asynchronously transfer the data between GPUs and main memory to enable faster executions and sharing of data. It partitioned one shot per GPU on each machine, making it a shot-per-accelerator model. The CPUs then were orchestrated to move the data, save to disk and pre-fetch, as to always have the GPUs running at maximum capacity.
+*Boillot*'s work cite:boillot_task-based_2014 from 2014, transformed an RTM application parallelized with CPU MPI processes on a single node into a task-based version using PaRSEC cite:bosilca_parsec_2013. It used the  It did not use the STF model, as all dependencies had to be declared explicitly. It also subdivided the volume into parts, but that implementation was inherited from the base version. It did not elaborate on the application's I/O.
+This paper focused on the viability of the usage of a task-based model, although due to its age, the machines it did it's analysis on are outclassed by the ones available today. Neither paper used the STF model as first-order parallelism mechanism, and elaborated on the possibilities that can have on the ground up design of an application.
 
-Some unexplored areas in this paper, which are future work, is StarPU's capability to explore multiple accelerators and expand more easily to different topologies.
-
-This task based aproach for sysmic analysis is (NOVO). (ANALISANDO A LITERATURA) only two other papers attemped to apply the STF model to RTM applications.
-*AlOnazi*'s work [[cite:alonazi_asynchronous_2019]], focused in using StarPU's out of core (OOC) capabilities to asynchronally transfer the data between GPUs and main memory to enable faster executions and sharing of data. It focused mostly on single node executions of each shot and partitioned equaly the volume between a node's available GPUs. This limited the scalabilty of executions to only shot-per-node executions and excluded possible contribuitions that the CPU may have to speed up the process. (REVISAR ESSA PARTE, O ARTIGO DO SSCAD E ERAD DEVEM TER TEXTOS MELHORES PARA ME BASEAR. SEPÁ ATÉ O CLAUDE PODE AJUDAR.)
-*2014 paper* TODO.
-
-To address those limitations, /star-flecther/, using StarPU, uses first-order task parallelism. To do so, the volume is segmented into cubes of a certain order (the side of the cube) based on the task granularity. So, for a cube volume of side 200, using cubes of order 20 will result in $(200 / 20)^3 = 1000$ tasks per iteration. An application's performance may be affected if there are too many tasks, by straining the runtime, or if there are too few tasks, by starving the workers. With this notion, there is an ideal task granularity for any volume size. Using StarPU memory managment, those tasks can be spawned freely, because the data they used is freed once no other task needs it, and if a tasks creates data, it only allocates that memory only when it needs to. As long as the system's memory can hold all tasks descriptors in memory, the task graph can be unfolded without waiting for tasks to finish.
+To address those limitations, /star-fletcher/, using StarPU, uses first-order task parallelism. To do so, the volume is segmented into cubes of a certain order (the side of the cube) based on the task granularity. So, for a cube volume of side 200, using cubes of order 20 will result in $(200 / 20)^3 = 1000$ tasks per iteration. An application's performance may be affected if there are too many tasks, by straining the runtime, or if there are too few tasks, by starving the workers. With this notion, there is an ideal task granularity for any volume size. Using StarPU memory management, those tasks can be spawned freely, because the data they used is freed once no other task needs it, and if a tasks creates data, it only allocates that memory only when it needs to. As long as the system's memory can hold all tasks descriptors in memory, a block's computation is only limited by the computed state of its dependencies. 
 
 The task based model and automatic memory management allowed /star-fletcher/ to break global synchronization steps, which /fletcher-base/ had. Instead of alternating between two buffers, /star-fletcher/ makes each block an individual unit that depends on its neighbors and itself from a previous iteration. Algorithm \ref{alg:star-fletcher} shows this relation, where for each block of the medium, to compute a block at $t + 1$, it needs the blocks at $t$ and its neighbors for function $F$ and the itself at $t - 1$. This neighborhood can be visualized in Figure [[fig:neighborhood]]. It mirrors the Fletcher stencil of Figure [[fig:stencil]], where to compute the border regions of the center block, the second derivative of the stencil will require the face block neighbors, and the cross derivative will also require the edge neighbors. The corner neighbors are not required. With this decision, there isn't necessary to stop the execution to swap the pointers or write the buffer, allowing the overlap of iterations and asynchronous I/O. Not only that, but this pattern mimics time-tilling optimizations, enabling future performance gains that focus on cache reuse cite:leandro_nesi_task-based_2020,qu_exploiting_2023. 
 
@@ -433,10 +432,7 @@ The task based model and automatic memory management allowed /star-fletcher/ to 
                 \EndIf
             \EndFor
         \EndFor
-        
-        %\ForAll{$(x, y, z) \in \text{dim}(B)$} \Comment{Parallel section}
-        %   \State $B(x, y, z, t) \gets F(B, x, y, z, t - 1) - B(x, y, z, t - 2)$
-        %\EndFor
+        \State $WaitForAllTasks()$ \Comment{Waits all submited tasks to finish.}
     \end{algorithmic}
 \end{algorithm}
 #+END_EXPORT
@@ -515,11 +511,11 @@ The task based model and automatic memory management allowed /star-fletcher/ to 
 <<sec:methodology>>
 
 Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s), the industry standard, and Computed Time (s). MSamples/s measures the efficiency of the computing kernel, only counting the time the kernel is computating, and dividing the total number of computed points by it. /Fletcher-base/ measures this by timing the computational section of the loop, lines 2, 3 and 4 of Algorithm \ref{alg:fletcher-base}. It's Compute Time is the measured time of the external for loop.
-Due to the STF model, /Star-fletcher/ can't easily split the two cases, given the weaving of computation and I/O. It's Computed Time is from the start of the external for loop till after the WaitAll in the end, lines 1 and ? of Algorithm \ref{alg:star-fletcher}. To measure Msamples's, it divides the total computed points by the Computed Time when the I/O is disabled. Therefore the Msamples's measurement of /star-fletcher/ can only be used to compare to /fletcher-base/ when no I/O occurs.
+Due to the STF model, /Star-fletcher/ can't easily split the two cases, given the weaving of computation and I/O. It's Computed Time is from the start of the external for loop till after the ~WaitForAllTasks()~ in the end, lines 1 and 9 of Algorithm \ref{alg:star-fletcher}. To measure Msamples's, it divides the total computed points by the Computed Time when the I/O is disabled. Therefore the Msamples's measurement of /star-fletcher/ can only be used to compare to /fletcher-base/ when no I/O occurs.
 
 #+latex: \noindent
 *Experimental Hardware Platform*.
-To find that, the experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses an AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12, respectively). The machine grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the overall most powerfull machine available for experiments. The cores on all machines were configured with the Governor /performance/.
+The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12, respectively). The machine grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the overall most powerfull machine available for experiments. The cores on all machines were configured with the Governor /performance/.
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
@@ -534,22 +530,19 @@ To find that, the experiments were run on PCAD's infrastructure, which is the hi
 | lunaris | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
 
 #+latex: \noindent
-*Software*. As per sub-sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the used programs where /fletcher-base/ and /star-fletcher/. They were both compiled using the GCC compiler. /Fletcher-base/ used version 12.4.0 and /star-fletcher/ used version 13.4.0. Both used only ~-O3~ optimizarion, which did not include any AVX optmization. All of this configurations were tracked using the Nix package manager. The software used and the experiments are all available publically in the author's github [fn::fletcher-base - \url{https://github.com/Sacolle/fletcher-base}] [fn::star-fletcher - \url{https://github.com/Sacolle/star-fletcher}] [fn::Paper's experiments - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/pdp}].
+*Software*. As per sub-sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the used programs where /fletcher-base/ and /star-fletcher/. They were both compiled using the GCC compiler. /Fletcher-base/ used version 12.4.0 and /star-fletcher/ used version 13.4.0. Both used only ~-O3~ optimization, which did not include any AVX optimization. All of this configurations were tracked using the Nix package manager. The software used and the experiments are all available publicly in the author's GitHub [fn::fletcher-base - \url{https://github.com/Sacolle/fletcher-base}] [fn::star-fletcher - \url{https://github.com/Sacolle/star-fletcher}] [fn::Paper's experiments - \url{https://github.com/Sacolle/gpu-multi-code-experiments/tree/main/pdp}].
 
 #+latex: \noindent
 *Design of Experiments*.
 #+latex: %
-- Remove the estorinha
-  - Be direct. Which DoE have you used. Why. Justify.
-#+latex: %
 Two experiments were designed to understand the performance of the implemented task-based solution (/start-fletcher/) against the reference implementation (/fletcher-base/). They were used to validate assumptions about /star-fletcher/'s performance, as detailed below.
 #+latex: %
-The first experiment attempted to find the best configurations for each program, and to see if the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both the Msamples/s and Execution Time, expecting that improvment of /star-fletcher/ for both metrics.
-For that, a volume size was fixed that would computationally stress all machines. It was chosen a volume of $384^3$ points for all machines except grace, which was chosen a volume of $700^3$ points. Both programs were run for 20 iterations. For /star-fletcher/, the block order varied between each experiment. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding was varied between executions, changing from /static/ and /dyanmic/ scheduling and /free/ moving and /bind/ to core threads. Lastly, it checked each program with different amount of steps taken to save the volume, to verify the stress the I/O has on the applications.
+The first experiment attempted to find the best configurations for each program, and to see if the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both the MSamples/s and Execution Time, expecting that improvement of /star-fletcher/ for both metrics.
+For that, a volume size was fixed that would computationally stress all machines. It was chosen a volume of $384^3$ points for all machines except grace, which was chosen a volume of $700^3$ points. Both programs were run for 20 iterations. For /star-fletcher/, the block order varied between each experiment. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding was varied between executions, changing from /static/ and /dynamic/ scheduling and /free/ moving and /bind/ to core threads. Lastly, it checked each program with different amount of steps taken to save the volume, to verify the stress the I/O has on the applications.
 
-The second experiment used the best configurations for each program on each machine, and observed how they performed as the computational resources increassed. It used the same total volume size and observed the performance as the amount of cores used by each machine incressed. It observed those on the case with no I/O and on the case where the volume was saved every step. This experiment aimed show that /star-fletcher/ used better the available computational resources than /fletcher-base/
+The second experiment used the best configurations for each program on each machine, and observed how they performed as the computational resources increased. It used the same total volume size and observed the performance as the amount of cores used by each machine increased. It observed those on the case with no I/O and on the case where the volume was saved every step. This experiment aimed show that /star-fletcher/ used better the available computational resources than /fletcher-base/
 
-For both executions some traces were taken to understand the reason behind the observed data. Using the (CITAR) starvz visualization library, some visual plots could be constructed to show the effects (BLEEE).
+For both experiments, some traces were taken to understand the reason behind the observed data. The starvz  cite:garcia2018visual visualization library was used to visualize them, as to better illustrate the reasons behind the performance gains and losses.
 
 ** Results
 <<sec:results>>
@@ -1079,8 +1072,10 @@ NOTE: Add another figure here to show the relative gain of each aplication on it
       ), by = "Machine", suffix = c(".sf", ".fb"), relationship = "many-to-many") |>
       unique() |>
       mutate(
-      #  Diff = Msamples.sf - Msamples.fb
-        Diff = (Msamples.sf / Msamples.fb) - 1
+        # absolute difference
+        Diff = Msamples.sf - Msamples.fb
+        # percentage difference
+        #Diff = (Msamples.sf / Msamples.fb) - 1
       )
 
     ggplot(table, aes(x = factor(Machine), y = Diff)) +
@@ -1295,25 +1290,78 @@ For the Lunaris, there is a clear dominance. It does not seem to make a differen
    # se sobrepõem (os pontos continuam em todos os números de cores); 72 é um socket inteiro da grace
    x_ticks <- list(grace = c(8, 32, 72, 144))
 
-   scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE) {
+   # Ampliação ("zoom") de um trecho do eixo X, uma em cada painel de IO, no canto superior direito:
+   # máquina -> trecho ampliado, e o tamanho da janela como fração do painel (largura e altura)
+   zoom <- list(grace = c(128, 144))
+   zoom_width <- 0.7
+   zoom_height <- 0.7
+   # folga do retângulo tracejado que marca o trecho ampliado no painel, como fração da largura e da
+   # altura do painel (sem ela o retângulo fica do tamanho dos pontos e quase não aparece)
+   zoom_box_pad <- c(x = 0.04, y = 0.06)
+
+   # Camadas da ampliação de `range` no gráfico `d` de uma máquina: um retângulo tracejado marca o
+   # trecho no painel e a ampliação vai no canto superior direito, onde não há pontos (o tempo cai
+   # com o número de cores). A ampliação é um recorte do gráfico: usa também o ponto anterior ao
+   # trecho, para a linha que chega no primeiro ponto aparecer entrando pela borda esquerda.
+   zoom_layers <- function(d, range) {
+     pad <- 0.15 * diff(range)
+     inside <- filter(d, X >= range[1], X <= range[2])
+     before <- d |> filter(X < range[1]) |> slice_max(X, n = 1, by = c(IO, Program))
+     x_span <- max(d$X) - min(d$X)
+
+     # a folga em y é relativa à altura de cada painel (os painéis de IO têm escalas diferentes)
+     boxes <- d |>
+       summarize(y_top = max(y + err, na.rm = TRUE), .by = IO) |>
+       inner_join(inside |> summarize(lo = min(y - err), hi = max(y + err), .by = IO), by = "IO") |>
+       mutate(ymin = pmax(0, lo - zoom_box_pad[["y"]] * y_top), ymax = hi + zoom_box_pad[["y"]] * y_top)
+     marks <- geom_rect(data = boxes, aes(ymin = ymin, ymax = ymax),
+                        xmin = range[1] - zoom_box_pad[["x"]] * x_span, xmax = range[2] + zoom_box_pad[["x"]] * x_span,
+                        inherit.aes = FALSE, fill = NA, color = "gray30", linetype = "dashed", linewidth = 0.4)
+
+     insets <- unique(inside$IO) |> map(\(io) {
+       zi <- filter(inside, IO == io)
+       lo <- min(zi$y - zi$err)
+       hi <- max(zi$y + zi$err)
+       zoom_plot <- ggplot(bind_rows(filter(before, IO == io), zi), aes(x = X, y = y, color = Program)) +
+         geom_line(linewidth = 0.5) +
+         geom_point(data = zi, alpha = 0.8, size = 1) +
+         geom_errorbar(data = zi, aes(ymin = y - err, ymax = y + err), width = 0.6, linewidth = 0.3) +
+         scale_x_continuous(breaks = range) +
+         scale_color_manual(values = program_colors, limits = names(program_colors), guide = "none") +
+         # o recorte: só o trecho ampliado fica visível, a linha do ponto anterior é cortada na borda
+         coord_cartesian(xlim = c(range[1] - pad, range[2] + pad), ylim = c(lo, hi) + c(-0.1, 0.1) * (hi - lo),
+                         expand = FALSE) +
+         labs(x = NULL, y = NULL) +
+         theme_bw(base_size = 5) +
+         theme(plot.background = element_rect(color = "gray40", linetype = "dashed", linewidth = 0.3),
+               plot.margin = margin(1, 3, 1, 1), axis.ticks.length = unit(1, "pt"))
+       # annotation_custom só num painel: a camada tem dados só com o nível de IO desse painel
+       y_top <- max(filter(d, IO == io)$y + filter(d, IO == io)$err, na.rm = TRUE)
+       layer(data = tibble(IO = io), geom = ggplot2:::GeomCustomAnn, stat = "identity",
+             position = "identity", inherit.aes = FALSE,
+             params = list(grob = ggplotGrob(zoom_plot), xmin = max(d$X) - zoom_width * x_span, xmax = Inf,
+                           ymin = (1 - zoom_height) * y_top, ymax = Inf))
+     })
+     c(list(marks), insets)
+   }
+
+   scalability_plot <- function(stats, metric, y_label, title, log_y = FALSE, log_x = FALSE, zoom = NULL) {
      machine_plot <- function(machine, is_last) {
        d <- filter(stats, Machine == machine) |>
          mutate(
            y = .data[[paste0(metric, "_mean")]],
            err = .data[[paste0(metric, "_error")]],
-           # na escala log2 o ponto com SMT precisa de um espaço maior para não colar no último ponto
-           X = if_else(SMT == 1, MaxPhysical * (if (log_x) 1.6 else 1.2), NumCPUs)
+           # o ponto com SMT fica no seu número de threads, na mesma escala dos outros
+           X = NumCPUs
          )
        ticks <- distinct(d, X, NumCPUs, SMT) |>
          mutate(Label = if_else(SMT == 1, paste0(NumCPUs, "\n(SMT)"), as.character(NumCPUs))) |>
          filter(!(machine %in% names(x_ticks)) | NumCPUs %in% x_ticks[[machine]])
-       max_physical <- first(d$MaxPhysical)
 
        p <- ggplot(d, aes(x = X, y = y, color = Program)) +
-         geom_line(data = filter(d, SMT == 0), linewidth = 0.5)
-       if (any(d$SMT == 1)) {
-         # o trecho até o ponto com SMT é pontilhado, já que a distância não está em escala
-         p <- p + geom_line(data = filter(d, SMT == 1 | NumCPUs == max_physical), linetype = "dotted", linewidth = 0.5)
+         geom_line(linewidth = 0.5)
+       if (machine %in% names(zoom)) {
+         p <- p + zoom_layers(d, zoom[[machine]])
        }
        if (machine %in% names(pcore_count)) {
          # linha tracejada onde terminam os p-cores e começam a ser usados os e-cores
@@ -1372,18 +1420,12 @@ For the Lunaris, there is a clear dominance. It does not seem to make a differen
       ExecTime_error = (qt(0.975, n - 1) * sd(ExecTime)) / sqrt(n),
       .groups = "drop"
     ) |>
-    # O ponto com hyperthreading (SMT) não fica na escala do eixo X: ele é colocado um pouco
-    # depois do último ponto com cores físicos, para não ficar longe demais
-    group_by(Machine) |>
-    mutate(
-      MaxPhysical = max(NumCPUs[SMT == 0]),
-      X = if_else(SMT == 1, MaxPhysical * 1.2, NumCPUs)
-    ) |>
-    ungroup()
+    # o ponto com hyperthreading (SMT) fica no seu número de threads, na mesma escala dos outros
+    mutate(X = NumCPUs)
 
    scale_stats |>
      filter(X >= 4) |>
-     scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores") #log_y = TRUE, log_x = TRUE
+     scalability_plot("ExecTime", "Execution Time (s)", "Execution Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
 #+CAPTION: ...
@@ -1619,7 +1661,8 @@ In the previous analysis, the heterogeneous machines (tupi and poti) performed w
 The Figure fig:pcore_time_diff shows that the results for the tupi and poti machines are largely due to their heterogeneous architecture. When that is taken away, the gains are greatly reduced. One unexpected factor was that the performance of /star-fletcher/ stayed superior to /fletcher-base/'s performance. It was predicted that there would be no gain from using only p-cores. The computational overlap among iterations is responsible for the persistence of performance gains in the p-core-only environment, as shown in Figure fig:iteration_plot. The CPU clock speed, which is above 3 GHz in both computers, may mitigate the StarPU overhead and play to its strengths, allowing fast, small computations.
 
 
-Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning, which is the OpenMP default. Therefore, jumping from the p-core only experiment, /fletcher-base/ was modified so that its main loop uses the directive \texttt{schedule(dynamic)}. With that new data, the Figure fig:pcore_dyn_time_diff was made. Once again, the gains by /star-fletcher/ were reduced, but not as much this time as they were when going from all cores to only p-cores. This does not show that the Fletcher algorithm is inadequate for static partitioning, only that the remaining /star-fletcher/ gains can be attributed to optimizations for IO and iteration overlap.
+Another aspect to consider is that the Fletcher algorithm is not adequate for static partitioning.
+
 
 
 ** Conclusion
