@@ -252,7 +252,7 @@ This paper's methods and materials are divided into sub-sections that talk about
 *** Fletcher's Equations
 <<sec:fletchereq>>
 
-Fletcher's equations are used to simulate wave propagations over time in different types of media, highlighting the Tilted Transverse Isotopic (TTI) medium. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by Equation \ref{eq:equacao2}. In them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
+Fletcher's equations are used to simulate wave propagations over time in different types of media, highlighting the Tilted Transverse Isotropic (TTI) medium. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by Equation \ref{eq:equacao2}. In them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
 #+BEGIN_EXPORT latex
 \begin{equation}
