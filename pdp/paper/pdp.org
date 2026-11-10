@@ -815,7 +815,7 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 #+latex: \noindent
 *Performance Overview of the best configuration.*
 #+latex: %
-The first experiment resulted in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of the performance over all machines using the industry metric, MSamples/s. The X axis represents the block order for the /star-fletcher/ application and the Y axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions, that vary scheduler from static to dynamic, and proc bind from bind to free. Each plot represents one machine and they are organized by similarity. The top row are the two dual-socketed homogenous machines, the middle row are the hetereogenous machines and the bottom row has the grace and lunaris machines, which do not fall on the groups before. 10 repetitions were executed for each experiment configuration. Almost all executions fell into a t-student distribution with an interval of confidence of 95%, after applying the Shapiro-Wilki test with the Bonferroni correction. With that, the vertical lines on the dots, and the bands around the horizontal lines, represent the standard error with that interval of confidence.
+The first experiment resulted in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of the performance over all machines using the industry metric, MSamples/s. The X axis represents the block order for the /star-fletcher/ application and the Y axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions, that vary scheduler from static to dynamic, and proc bind from bind to free. Each plot represents one machine and they are organized by similarity. The top row are the two dual-socket homogeneous machines, the middle row are the heterogeneous machines and the bottom row has the grace and lunaris machines, which do not fall on the groups before. 10 repetitions were executed for each experiment configuration. Almost all executions fell into a t-student distribution with an interval of confidence of 95%, after applying the Shapiro-Wilki test with the Bonferroni correction. With that, the vertical lines on the dots, and the bands around the horizontal lines, represent the standard error with that interval of confidence.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
 
@@ -997,7 +997,7 @@ The first experiment resulted in Figures [[fig:msamples]], [[fig:cmp_msamples]],
 [[file:figures/msamples.pdf]]
 
 
-Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/. These relative results, the comparisson between the best configuration for /star-fletcher/ against /fletcher-base/ can be seen in Figure [[fig:cmp_msamples]]. It shows that when there where gains, they were more numerically significant than when there were losses.
+Figure [[fig:msamples]] shows that for the machines tupi, lunaris and grace, there is one or more configurations where /star-fletcher/ is better than any configuration /fletcher-base/. For cei, draco and poti, the performance either matched or was slightly bellow the best configuration for /fletcher-base/. These relative results, the comparison between the best configuration for /star-fletcher/ against /fletcher-base/ can be seen in Figure [[fig:cmp_msamples]]. It shows that when there where gains, they were more numerically significant than when there were losses.
 Another interesting point is that, for the /fletcher-base/ all of the best executions were using the dynamic scheduling with non-bound threads, with exception of grace that used dynamic bound threads.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 3.5 :height 1.5
@@ -1068,18 +1068,16 @@ Another interesting point is that, for the /fletcher-base/ all of the best execu
 
 *** Exec Time Plot                                                :ignore:
 
- TODO: Mudar a cor, tom de cinza, Geomline com alfa 0.3, mudar a ordem -> sem io 5 e 1 
+Figure [[fig:exec_time]] shows the other available metric, computed time. It enables the analysis of how I/O affects the computed times. To make the plots more clear, it was chosen only one machine per group and only the free non-bind execution of /fletcher-base/, which was the best or close to it in all machines. In the figure, the X axis is the block order and the Y axis is the computed time in seconds. It is faceted by machine horizontally and by amount of I/O vertically.
 
-Figure [[fig:exec_time]] shows the other available metric, computed time. It enables the analysis of how I/O affects the computed times. To make the plots more clear, it was choosen only one machine per group and only the free non-bind execution of /fletcher-base/, which was the best or close to it in all machines. In the figure, the X axis is the block order and the Y axis is the computed time in seconds. It is faceted by machine horizontally and by amount of I/O vertically.
-
-The plot shows that, for the tupi and cei machines, as the amount of I/O incresses, the performance gap between the /star-fletcher/ version and the /fletcher-base/ version only widen. For the grace machine, which used a volume almost double the size of the others, the oposite occurs, where as the amount of I/O increasses, the performance decreasses. On grace, the larger size positivelly stressed the I/O as to make the execution go from ()s with no I/O, mark A on Figure [[fig:exec_time]], to () s, mark B, when using I/O every step. The usage of mmap (IS KNOW TO STRUGGLE AGAINS THESE LARGER SIZE??), . Using a form of direct I/O may imporve performance significally. 
+The plot shows that, for the tupi and cei machines, as the amount of I/O increases, the performance gap between the /star-fletcher/ version and the /fletcher-base/ version only widen. For the grace machine, which used a volume almost double the size of the others, the opposite occurs, where as the amount of I/O increases, the performance decreases. On grace, the larger size positively stressed the I/O as to make the execution go from ()s with no I/O, mark A on Figure [[fig:exec_time]], to () s, mark B, when using I/O every step. The usage of ~mmap~ (IS KNOW TO STRUGGLE AGAINS THESE LARGER SIZE??), . Using a form of direct I/O may improve performance significantly. 
   
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/exec_time.pdf" :exports none :width 3.5 :height 3.8
   # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
   # ou "ExecTime"). O star-fletcher são os pontos com a barra de erro, o fletcher-base (sem escalonador
   # guided) são as linhas horizontais com a faixa do erro, uma por versão (escalonador e threads).
   # `ios` escolhe os níveis de IO mostrados; o MSamples/s só vale sem IO.
-  order_plot <- function(sft, fbt, metric, y_label, title, ios = c("Without IO", "Output every 1 steps", "Output every 5 steps")) {
+  order_plot <- function(sft, fbt, metric, y_label, title, ios = c("Without IO", "Output every 5 steps", "Output every 1 steps")) {
     #x_breaks <- c(12, 32, 48, 64, 96, 128) #sort(unique(sft$Order))
 
     io_label <- function(df) {
@@ -1087,11 +1085,9 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
         mutate(
           Steps = round(as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
           IO = if_else(WithIO == 0, "Without IO", paste0("Output every ", Steps, " steps")),
-          IO = fct_relevel(IO, "Without IO", after = Inf)
-        ) |>
-        filter(IO %in% ios)
+          IO = factor(IO, ios)
+        ) 
     }
-
 
     sf_stats <- sft |>
       mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
@@ -1102,7 +1098,7 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
         Error = (qt(0.975, n() - 1) * sd(y)) / sqrt(n()),
         .groups = "drop"
       )
-
+    
     fb_stats <- fbt |>
       filter(Schedulers != "guided") |>
       mutate(Machine = sub("\\d+$", "", Machine), y = .data[[metric]]) |>
@@ -1116,10 +1112,10 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
       mutate(Version = glue("fletcher-base {Schedulers} ({Variant})")) |>
       filter(Version == "fletcher-base dynamic (free)") |>
       slice_min(Mean, n = 1, with_ties = FALSE, by = c(Machine, IO))
-
-      ylims <- fb_stats |>
-        summarize(ymax = 2 * max(Mean), .by = Machine) |>
-        arrange(Machine) 
+    
+    ylims <- fb_stats |>
+      summarize(ymax = 2 * max(Mean), .by = Machine) |>
+      arrange(Machine) 
 
     y_scales <- map2(ylims$Machine, ylims$ymax, \(m, ym)
                      rlang::new_formula(
@@ -1127,16 +1123,15 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
                               rlang::expr(scale_y_continuous(limits = c(0, !!ym), oob = scales::oob_keep))
                             )
                      )    
-
     ggplot(sf_stats, aes(x = Order, y = Mean)) +
       geom_rect(
         data = fb_stats,
-        aes(ymin = Mean - Error, ymax = Mean + Error, fill = Version),
-        xmin = -Inf, xmax = Inf, inherit.aes = FALSE, alpha = 0.3
+        aes(ymin = Mean - Error, ymax = Mean + Error),
+        xmin = -Inf, xmax = Inf, inherit.aes = FALSE, alpha = 0.5
       ) +
-      geom_hline(data = fb_stats, aes(yintercept = Mean, color = Version, linetype = Version), linewidth = 0.8) +
+      geom_hline(data = fb_stats, aes(yintercept = Mean), linewidth = 0.3) +
       geom_point(alpha = 0.8) +
-      geom_line(linewidth = 0.5) +
+      geom_line(linewidth = 0.5, alpha = 0.5) +
       geom_errorbar(aes(ymin = Mean - Error, ymax = Mean + Error), width = 0.5) +
       #scale_x_continuous(breaks = x_breaks) +
       # facet_wrap para que cada painel tenha o seu eixo Y (no facet_grid os painéis da mesma linha
@@ -1151,12 +1146,6 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
       labs(x = "Block Size", y = "Exection Time (s)",
            fill = NULL, color = NULL,
            linetype = NULL) +
-     # guides(
-     #   fill     = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-     #   color    = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-     #   linetype = guide_legend(order = 1, ncol = 2, byrow = TRUE, title.position = "top"),
-     #   shape    = guide_legend(order = 2)
-     # ) +
       theme_bw(base_size = 7) +
       theme(
         legend.position = "none",
@@ -1170,8 +1159,8 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O incress
         legend.title = element_text(size = 7),
         strip.text = element_text(margin = margin(2, 2, 2, 2)),
         plot.margin = margin(2, 6, 2, 2),
-        panel.spacing.x = unit(6, "pt"),
-        panel.spacing.y = unit(10, "pt")
+        panel.spacing.x = unit(2, "pt"),
+        panel.spacing.y = unit(5, "pt")
       )
   }
   fl <- \(x) filter(x, sub("\\d+$", "", Machine) %in% c("cei", "tupi", "grace"))
@@ -1369,9 +1358,9 @@ The one exception for all this trends is the machine grace. In it, /star-fletche
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
-The improvements of /star-fletcher/ over /fletcher-base/ can be explained by the desing choices directed by the use of StarPU, the iteration overlap and the I/O weave. Figure [[fig:overlap]] has three panels, all of one of lunaris executions. The first and second panels are kitteration plots of the best /star-fletcher/ execution and the best /fletcher-base/ execution on that machine. The X axis is the computed time with the Y axis being the iteration count going from 1 to 20. (FIX THE STAR-FLECTHER ONE THAT STARTS AT 0 WITH NOTHING AT 1). Each computational unit is represented as a square, with its location and size representing the start time and duration respectively. The color differenciates between the computational executions and the I/O ones. The last panel is the amount of active iterations at a certain time, colored by the program.
+The improvements of /star-fletcher/ over /fletcher-base/ can be explained by the design choices directed by the use of StarPU, the iteration overlap and the I/O weave. Figure [[fig:overlap]] has three panels, all of one of lunaris executions. The first and second panels are kitteration plots of the best /star-fletcher/ execution and the best /fletcher-base/ execution on that machine. The X axis is the computed time with the Y axis being the iteration count going from 1 to 20. (FIX THE STAR-FLECTHER ONE THAT STARTS AT 0 WITH NOTHING AT 1). Each computational unit is represented as a square, with its location and size representing the start time and duration respectively. The color differentiates between the computational executions and the I/O ones. The last panel is the amount of active iterations at a certain time, colored by the program.
 
-It shows that /star-fletcher/ may be overlaping as much as 7 iterations at a time, allowing for better load balancing and less worker idleness. Its exection ends in half the time as the /fletcher-base/ execution. Another factor is that in the /star-fletcher/ application, the I/O is masked in between the computation, whilist in the /fletcher-base/ case it always happens after the computation has finished,blocking when it did not have to. 
+It shows that /star-fletcher/ may be overlapping as much as 7 iterations at a time, allowing for better load balancing and less worker idleness. Its execution ends in half the time as the /fletcher-base/ execution. Another factor is that in the /star-fletcher/ application, the I/O is masked in between the computation, whilst in the /fletcher-base/ case it always happens after the computation has finished,blocking when it did not have to. 
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 3
   library(starvz)
