@@ -222,6 +222,51 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
 As in the current version.
 **** One paragraph with main Results [os principais resultados, vangloriando-se quantitativamente contra os trabalhos relacionados, OU qualitativamente]
 **** Paper structure
+*** Refined Structure                                           :noexport:
+Each block below is one paragraph (~1 column in total). The thread
+(encadeamento): the three limitations of P2 map one-to-one to the
+contributions in P5 and to the results in P6.
+**** P1 - Context: RTM, Fletcher, and why the forward phase [problema]
+- RTM in oil and gas: shots, each with a forward and a backward phase; shots are independent.
+- Fletcher = pseudo-acoustic wave equation for TTI media, the propagator used in *both* phases (not "a way of doing RTM").
+- The forward phase is both compute- and IO-intensive: it writes the volume every $k$ steps so that the backward phase can read it back (secondary storage because the volume does not fit in memory).
+  - This is what justifies studying only the forward phase, and using /fletcher-base/ (forward-only) as baseline.
+  - [IO numbers in the current text: FP32, not FP64; only $p$ is saved, not "primary and secondary waves"]
+- Parallelism across shots is solved (one shot per node with MPI); the open problem is *inside* a shot, on one node.
+**** P2 - The intra-node problem: fork-join limitations [problema]
+- The usual intra-shot approach is fork-join (OpenMP parallel loop), as in /fletcher-base/. Three limitations:
+  - (a) Static partitioning of points among threads: unbalanced on p-core/e-core and NUMA nodes.
+  - (b) A global barrier at the end of every time step: the slowest thread dictates the pace.
+  - (c) Synchronous IO: the volume write happens after the barrier and blocks computation.
+- [Not MPI+X / 2D block-cyclic: the paper does not deal with either]
+**** P3 - Toward a task-based solution [em direção à solução]
+- STF for a newbie (2-3 sentences): tasks declare data access modes (R, W, RW); the runtime infers RAW/WAR/WAW dependencies, builds the DAG, and its scheduler maps ready tasks to workers.
+- How STF addresses each limitation: dynamic scheduling -> (a); per-block dependencies instead of a barrier -> (b); IO as just another task -> (c).
+- STF adopted in dense linear algebra, CFD, RTM [cite as now; STF origin: Agullo et al. TPDS 2017 instead of "Dongarra proposed"]
+**** P4 - Related work and comparison [quem já fez?]
+- "Related work consists of ..." -- task-based RTM:
+  - Boillot 2014: PaRSEC, explicit dependencies (not STF), domain decomposition inherited from the MPI version, IO not discussed, old hardware.
+  - AlOnazi 2019: StarPU, one shot per GPU; tasks orchestrate OOC transfers / disk / prefetch to keep GPUs busy.
+  - IO overlap in RTM without tasks: Künas 2025; temporal reuse and asynchrony: Qu 2023.
+- Comparison closing the paragraph, along explicit axes: programming model (STF vs explicit DAG), target (GPU vs heterogeneous CPU), IO handling, equation (isotropic vs TTI).
+  - Our gap: the *domain itself* decomposed into block tasks with inter-iteration dependencies, with IO as tasks, on heterogeneous CPUs, with Fletcher TTI.
+  - [Careful: AlOnazi does use StarPU, so "nobody used STF" is not defensible]
+  - [This text is today in Sec. II-C; it would move here]
+**** P5 - Star-Fletcher and contributions [apresentação]
+- star-fletcher: StarPU/STF version of the fletcher-base forward phase, volume segmented into blocks of order $b$.
+- Contributions, each tied to P2:
+  1. Removal of the global barrier -> overlap of iterations (b).
+  2. IO woven between computation as tasks (c).
+  3. Evaluation on six machines / four CPU kinds, MSamples/s and computed time (a).
+  - [Contribution 4 (p-core isolation) has no corresponding experiment in the results today]
+**** P6 - Main results [quantitativo]
+- Best star-fletcher vs. best fletcher-base per machine (Fig. msamples_cmp): gains on lunaris, grace, tupi; parity or small loss on cei, draco, poti.
+- Against OpenMP static: clear gains on the hybrid machines (a); against OpenMP dynamic: parity or gains.
+- Iteration overlap visible in traces (up to 7 simultaneous iterations on lunaris) (b).
+- IO: gap widens on tupi/cei; on grace (larger volume) IO hurts star-fletcher at high core counts (c) -- state it as a limitation.
+- [Use numbers: % per machine; the current paragraph mentions draco near-parity and p-core isolation, which do not match the results]
+**** P7 - Paper structure
+- As in the current version.
 *** Previous text                                         :noexport:ignore:
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
