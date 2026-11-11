@@ -24,6 +24,13 @@ all: $(NAME).pdf
 $(ARCHIVE).tgz: $(ARCHIVE_FILES)
 	tar --xform "s|^|$(ARCHIVE)/|" -zcf $@ $^
 
+# Rebuild the PDF every time $(NAME).org is saved (zathura reloads it by itself)
+watch:
+	-$(MAKE) $(NAME).pdf
+	while inotifywait -qq -e close_write,moved_to --include '(^|/)$(NAME)\.org$$' . ; do \
+	  $(MAKE) $(NAME).pdf ; \
+	done
+
 clean:
 	rm -f $(NAME).aux $(NAME).bbl $(NAME).blg $(NAME).log $(NAME).out *~
 
