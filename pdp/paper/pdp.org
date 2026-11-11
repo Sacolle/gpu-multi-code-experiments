@@ -1071,12 +1071,13 @@ Another interesting point is that, for the /fletcher-base/ all of the best execu
       unique() |>
       mutate(
         # absolute difference
-        Diff = Msamples.sf - Msamples.fb
+        Diff = Msamples.sf - Msamples.fb,
+        Machine = factor(Machine, levels = c("grace", "lunaris", "tupi", "cei", "draco", "poti"))
         # percentage difference
         #Diff = (Msamples.sf / Msamples.fb) - 1
       )
 
-    ggplot(table, aes(x = factor(Machine), y = Diff)) +
+    ggplot(table, aes(x = Machine, y = Diff)) +
       geom_boxplot() +
       geom_hline(yintercept = 0, linetype = "dashed") +
       labs(
