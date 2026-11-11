@@ -2214,4 +2214,6 @@ Tangle this file with C-c C-v t
 # eval: (setq-local org-latex-pdf-process (list "latexmk -pdf -interaction=nonstopmode -f %f"))
 # eval: (setq-local org-latex-remove-logfiles nil)
 # eval: (add-to-list 'org-export-before-processing-hook (lambda (be) (org-babel-tangle)))
+# eval: (visual-line-mode 1)
+# eval: (auto-fill-mode -1)
 # End:
