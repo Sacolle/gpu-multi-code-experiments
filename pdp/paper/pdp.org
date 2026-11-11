@@ -267,6 +267,10 @@ contributions in P5 and to the results in P6.
 - [Use numbers: % per machine; the current paragraph mentions draco near-parity and p-core isolation, which do not match the results]
 **** P7 - Paper structure
 - As in the current version.
+*** Our new introduction                                           :ignore:
+
+# P1 - Context
+Reverse Time Migration (RTM) is a key seismic imaging method in the oil and gas industry, as it converts geophone-recorded data into subsurface images that reveal deposit locations. RTM processes many independent /shots/, each in two phases: a /forward/ phase that propagates the source wavefield in time, and a /backward/ phase that propagates the recorded data in reverse time and correlates both wavefields to produce a partial image. In Tilted Transverse Isotropic (TTI) media, the wave propagation in both phases is commonly modeled with Fletcher's pseudo-acoustic equations cite:fletcher_reverse_2009. The forward phase is both compute- and I/O-intensive: since the backward phase needs the forward wavefield, the volume is saved every $k$ time steps, usually to secondary storage because it does not fit in memory. A single $1024 \times 1024 \times 512$ snapshot in single precision already takes $2\;GB$. Parallelism across shots is well understood, as shots are independent and are usually distributed among nodes with MPI; the open problem lies within a shot, on a single node.
 *** Previous text                                         :noexport:ignore:
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
@@ -2215,4 +2219,6 @@ Tangle this file with C-c C-v t
 # eval: (setq-local org-latex-pdf-process (list "latexmk -pdf -interaction=nonstopmode -f %f"))
 # eval: (setq-local org-latex-remove-logfiles nil)
 # eval: (add-to-list 'org-export-before-processing-hook (lambda (be) (org-babel-tangle)))
+# eval: (visual-line-mode 1)
+# eval: (auto-fill-mode -1)
 # End:
