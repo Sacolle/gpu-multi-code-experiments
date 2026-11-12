@@ -356,7 +356,7 @@ This paper's methods and materials are divided into sub-sections that talk about
 *** Fletcher's Equations
 <<sec:fletchereq>>
 
-Fletcher's equations are used to simulate wave propagations over time in different types of media, highlighting the Tilted Transverse Isotropic (TTI) medium. This propagation is expressed through the acoustic Equation \ref{eq:equacao1}, where the velocity varies according to the specific geological layers, described by Equation \ref{eq:equacao2}. In them, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
+Fletcher's equations are used to simulate wave propagation over time in various media, with a focus on the Tilted Transverse Isotropic (TTI) medium. This propagation is expressed by the acoustic Equation \ref{eq:equacao1}, where the velocity varies with the specific geological layers, as described by Equation \ref{eq:equacao2}. In it, $p(x, y, z, t)$ indicates the pressure at each location in the domain with respect to time, $V(x, y, z)$ is a representation of the propagation velocity, and $\rho (x, y, z)$ reflects the density cite:fletcher_reverse_2009.
 
 #+BEGIN_EXPORT latex
 \begin{equation}
@@ -371,7 +371,7 @@ Fletcher's equations are used to simulate wave propagations over time in differe
 \end{equation}
 #+END_EXPORT
 
-To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a 9 point stencil using second and cross derivative can be used. This stencil can be seen in Figure [[fig:stencil]]. The center green cube is the point being computed, the orange squares are the ones for the second derivative computations and the purple and orange ones for the cross derivative computation. The equations are also discretized according to time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs the neighboring points of it from $t$ and itself from $t - 1$. 
+To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a 9-point stencil using second- and cross-derivatives can be used. This stencil can be seen in Figure [[fig:stencil]]. The center green cube is the point being computed. The orange squares are the ones for the second derivative computations, and the purple and orange ones are for the cross-derivative computation. The equations are also discretized in time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs its neighboring points at $t$ and its value at $t - 1$.
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
   import os
