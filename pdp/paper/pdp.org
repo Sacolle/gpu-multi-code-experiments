@@ -528,7 +528,7 @@ The task-based model and automatic memory management allowed /star-fletcher/ to 
                 \EndIf
             \EndFor
         \EndFor
-        \State $WaitForAllTasks()$ \Comment{Waits all submited tasks to finish.}
+        \State $WaitForAllTasks()$ \Comment{Waits all tasks to finish.}
     \end{algorithmic}
 \end{algorithm}
 #+END_EXPORT
