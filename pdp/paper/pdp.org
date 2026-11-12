@@ -351,7 +351,7 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletc
 
 *** Introduction                                                   :ignore:
 
-This paper's methods and materials are divided into sub-sections that talk about Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, /star-fletcher/ (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
+This paper's methods and materials are divided into sections that talk about Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, /star-fletcher/ (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
 
 *** Fletcher's Equations
 <<sec:fletchereq>>
