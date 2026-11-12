@@ -505,7 +505,7 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
 
 Serpa's [[cite:fletcher_base]] paper has four implementations for /fletcher-base/: baseline, Der1Der1, Der1Der1LM, Der1Der1HM. This paper based it's benchmarks and implementation of /star-fletcher/ on the baseline version. Each other one presents an optimization to the numerical kernel by reusing first derivative computations of the $x$ and $y$ planes to speed-up the computations of the cross derivatives. This kernel level optimization is not of concern of this paper, which looks at the effects of the runtime on design and performance of applications. It also implements for CPU and GPU parallelism, for which only the CPU parallelism was analyzed. For this runtime, the program was changed to receive as a parameter the kind of OpenMP runtime to use, as to enrich the data analysis.
 
-*** The Task-Based Implementation
+*** The /Star-Fletcher/ Task-Based Implementation
 <<sec:fletcherstar>>
 
 This paper's developed /star-fletcher/, a task-based implementation of Fletcher's algorithm when considering only the forward propagation of the wave. It reuses the numerical kernel of /fletcher-base/ baseline, but implements its parallelization using the STF with the StarPU runtime cite:starpu-paper. StarPU is a powerful STF runtime that schedule tasks executions and manages data transfers between those tasks dependencies. Tasks are units of work that are computed by workers, which in this program's case are the CPU's cores. This new choice of runtime afforded /star-fletcher/ new design space to distribute and schedule parallel computation, resulting in an implementation that breaks /fletcher-base/ global synchronization points and weaves IO between computation. 
