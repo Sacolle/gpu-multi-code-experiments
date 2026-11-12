@@ -293,6 +293,7 @@ ENTRY
   { address
     assignee
     author
+    doi
     booktitle
     chapter
     day
@@ -1926,13 +1927,15 @@ cap.status.std
 %% URL
 
 FUNCTION {format.url}
-{ url empty$
+{ doi empty$ url empty$ and
     { "" }
     { this.to.prev.status
       this.status.std
       cap.yes 'status.cap :=
-      name.url.prefix " " *
-      "\url{" * url * "}" *
+      doi empty$
+        { name.url.prefix " " * "\url{" * url * "}" * }
+        { "doi: \href{https://doi.org/" doi * "}{\nolinkurl{" * doi * "}}" * }
+      if$
       punct.no 'this.status.punct :=
       punct.period 'prev.status.punct :=
       space.normal 'this.status.space :=
