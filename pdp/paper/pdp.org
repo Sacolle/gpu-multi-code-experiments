@@ -202,7 +202,7 @@ Fletcher is a seismic analysis algorithm widely used in oil and gas exploration.
      - XX There are no dependencies between shots, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using threads or hardware accelerators.
    - In an ideal scenario, the full volume could be kept in-memory so that the backward phase reads the output of the forward phase. However, because the volume is very large, frequently one decides to register it in secondary storage. This ultimately leads to a IO-bound application.
 2. The common parallelization approach of each shot is to use traditional MPI+X or just X in scenarios where multiple shots are necessary to build a full seismic image of the marine subsurface.
-   - XX This common parallelization approach will be harder when nodes’ architectures become increasingly heterogeneous because one usualy uses 2D block cyclic partitioning: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs.
+   - XX This common parallelization approach will be harder when nodes’ architectures become increasingly heterogeneous because one usualy uses 2D block cyclic partitioning: in the processor case, with non-uniform memory access and mixed P-core/E-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs.
    - For example, there is "a base implementation that uses OpenMP, called fletcher-base [9]," that paralelizes only the foward phase of the RTM for each shot.
 3. Somehow include IO discussion here [it is already here]
 **** Toward a task-based solution [em direção a solução]
@@ -235,7 +235,7 @@ contributions in P5 and to the results in P6.
 - Parallelism across shots is solved (one shot per node with MPI); the open problem is *inside* a shot, on one node.
 **** P2 - The intra-node problem: fork-join limitations [problema]
 - The usual intra-shot approach is fork-join (OpenMP parallel loop), as in /fletcher-base/. Three limitations:
-  - (a) Static partitioning of points among threads: unbalanced on p-core/e-core and NUMA nodes.
+  - (a) Static partitioning of points among threads: unbalanced on P-core/E-core and NUMA nodes.
   - (b) A global barrier at the end of every time step: the slowest thread dictates the pace.
   - (c) Synchronous IO: the volume write happens after the barrier and blocks computation.
 - [Not MPI+X / 2D block-cyclic: the paper does not deal with either]
@@ -258,13 +258,13 @@ contributions in P5 and to the results in P6.
   1. Removal of the global barrier -> overlap of iterations (b).
   2. IO woven between computation as tasks (c).
   3. Evaluation on six machines / four CPU kinds, MSamples/s and computed time (a).
-  - [Contribution 4 (p-core isolation) has no corresponding experiment in the results today]
+  - [Contribution 4 (P-core isolation) has no corresponding experiment in the results today]
 **** P6 - Main results [quantitativo]
 - Best star-fletcher vs. best fletcher-base per machine (Fig. msamples_cmp): gains on lunaris, grace, tupi; parity or small loss on cei, draco, poti.
 - Against OpenMP static: clear gains on the hybrid machines (a); against OpenMP dynamic: parity or gains.
 - Iteration overlap visible in traces (up to 7 simultaneous iterations on lunaris) (b).
 - IO: gap widens on tupi/cei; on grace (larger volume) IO hurts star-fletcher at high core counts (c) -- state it as a limitation.
-- [Use numbers: % per machine; the current paragraph mentions draco near-parity and p-core isolation, which do not match the results]
+- [Use numbers: % per machine; the current paragraph mentions draco near-parity and P-core isolation, which do not match the results]
 **** P7 - Paper structure
 - As in the current version.
 *** Our new introduction                                           :ignore:
@@ -299,7 +299,7 @@ This paper is structured as follows. Section [[sec:relatedwork]] discusses relat
 *** Previous text                                         :noexport:ignore:
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
 
-This common parallelization approach will not work when nodes' architectures become increasingly heterogeneous: in the processor case, with non-uniform memory access and mixed p-core/e-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs. In 2013, Dongarra cite:dongarra already proposed (HE DID NOT PROPOSE ANYTHING) the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF enables exploration of all available computational resources by segmenting computations into dependent tasks and balancing their distribution across resources.
+This common parallelization approach will not work when nodes' architectures become increasingly heterogeneous: in the processor case, with non-uniform memory access and mixed P-core/E-core architectures; and in the hardware accelerators case, with multiple types of accelerators such as GPUs, TPUs, and FPGAs. In 2013, Dongarra cite:dongarra already proposed (HE DID NOT PROPOSE ANYTHING) the Sequential Task Flow (STF) model, arguing that it is better equipped to handle heterogeneous computing environments. Many applications have successfully adopted this paradigm across a plethora of contexts, such as dense linear algebra cite:abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and Reverse Time Migration (RTM) applications cite:boillot_task-based_2014,alonazi_asynchronous_2019. STF enables exploration of all available computational resources by segmenting computations into dependent tasks and balancing their distribution across resources.
 
 
 +This task-based paradigm is relevant to RTM applications, which are IO-bound. The forward step saves the computed volume every $k$ iterations, which the backward step then reads back every $k$ steps. Considering that a volume of $1024 \times 1024 \times 512$ saved in FP64 results in $4\;GB$, and that both primary and secondary waves need to be saved, every $k$ steps $8\;GB$ of data have to be written or read from memory.+
@@ -310,10 +310,10 @@ Considering these characteristics, this paper presents /star-fletcher/, an imple
 
 1. The elimination of global synchronization points between iteration steps by adopting a per-block task dependency model, which allows the StarPU scheduler to seamlessly overlap the execution of tasks from different iterations, keeping workers busy and avoiding synchronization bottlenecks.
 2. The natural overlap of computation with asynchronous IO, made possible by the task-based design: write tasks are woven between block computations at fine granularity, so IO does not stall computation, yielding additional computed time gains on machines where computation already improves over the baseline.
-3. A comprehensive performance evaluation on six machines, covering four kinds of CPU architectures, including hybrid p-core/e-core systems, homogeneous ARM machine, dual-socket x86 servers, single socket x86 AMD server, using MSamples/s and computed time as metrics.
-+4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only p-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.+
+3. A comprehensive performance evaluation on six machines, covering four kinds of CPU architectures, including hybrid P-core/E-core systems, homogeneous ARM machine, dual-socket x86 servers, single socket x86 AMD server, using MSamples/s and computed time as metrics.
++4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only P-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.+
 
-+Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid p-core/e-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating p-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.+
++Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid P-core/E-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating P-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.+
 
 This paper is structured as follows. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Section [[sec:conclusion]] presents this paper's conclusions.
 
@@ -330,7 +330,7 @@ The I/O required by the imaging condition is a recognized bottleneck in RTM, and
 Another line of work removes the synchronization between time steps inside the stencil computation. Akbudak et al. cite:akbudak_asynchronous_2020, which integrated the absorbing boundary conditions into the asynchronous Multicore Wavefront Diamond temporal blocking (MWD-TB), and Qu et al. cite:qu_exploiting_2023 brought MWD-TB to the whole RTM workflow, achieving up to 70% speedup over spatial blocking on shared-memory systems. These works rely on carefully designed tiling schedules for homogeneous multicores. Task-based runtimes obtain a similar effect without a hand-made schedule: in FLUSEPA, an unstructured finite-volume CFD solver with explicit adaptive time stepping, Couteyen Carpaye et al. cite:couteyen_carpaye_design_2018 used StarPU to reduce the synchronizations that the temporal levels impose on its MPI and OpenMP version, and Nesi et al. cite:leandro_nesi_task-based_2020 studied task-based decompositions of a CFD stencil on heterogeneous CPU/GPU resources. The granularity of the tasks remains a key parameter of such decompositions, since STF fixes task sizes at submission time cite:pei_sequential_2022,furmento_optimizing_2025.
 
 # Positioning
-In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletcher/ applies the STF model directly to the propagation domain: the volume is decomposed into block tasks whose dependencies span consecutive time steps. Unlike TB-RTM, which also handles snapshots as tasks but was evaluated with tasks spanning an entire shot, the write of each block can proceed while other blocks are still being computed. This removes the global barrier and overlaps I/O with computation, with no tiling schedule and no separate I/O layer. Moreover, we target the forward phase of Fletcher's TTI propagation on heterogeneous CPU nodes, with mixed p-cores and e-cores, and evaluate the block order as the task granularity on six machines.
+In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletcher/ applies the STF model directly to the propagation domain: the volume is decomposed into block tasks whose dependencies span consecutive time steps. Unlike TB-RTM, which also handles snapshots as tasks but was evaluated with tasks spanning an entire shot, the write of each block can proceed while other blocks are still being computed. This removes the global barrier and overlaps I/O with computation, with no tiling schedule and no separate I/O layer. Moreover, we target the forward phase of Fletcher's TTI propagation on heterogeneous CPU nodes, with mixed P-cores and E-cores, and evaluate the block order as the task granularity on six machines.
 
 # Cells with "--": not verified against the full text (Alturkestani, Qu'23); fill in before submission.
 # Runtime of Alturkestani (MPI+X: multi-node on Summit with GPUs) and Qu'23 (OpenMP: MWD-TB is a shared-memory multicore technique) inferred, not read in the full text.
@@ -611,7 +611,7 @@ Due to the STF model, /Star-fletcher/ can’t easily split the two cases, given 
 
 #+latex: \noindent
 *Experimental Hardware Platform*.
-The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between p-cores (both 8) and e-cores (24 and 12, respectively). The machine grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the overall most powerful machine available for experiments. The cores on all machines were configured with the Governor /performance/.
+The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between P-cores (both 8) and E-cores (24 and 12, respectively). The machine grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the overall most powerful machine available for experiments. The cores on all machines were configured with the Governor /performance/.
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
@@ -1279,7 +1279,7 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O increas
 #+latex: %
 The second experiment resulted in Figure [[fig:scalability]]. It shows the application's scalability as the number of cores increases. The X axis is the amount of cores being used to execute the application and the Y axis is the computed time. It is facet horizontally by machine and vertically by the amount of IO used, using only two cases, no I/O and I/O every step. It shows three versions, /star-fletcher/ using it's best block order for the size, and /fletcher-base/ with /dynamic/ scheduling and /static/ scheduling. There was used 5 replications, which passes the t-student test with an interval of confidence of 95%, which allowed the reuse of the error bars in this plot.
 
-Figure [[fig:scalability]] shows that /star-fletcher/ scales better in all machines for almost all core amounts. The gap tends to narrow for machines when using simultaneous multi-threading (SMT). As expected, on the heterogeneous machines, the usage of e-cores slowed down significantly the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the /star-fletcher/ implementation. The machine lunaris showed the largest gaps, independent of the amount of cores used.
+Figure [[fig:scalability]] shows that /star-fletcher/ scales better in all machines for almost all core amounts. The gap tends to narrow for machines when using simultaneous multi-threading (SMT). As expected, on the heterogeneous machines, the usage of E-cores slowed down significantly the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the /star-fletcher/ implementation. The machine lunaris showed the largest gaps, independent of the amount of cores used.
 The one exception for all this trends is the machine grace. In it, /star-fletcher/ is superior for lower core counts, but as they increase, the difference is reduced to the point that, when using I/O, it is worse than any /fletcher-base/ versions. This I/O gap was already highlighted in Figure [[fig:exec_time]]. 
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
@@ -1292,7 +1292,7 @@ The one exception for all this trends is the machine grace. In it, /star-fletche
      "fletcher-base (static)"  = "#7570b3"
    )
 
-   # nas máquinas com p-cores e e-cores, a partir de quantos cores começam os e-cores
+   # nas máquinas com P-cores e E-cores, a partir de quantos cores começam os E-cores
    # (ver cpu-topology.org)
    pcore_count <- c(poti = 8, tupi = 8)
 
@@ -1383,7 +1383,7 @@ The one exception for all this trends is the machine grace. In it, /star-fletche
          p <- p + zoom_layers(d, zoom[[machine]])
        }
        if (machine %in% names(pcore_count)) {
-         # linha tracejada onde terminam os p-cores e começam a ser usados os e-cores
+         # linha tracejada onde terminam os P-cores e começam a ser usados os E-cores
          p <- p +
            geom_vline(xintercept = pcore_count[[machine]], linetype = "dashed", color = "gray40") +
            annotate("text", x = pcore_count[[machine]], y = Inf, label = " E-cores →",
