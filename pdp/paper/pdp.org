@@ -475,16 +475,15 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
   return path
 #+END_SRC
 
-#+CAPTION: Computational stencil
+#+CAPTION: The 8th-order (radius 4) stencil of /fletcher-base/ for updating one grid point (green) to step $t+1$. Orange arms along $\pm x$, $\pm y$, $\pm z$: points of the second derivatives. Purple $4 \times 4$ quadrants in the $xy$, $xz$, and $yz$ planes: points of the cross derivatives. All points are read at step $t$; the green point is also read at $t-1$. Parts are pulled apart from the center for clarity.
 #+NAME: fig:stencil
 #+ATTR_LATEX: :placement [!htb] :width .6\linewidth
 [[file:figures/stencil.png]]
 
-
 *** Fletcher-base description
 <<sec:fletcherbase>>
 
-This paper uses /fletcher-base/ cite:fletcher_base to benchmark /star-fletcher/, which uses the same numerical kernel. /Fletcher-base/ is an implementation of the Fletcher algorithm which only considers the forwards propagation of the wave. It computes $t$ iterations of a wave's propagation on a volume $V$, saving to a file every $k$ steps. Algorithm \ref{alg:fletcher-base} describes the computational process, where $P$ is the previous volume and $C$ is the current volume. The volume $P$ is used to write the next iteration. $F$ represents the numeric methods on the volume, described in sub-section [[sec:fletchereq]]. /Fletcher-base/ computation is parallelized by making the computation of points in an iteration a parallel section, where the points are distributed between the available threads using OpenMP. After every iteration, all threads are synchronized, the volume may be saved to disk using I/O bufferd by the system and then the buffers are swapped so that the computation can resume.
+/Fletcher-base/ is an implementation of the Fletcher algorithm that only considers the forward propagation of the wave. It computes $t$ iterations of a wave's propagation on a volume $V$, saving to a file every $k$ steps. Algorithm \ref{alg:fletcher-base} describes the computational process, where $P$ is the previous volume and $C$ is the current volume. The volume $P$ is used to write the next iteration. $F$ represents the numeric methods on the volume, described in sub-section [[sec:fletchereq]]. /Fletcher-base/ computation is parallelized by making the computation of points in each iteration a parallel section, with points distributed among the available threads using OpenMP. After every iteration, all threads are synchronized. The volume may be saved to disk using I/O buffers provided by the system, and then the buffers are swapped so that the computation can resume.
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
