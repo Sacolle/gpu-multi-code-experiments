@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # -*- mode: org -*-
 
-#+TITLE: Implementation and Evaluation of a Task-Based Forward Fletcher Seismic Analysis Algorithm on Multiple CPU Architectures
+#+TITLE: Implementation and Evaluation of a Task-Based Fletcher Forward Modeling for RTM on Multiple CPU Architectures
 #+AUTHOR: Anonymous
 
 #+STARTUP: overview indent
