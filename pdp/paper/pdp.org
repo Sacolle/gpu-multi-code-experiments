@@ -602,7 +602,7 @@ The task-based model and StarPU's memory management allow /star-fletcher/ to rem
   return path
 #+END_SRC
 
-#+CAPTION: Neighborhood of a block in /star-fletcher/. The task updating the center block (green) to step $t+1$ reads the 6 face neighbors (orange), needed by the second derivatives, and the 12 edge neighbors (purple), needed by the cross derivatives, at step $t$. The 8 corner neighbors (wireframe) are not needed.
+#+CAPTION: Neighborhood of a block in /star-fletcher/. The task updating the center block (green) to step $t+1$ reads the 6 face neighbors (orange), needed by the second derivatives, and the 12 edge neighbors (purple), needed by the cross derivatives, at step $t$.
 #+NAME: fig:neighborhood
 #+ATTR_LATEX: :placement [!htb] :width .6\linewidth
 [[file:figures/neighbors.png]]
