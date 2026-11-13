@@ -704,8 +704,9 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
   }
   anon_pdf <- function(name, width, height, expr) {
     old <- options(anon = TRUE)
+    previous <- dev.cur()  # the device of the block (org's :file), restored at the end
     pdf(glue("pdp/paper/figures/{name}-anon.pdf"), width = width, height = height)
-    on.exit({ dev.off(); options(old) })
+    on.exit({ dev.off(); if (previous > 1) dev.set(previous); options(old) })
     res <- expr  # evaluated here, with anon = TRUE
     if (inherits(res, "ggplot") || inherits(res, "patchwork")) print(res)
     invisible(NULL)
