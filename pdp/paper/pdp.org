@@ -1123,7 +1123,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
 Figure [[fig:msamples]] shows that for the machines {{{m(tupi)}}}, {{{m(lunaris)}}}, and {{{m(grace)}}}, there is at least one configuration where /star-fletcher/ is better than any configuration of /fletcher-base/. For {{{m(cei)}}}, {{{m(draco)}}}, and {{{m(poti)}}}, the performance either matched or was slightly below the best configuration for /fletcher-base/. Figure [[fig:cmp_msamples]] shows the difference between the best configuration of each program on each machine. It shows that gains are larger in magnitude than losses.
 Another interesting point is that for /fletcher-base/, all the best executions used dynamic scheduling with unbound threads, except {{{m(grace)}}}, which used dynamic scheduling with bound threads.
 
-#+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 3.5 :height 1.5
+#+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 2.45 :height 1.5
 
   best_compare_msamples_plot <- function(sft_in, fbt_in) {
 
@@ -1159,6 +1159,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
       geom_boxplot(width = 0.5) +
       scale_x_discrete(labels = mach_label) +
       geom_hline(yintercept = 0, linetype = "dashed") +
+      scale_y_continuous(breaks = c(-10, 0, 25, 50, 75, 100)) +
       coord_cartesian(ylim = c(-10, 100)) +
       labs(
     	x = "Machine",
@@ -1182,14 +1183,14 @@ Another interesting point is that for /fletcher-base/, all the best executions u
       )
   }
 
-  anon_pdf("msamples_cmp", 3.5, 1.5, best_compare_msamples_plot(sf_res, fb_res))
+  anon_pdf("msamples_cmp", 2.45, 1.5, best_compare_msamples_plot(sf_res, fb_res))
   best_compare_msamples_plot(sf_res, fb_res)
 
 #+END_SRC
 
 #+CAPTION: Difference between \textit{star-fletcher} and \textit{fletcher-base} considering the best configuration of each one on each machine. 
 #+NAME: fig:cmp_msamples
-#+ATTR_LATEX: :placement [!htb] :width \linewidth
+#+ATTR_LATEX: :placement [!htb] :width .7\linewidth
 [[file:figures/msamples_cmp.pdf]]
 
 *** Exec Time Plot                                                :ignore:
