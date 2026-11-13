@@ -611,7 +611,7 @@ Due to the STF model, /Star-fletcher/ can’t easily split the two cases, given 
 
 #+latex: \noindent
 *Experimental Hardware Platform*.
-The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between P-cores (both 8) and E-cores (24 and 12, respectively). The machine grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the overall most powerful machine available for experiments. The cores on all machines were configured with the Governor /performance/.
+The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - \url{http://pcad.inf.ufrgs.br}]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between P-cores (both 8) and E-cores (24 and 12, respectively). The machine’s grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the most powerful machine overall available for experiments. The cores on all machines were configured with the Governor /performance/.
 
 #+CAPTION: Hardware specification of the used partitions.
 #+NAME: tab:hardware
