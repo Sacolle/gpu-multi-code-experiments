@@ -2287,4 +2287,6 @@ Tangle this file with C-c C-v t
 # eval: (add-to-list 'org-export-before-processing-hook (lambda (be) (org-babel-tangle)))
 # eval: (visual-line-mode 1)
 # eval: (auto-fill-mode -1)
+# eval: (setq magit-diff-refine-hunk (quote all))
+# eval: (dolist (h (quote (magit-diff-mode-hook magit-status-mode-hook magit-revision-mode-hook))) (add-hook h (function visual-line-mode)))
 # End:
