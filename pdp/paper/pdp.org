@@ -613,17 +613,17 @@ Due to the STF model, /Star-fletcher/ can’t easily split the two cases, given 
 *Experimental Hardware Platform*.
 The experiments were run on PCAD's infrastructure, which is the high-performance park of the Institute of Informatics at UFRGS [fn::PCAD's page - @@latex:\censorbox{\url{http://pcad.inf.ufrgs.br}}@@]. The machines used are described in Table [[tab:hardware]]. The machines cei and draco have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine lunaris is similar, but uses only one AMD x86_64 processor. The machines tupi and poti have their CPU cores divided between P-cores (both 8) and E-cores (24 and 12, respectively). The machine’s grace is different: an /aarch-64/ architecture with core-to-thread correspondence, the most powerful machine overall available for experiments. The cores on all machines were configured with the Governor /performance/.
 
-#+CAPTION: Hardware specification of the used partitions.
+#+CAPTION: HW specs. of the partitions with Threads (T) and Cores (C).
 #+NAME: tab:hardware
 #+ATTR_LATEX:  :environment tabularx :width \linewidth :align l X r r l :booktabs t
-| Machine | Processor                        | Threads | Cores | Frequency |
-|---------+----------------------------------+---------+-------+-----------|
-| draco   | 2 x Intel(R) Xeon(R) E5-2640 v2  |      32 |    16 | 2.0 GHz   |
-| poti    | Intel(R) Core(TM) i7-14700KF     |      28 |    20 | 3.4 GHz   |
-| cei     | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz   |
-| grace   | 2 x NVIDIA Grace CPU A02         |     144 |   144 | 3.4 GHz   |
-| tupi    | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
-| lunaris | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
+| Machine | Processor                        |  T. |  C. | Freq.  |
+|---------+----------------------------------+-----+-----+--------|
+| draco   | 2 x Intel(R) Xeon(R) E5-2640 v2  |  32 |  16 | 2.0GHz |
+| poti    | Intel(R) Core(TM) i7-14700KF     |  28 |  20 | 3.4GHz |
+| cei     | 2 x Intel(R) Xeon(R) Silver 4116 |  48 |  24 | 2.1GHz |
+| grace   | 2 x NVIDIA Grace CPU A02         | 144 | 144 | 3.4GHz |
+| tupi    | Intel(R) Core(TM) i9-14900KF     |  32 |  24 | 3.2GHz |
+| lunaris | AMD Threadripper PRO 5965WX      |  48 |  24 | 3.8GHz |
 
 #+latex: \noindent
 *Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and /star-fletcher/. The /fletcher-base/ was compiled with GCC 12.4.0 and /star-fletcher/ with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all available publicly on the authors’ GitHub[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::star-fletcher - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
