@@ -680,7 +680,7 @@ For the rest,
 
 This Section presents the experimental outcomes of the described experiments in Section [[sec:methodology]] across the machines in Table [[tab:hardware]]. Firstly, the results of the first experiment are presented, using MSamples/s in one plot and Compute Time in another, and also showing the computations with I/O enabled. Secondly, the results of the second experiment are presented, including the scalability plot and an explanation of some important aspects of it. Lastly, traces are used to directly showcase the effect of /star-fletcher/'s design decisions.
 #+latex: %
-Taken together, these results supported the hypothesis proposed in Section [[sec:methodology]]. 
+# Taken together, these results supported the hypothesis proposed in # Section [[sec:methodology]]. 
 
 *** Data Parsing                                                         :ignore:
 
