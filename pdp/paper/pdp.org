@@ -1296,14 +1296,14 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
   order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Computed Time (s)", "Computed Time vs. Block Order")
 #+END_SRC
 
-#+CAPTION: Computed Time of the machines {{{m(cei)}}}, {{{m(tupi)}}} and {{{m(grace)}}} as the block order increases, per I/O amount.
+#+CAPTION: Computed time (lower is better) on {{{m(cei)}}}, {{{m(tupi)}}}, and {{{m(grace)}}} as a function of the \textit{star-fletcher} block order (points), with the \textit{fletcher-base} free-thread configurations as horizontal lines. 
 #+NAME: fig:exec_time
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/exec_time.pdf]]
 
 *** Scale Plot :ignore:
 
-#+latex: \bigskip
+#+latex: \smallskip
 
 #+latex: \noindent
 *Scalability of the /star-fletcher/ application.*
