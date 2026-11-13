@@ -1482,7 +1482,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
      scalability_plot("ExecTime", "Computed Time (s)", "Computed Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
-#+CAPTION: Computed time (lower is better) as the number of cores increases, without (top) and with I/O (bottom), for \textit{star-fletcher} and best block order and \textit{fletcher-base} with static and dynamic scheduling. Dashed lines mark where E-cores surfaces; the inset zooms into 128 to 144 cores on {{{m(grace)}}}.
+#+CAPTION: Computed time (lower is better) as the number of cores increases, without (top) and with I/O (bottom), for \textit{star-fletcher} and best block order and \textit{fletcher-base} with static and dynamic scheduling. Dashed lines mark where E-cores start being used; the inset zooms into 128 to 144 cores on {{{m(grace)}}}.
 #+NAME: fig:scalability
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/scalability.pdf]]
