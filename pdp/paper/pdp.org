@@ -491,7 +491,7 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
-    \caption{Computation \textit{fletcher-base}.}
+    \caption{Forward propagation in \textit{fletcher-base} (OpenMP fork-join).}
     \label{alg:fletcher-base}
     \begin{algorithmic}[1]
         \For{$1..t$}
@@ -520,7 +520,7 @@ The task-based model and StarPU's memory management allow /star-fletcher/ to rem
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
-    \caption{Computation \textit{star-fletcher}.}
+    \caption{Task submission in \textit{star-fletcher} (StarPU STF).}
     \label{alg:star-fletcher}
     \begin{algorithmic}[1]
         %\State $\text{Blocks} \gets \text{segment(V)}$ \Comment{}
@@ -932,7 +932,7 @@ This section presents the results of the experiments described in Section [[sec:
 
 *** Msamples/s Plot :ignore:
 
-#+latex: \bigskip
+#+latex: \smallskip
 
 #+latex: \noindent
 *Performance Overview of the best configuration.*
