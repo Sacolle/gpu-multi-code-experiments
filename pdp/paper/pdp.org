@@ -18,7 +18,7 @@
 #+LATEX_HEADER: \sloppy
 #+LATEX_HEADER: \usepackage{censor}
 #+LATEX_HEADER: %\StopCensoring
-#+LATEX_HEADER: \setlength{\abovecaptionskip}{2pt}
+#+LATEX_HEADER: \setlength{\abovecaptionskip}{0pt}
 #+MACRO: m @@latex:\mach{$1}@@
 #+LATEX_HEADER: \makeatletter\let\orig@includegraphics\includegraphics\renewcommand{\includegraphics}[2][]{\ifcensor\filename@parse{#2}\IfFileExists{\filename@area\filename@base-anon.\filename@ext}{\orig@includegraphics[#1]{\filename@area\filename@base-anon.\filename@ext}}{\orig@includegraphics[#1]{#2}}\else\orig@includegraphics[#1]{#2}\fi}\makeatother
 #+LATEX_HEADER: \makeatletter\newcommand{\mach}[1]{\ifcensor\@nameuse{anon@#1}\else #1\fi}\makeatother
