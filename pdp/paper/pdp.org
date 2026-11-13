@@ -1652,7 +1652,7 @@ It shows that /star-fletcher/ may overlap as many as 7 iterations at a time, all
   kiteration_compare(lunaris_sf, lunaris_fb, title = NULL)
 #+END_SRC
 
-#+CAPTION: ...
+#+CAPTION: Execution of both programs on {{{m(lunaris)}}} with 24 cores, saving the volume at every step. Top: k-iteration plot of \textit{star-fletcher} with its best block order (48); rectangles are tasks, colored as computation or I/O. Middle: the same view for \textit{fletcher-base} with dynamic scheduling, with one rectangle for the computation and one for the I/O of each iteration. Bottom: number of iterations active at each instant for each program.
 #+NAME: fig:overlap
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/overlap.pdf]]
