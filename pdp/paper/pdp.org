@@ -19,6 +19,7 @@
 #+LATEX_HEADER: \usepackage{censor}
 #+LATEX_HEADER: %\StopCensoring
 #+MACRO: m @@latex:\mach{$1}@@
+#+LATEX_HEADER: \makeatletter\let\orig@includegraphics\includegraphics\renewcommand{\includegraphics}[2][]{\ifcensor\filename@parse{#2}\IfFileExists{\filename@area\filename@base-anon.\filename@ext}{\orig@includegraphics[#1]{\filename@area\filename@base-anon.\filename@ext}}{\orig@includegraphics[#1]{#2}}\else\orig@includegraphics[#1]{#2}\fi}\makeatother
 #+LATEX_HEADER: \makeatletter\newcommand{\mach}[1]{\ifcensor\@nameuse{anon@#1}\else #1\fi}\makeatother
 #+LATEX_HEADER: \makeatletter\@namedef{anon@draco}{M1}\@namedef{anon@poti}{M2}\@namedef{anon@cei}{M3}\@namedef{anon@grace}{M4}\@namedef{anon@Grace}{M4}\@namedef{anon@tupi}{M5}\@namedef{anon@lunaris}{M6}\@namedef{anon@Lunaris}{M6}\makeatother
 #+LATEX_HEADER: \usepackage{booktabs}
@@ -693,6 +694,23 @@ Taken together, these results supported the hypothesis proposed in Section [[sec
 
   machines <- read_csv("./machines.csv")
 
+  # Anonymization of the figures: with options(anon = TRUE), mach_label() gives the
+  # pseudonyms of the paper (the same as the {{{m()}}} macro), and anon_pdf() saves
+  # the figure again as figures/<name>-anon.pdf, picked by LaTeX when censoring.
+  anon_map <- c(draco = "M1", poti = "M2", cei = "M3", grace = "M4", tupi = "M5", lunaris = "M6")
+  mach_label <- function(m) {
+    m <- as.character(m)
+    if (isTRUE(getOption("anon"))) unname(ifelse(m %in% names(anon_map), anon_map[m], m)) else m
+  }
+  anon_pdf <- function(name, width, height, expr) {
+    old <- options(anon = TRUE)
+    pdf(glue("pdp/paper/figures/{name}-anon.pdf"), width = width, height = height)
+    on.exit({ dev.off(); options(old) })
+    res <- expr  # evaluated here, with anon = TRUE
+    if (inherits(res, "ggplot") || inherits(res, "patchwork")) print(res)
+    invisible(NULL)
+  }
+
 #+END_SRC
 
 #+BEGIN_SRC R :session *R* :async yes :results output silent :exports none
@@ -1060,7 +1078,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
       #scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
       #scale_x_continuous(breaks = x_breaks) +
-      facet_wrap(~ Machine, scales = "free_y", ncol = 2) +
+      facet_wrap(~ Machine, scales = "free_y", ncol = 2, labeller = as_labeller(mach_label)) +
       labs(x = "Block Size", y = "Msamples/s",
               fill = NULL, color = NULL,
               linetype = NULL) +
@@ -1090,6 +1108,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
       add_kind_boxes(p, mach_charact, machine_order)
   }
 
+  anon_pdf("msamples", 3.5, 4.6, msamples_plot(sf_res, fb_res))
   msamples_plot(sf_res, fb_res)
 
 #+END_SRC
@@ -1137,6 +1156,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
 
     ggplot(table, aes(x = Machine, y = Diff)) +
       geom_boxplot() +
+      scale_x_discrete(labels = mach_label) +
       geom_hline(yintercept = 0, linetype = "dashed") +
       labs(
     	title = paste0("MSamples Difference vs. Machine"),
@@ -1161,6 +1181,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
       )
   }
 
+  anon_pdf("msamples_cmp", 3.5, 1.5, best_compare_msamples_plot(sf_res, fb_res))
   best_compare_msamples_plot(sf_res, fb_res)
 
 #+END_SRC
@@ -1243,7 +1264,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
       #facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
       # no facet_grid o free_y só libera o eixo Y por linha (aqui, por nível de IO), então as máquinas da
       # mesma linha dividiam o eixo; o facet_grid2 com independent = "y" dá um eixo Y para cada painel
-      ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y") +
+      ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y", labeller = labeller(Machine = mach_label)) +
       # facetted_pos_scales(y = y_scales) + 
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
       scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
@@ -1269,6 +1290,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
   }
   fl <- \(x) filter(x, sub("\\d+$", "", Machine) %in% c("cei", "tupi", "grace"))
 
+  anon_pdf("exec_time", 3.5, 3.8, order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Compute Time (s)", "Compute Time vs. Block Order"))
   order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Compute Time (s)", "Compute Time vs. Block Order")
 #+END_SRC
 
@@ -1411,7 +1433,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
          facet_grid(
            (if(unique(d$IO) |> length() == 1) ~ Machine else IO ~ Machine),
            scales = "free_y",
-           labeller = labeller(Machine = \(m) paste0(m, " (Order ", na.omit(d$Order)[1], ")"))) +
+           labeller = labeller(Machine = \(m) paste0(mach_label(m), " (Order ", na.omit(d$Order)[1], ")"))) +
          labs(x = "Number of cores/threads", y = y_label, color = NULL) +
          theme_bw(base_size = 7) +
          theme(axis.text.x = element_text(size = 5.5), plot.margin = margin(2, 2, 2, 2)) +
@@ -1449,6 +1471,9 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
     # o ponto com hyperthreading (SMT) fica no seu número de threads, na mesma escala dos outros
     mutate(X = NumCPUs)
 
+   anon_pdf("scalability", 7.16, 3, scale_stats |>
+     filter(X >= 4) |>
+     scalability_plot("ExecTime", "Compute Time (s)", "Compute Time vs. Number of Cores", zoom = zoom))
    scale_stats |>
      filter(X >= 4) |>
      scalability_plot("ExecTime", "Compute Time (s)", "Compute Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
