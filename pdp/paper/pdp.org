@@ -17,7 +17,7 @@
 
 #+LATEX_HEADER: \sloppy
 #+LATEX_HEADER: \usepackage{censor}
-#+LATEX_HEADER: \StopCensoring
+#+LATEX_HEADER: %\StopCensoring
 #+LATEX_HEADER: \usepackage{booktabs}
 #+LATEX_HEADER: \usepackage{tikz}
 #+LATEX_HEADER: \usetikzlibrary{positioning, arrows.meta}
