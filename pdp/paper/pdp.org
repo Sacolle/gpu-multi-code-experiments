@@ -1493,7 +1493,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
 The improvements of /star-fletcher/ over /fletcher-base/ can be explained by design choices informed by the use of StarPU, iteration overlap, and the overlap of I/O with computation. Figure [[fig:overlap]] has three panels, each showing one of the {{{m(lunaris)}}} executions. The first and second panels are k-iteration plots cite:garcia2018visual of the best /star-fletcher/ execution and the best /fletcher-base/ execution on that machine. The X-axis is the computed time, and the Y-axis is the iteration count, ranging from 1 to 20. (FIX THE STAR-FLECTHER ONE THAT STARTS AT 0 WITH NOTHING AT 1). Each computational unit is represented as a square, with its location and size representing the start time and duration, respectively. The color distinguishes between computational and I/O executions. The last panel shows the number of active iterations at a given time, colored by the program.
-
+#+latex: %
 It shows that /star-fletcher/ may overlap as many as 7 iterations at a time, allowing for better load balancing and less worker idleness. Its execution ends in half the time as the /fletcher-base/ execution. Another factor is that in the /star-fletcher/ application, the I/O is masked between the computation, while in the /fletcher-base/ case it always happens after the computation has finished, blocking the computation unnecessarily.
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 3
