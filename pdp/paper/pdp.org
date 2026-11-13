@@ -479,7 +479,7 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
   return path
 #+END_SRC
 
-#+CAPTION: The 8th-order (radius 4) stencil of /fletcher-base/ for updating one grid point (green) to step $t+1$. Orange arms along $\pm x$, $\pm y$, $\pm z$: points of the second derivatives. Purple $4 \times 4$ quadrants in the $xy$, $xz$, and $yz$ planes: points of the cross derivatives. All points are read at step $t$; the green point is also read at $t-1$. Parts are pulled apart from the center for clarity.
+#+CAPTION: The 8th-order (radius 4) stencil of /fletcher-base/ for updating one grid point (green) to step $t+1$. Orange arms along $\pm x$, $\pm y$, $\pm z$: points of the second derivatives. Purple $4 \times 4$ quadrants in the $xy$, $xz$, and $yz$ planes: points of the cross derivatives.
 #+NAME: fig:stencil
 #+ATTR_LATEX: :placement [!htb] :width .6\linewidth
 [[file:figures/stencil.png]]
