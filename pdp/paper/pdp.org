@@ -1120,7 +1120,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
 [[file:figures/msamples.pdf]]
 
 
-Figure [[fig:msamples]] shows that for the machines {{{m(tupi)}}}, {{{m(lunaris)}}}, and {{{m(grace)}}}, there is at least one configuration where /star-fletcher/ is better than any configuration of /fletcher-base/. For {{{m(cei)}}}, {{{m(draco)}}}, and {{{m(poti)}}}, the performance either matched or was slightly below the best configuration for /fletcher-base/. These relative results, the comparison between the best configuration for /star-fletcher/ and /fletcher-base/, can be seen in Figure [[fig:cmp_msamples]]. It shows that gains were more numerically significant than losses.
+Figure [[fig:msamples]] shows that for the machines {{{m(tupi)}}}, {{{m(lunaris)}}}, and {{{m(grace)}}}, there is at least one configuration where /star-fletcher/ is better than any configuration of /fletcher-base/. For {{{m(cei)}}}, {{{m(draco)}}}, and {{{m(poti)}}}, the performance either matched or was slightly below the best configuration for /fletcher-base/. Figure [[fig:cmp_msamples]] shows the difference between the best configuration of each program on each machine. It shows that gains are larger in magnitude than losses.
 Another interesting point is that for /fletcher-base/, all the best executions used dynamic scheduling with unbound threads, except {{{m(grace)}}}, which used dynamic scheduling with bound threads.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 3.5 :height 1.5
