@@ -375,7 +375,7 @@ Fletcher's equations are used to simulate wave propagation over time in various 
 \end{equation}
 #+END_EXPORT
 
-To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, an 9-point stencil  with second and cross derivatives can be used. Figure [[fig:stencil]] shows this stencil. The green cube is the point being computed, the orange arms hold the points of the second derivatives, and the purple quadrants hold the points of the cross derivatives. The equations are also discretized in time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs its neighboring points at $t$ and its value at $t - 1$.
+To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a stencil of radius 4 (9 points along each axis) with second and cross derivatives can be used. Figure [[fig:stencil]] shows this stencil. The green cube is the point being computed, the orange arms hold the points of the second derivatives, and the purple quadrants hold the points of the cross derivatives. The equations are also discretized in time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs its neighboring points at $t$ and its value at $t - 1$.
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
   import os
