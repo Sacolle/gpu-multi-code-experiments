@@ -1080,7 +1080,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
       #scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
       #scale_x_continuous(breaks = x_breaks) +
       facet_wrap(~ Machine, scales = "free_y", ncol = 2, labeller = as_labeller(mach_label)) +
-      labs(x = "Block Size", y = "Msamples/s",
+      labs(x = "Block Order", y = "MSamples/s",
               fill = NULL, color = NULL,
               linetype = NULL) +
       guides(
@@ -1156,11 +1156,11 @@ Another interesting point is that for /fletcher-base/, all the best executions u
       )
 
     ggplot(table, aes(x = Machine, y = Diff)) +
-      geom_boxplot() +
+      geom_boxplot(width = 0.5) +
       scale_x_discrete(labels = mach_label) +
       geom_hline(yintercept = 0, linetype = "dashed") +
+      coord_cartesian(ylim = c(-10, 100)) +
       labs(
-    	title = paste0("MSamples Difference vs. Machine"),
     	x = "Machine",
     	y = "Msamples/s Difference"
       ) +
@@ -1269,7 +1269,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
       # facetted_pos_scales(y = y_scales) + 
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
       scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
-      labs(x = "Block Size", y = "Exection Time (s)",
+      labs(x = "Block Order", y = y_label,
            fill = NULL, color = NULL,
            linetype = NULL) +
       theme_bw(base_size = 7) +
@@ -1291,8 +1291,8 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
   }
   fl <- \(x) filter(x, sub("\\d+$", "", Machine) %in% c("cei", "tupi", "grace"))
 
-  anon_pdf("exec_time", 3.5, 3.8, order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Compute Time (s)", "Compute Time vs. Block Order"))
-  order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Compute Time (s)", "Compute Time vs. Block Order")
+  anon_pdf("exec_time", 3.5, 3.8, order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Computed Time (s)", "Computed Time vs. Block Order"))
+  order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Computed Time (s)", "Computed Time vs. Block Order")
 #+END_SRC
 
 #+CAPTION: Computed Time of the machines {{{m(cei)}}}, {{{m(tupi)}}} and {{{m(grace)}}} as the block order increases, per I/O amount.
@@ -1474,10 +1474,10 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
 
    anon_pdf("scalability", 7.16, 3, scale_stats |>
      filter(X >= 4) |>
-     scalability_plot("ExecTime", "Compute Time (s)", "Compute Time vs. Number of Cores", zoom = zoom))
+     scalability_plot("ExecTime", "Computed Time (s)", "Computed Time vs. Number of Cores", zoom = zoom))
    scale_stats |>
      filter(X >= 4) |>
-     scalability_plot("ExecTime", "Compute Time (s)", "Compute Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
+     scalability_plot("ExecTime", "Computed Time (s)", "Computed Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
 #+CAPTION: Scalability of \textit{star-fletcher} and \textit{fletcher-base} as the number of cores increases.
