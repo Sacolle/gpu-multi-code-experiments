@@ -1877,7 +1877,6 @@ Tangle this file with C-c C-v t
       	author = {AlOnazi, A. and Ltaief, H. and Keyes, D. and Said, I. and Thibault, S.},
       	month = sep,
       	year = {2019},
-      	note = {ISSN: 2168-9253},
       	keywords = {Computational modeling, Kernel, Task analysis, Reverse Time Migration, RTM, Asynchronous Executions, Graphics processing units, Hardware, Out-Of-Core Algorithms, Overlapping I/O with Computation, Runtime, STARPU OOC, Task-Based Programming Model, STARPU},
       	pages = {1--11},
       	annote = {Tenho ele impresso.
@@ -2228,7 +2227,6 @@ Tangle this file with C-c C-v t
     @article{fletcher_base,
     author = {Serpa, Matheus and Pavan, Pablo and Cruz, Eduardo and Machado, Rodrigo and Panetta, Jairo and Azambuja, Antonio Carlos and Carissimi, Alexandre and Navaux, Philippe},
     year = {2021},
-    month = {02},
     number = {18},
     pages = {e6212},
     title = {Energy efficiency and portability of oil and gas simulations on multicore and graphics processing unit architectures},
