@@ -678,7 +678,7 @@ For the rest,
   
 *** Introduction                                                   :ignore:
 
-This Section presents the experimental outcomes of the described experiments in Section [[sec:methodology]] across the machines in Table [[tab:hardware]]. Firstly, the results of the first experiment are presented, using MSamples/s in one plot and Compute Time in another, and also showing the computations with I/O enabled. Secondly, the results of the second experiment are presented, including the scalability plot and an explanation of some important aspects of it. Lastly, traces are used to directly showcase the effect of /star-fletcher/'s design decisions.
+This section presents the results of the experiments described in Section [[sec:methodology]] on the machines of Table [[tab:hardware]]. We first present the first experiment, comparing the best configurations of both programs in MSamples/s and in compute time, with and without I/O. We then present the second experiment, on scalability, and discuss its main trends. Finally, we use execution traces to show the effect of the design decisions of /star-fletcher/.
 #+latex: %
 # Taken together, these results supported the hypothesis proposed in # Section [[sec:methodology]]. 
 
