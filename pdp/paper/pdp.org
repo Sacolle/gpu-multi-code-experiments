@@ -1638,11 +1638,7 @@ For future work, the aim is to investigate CPU-GPU mixed computation, using the 
 :UNNUMBERED: t
 :END:
 
-This study was financed in part by the Coordenação de Aperfeiçoamento
-de Pessoal de Nível Superior (CAPES), Finance Code 001. This work was
-also partially funded by Petrobras under Agreement no.  2020/00182-5 e
-2018/00263-5 with UFRGS. The authors thank PCAD/UFRGS, \url{http://pcad.inf.ufrgs.br}, for
-infrastructure access in the prior study's evaluation.
+@@latex:\blackout{This study was financed in part by the Coordenação de Aperfeiçoamento de Pessoal de Nível Superior (CAPES), Finance Code 001. This work was also partially funded by Petrobras under Agreement no. 2020/00182-5 e 2018/00263-5 with UFRGS. The authors thank PCAD/UFRGS,}@@ @@latex:\censorbox{\url{http://pcad.inf.ufrgs.br}}@@@@latex:\blackout{, for infrastructure access in the prior study's evaluation.}@@
 
 ** References                                                      :ignore:
 
