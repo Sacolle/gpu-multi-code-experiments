@@ -1102,7 +1102,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
           legend.text = element_text(size = 6, margin = margin(r = 8)),
           legend.title = element_text(size = 7),
           strip.text = element_text(margin = margin(2, 2, 2, 2)),
-          plot.margin = margin(2, 6, 2, 2),
+          plot.margin = margin(0, 4, 0, 0),
           panel.spacing.x = unit(6, "pt"),
           panel.spacing.y = unit(10, "pt")
       )
@@ -1177,7 +1177,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
           legend.text = element_text(size = 6, margin = margin(r = 8)),
           legend.title = element_text(size = 7),
           strip.text = element_text(margin = margin(2, 2, 2, 2)),
-          plot.margin = margin(2, 6, 2, 2),
+          plot.margin = margin(0, 4, 0, 0),
           panel.spacing.x = unit(6, "pt"),
           panel.spacing.y = unit(10, "pt")
       )
@@ -1287,7 +1287,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
         legend.text = element_text(size = 6, margin = margin(r = 8)),
         legend.title = element_text(size = 7),
         strip.text = element_text(margin = margin(2, 2, 2, 2)),
-        plot.margin = margin(2, 6, 2, 2),
+        plot.margin = margin(0, 4, 0, 0),
         panel.spacing.x = unit(2, "pt"),
         panel.spacing.y = unit(5, "pt")
       )
@@ -1439,7 +1439,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
            labeller = labeller(Machine = \(m) paste0(mach_label(m), " (Order ", na.omit(d$Order)[1], ")"))) +
          labs(x = "Number of cores/threads", y = y_label, color = NULL) +
          theme_bw(base_size = 7) +
-         theme(axis.text.x = element_text(size = 5.5), plot.margin = margin(2, 2, 2, 2)) +
+         theme(axis.text.x = element_text(size = 5.5), plot.margin = margin(0, 1, 0, 1)) +
          # o rótulo do IO vale para a linha inteira, então só aparece no último gráfico
          (if (is_last) NULL else theme(strip.text.y = element_blank(), strip.background.y = element_blank()))
      }
@@ -1454,7 +1454,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
        plot_layout(guides = "collect", axis_titles = "collect") +
        # sem título: a descrição fica na legenda da figura no artigo
        plot_annotation(title = NULL) &
-       theme(legend.position = "bottom", legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(2, "pt"))
+       theme(legend.position = "bottom", legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, "pt"))
    }
 
   scale_stats <- bind_rows(sf_scale, fb_scale) |>
