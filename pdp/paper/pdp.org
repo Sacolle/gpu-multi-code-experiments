@@ -1188,7 +1188,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
 
 #+END_SRC
 
-#+CAPTION: Difference between \textit{star-fletcher} and \textit{fletcher-base} considering the best configuration of each one on each machine. 
+#+CAPTION: Absolute MSamples/s difference without I/O between the best \textit{star-fletcher} and the best \textit{fletcher-base} configuration on each machine, over all pairs of their runs; positive values mean \textit{star-fletcher} is faster.
 #+NAME: fig:cmp_msamples
 #+ATTR_LATEX: :placement [!htb] :width .7\linewidth
 [[file:figures/msamples_cmp.pdf]]
