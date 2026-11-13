@@ -1114,7 +1114,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
 
 #+END_SRC
 
-#+CAPTION: Plot of \textit{star-fletcher} and \textit{fletcher-base} performance over their respective configurations, using MSamples/s as the dependable variable.
+#+CAPTION: Plot of \textit{star-fletcher} and \textit{fletcher-base} performance over their respective configurations, using MSamples/s as the dependent variable.
 #+NAME: fig:msamples
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/msamples.pdf]]
