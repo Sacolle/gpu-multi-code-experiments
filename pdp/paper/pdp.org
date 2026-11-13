@@ -1295,7 +1295,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
   order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Compute Time (s)", "Compute Time vs. Block Order")
 #+END_SRC
 
-#+CAPTION: Computed Time of the machines {{{m(cei)}}}, {{{m(tupi)}}} and {{{m(grace)}}} as the block order increasses, per I/O amount.
+#+CAPTION: Computed Time of the machines {{{m(cei)}}}, {{{m(tupi)}}} and {{{m(grace)}}} as the block order increases, per I/O amount.
 #+NAME: fig:exec_time
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/exec_time.pdf]]
