@@ -1274,6 +1274,8 @@ The plot shows that, for the tupi and cei machines, as the amount of I/O increas
 
 *** Scale Plot :ignore:
 
+#+latex: \bigskip
+
 #+latex: \noindent
 *Scalabilty of the /star-fletcher/ application.*
 #+latex: %
@@ -1453,6 +1455,8 @@ The one exception for all this trends is the machine grace. In it, /star-fletche
 [[file:figures/scalability.pdf]]
 
 *** Overlap Plot :ignore:
+
+#+latex: \bigskip
 
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
