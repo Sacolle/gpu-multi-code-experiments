@@ -1660,7 +1660,7 @@ It shows that /star-fletcher/ may overlap as many as 7 iterations at a time, all
 
 The execution of /star-fletcher/, based on the task-based paradigm, showed an improvement over conventional parallel executions of Fletcher's algorithm on CPUs (/fletcher-base/). With that, the task-based model demonstrated that with a little tuning, there can be significant performance benefits over traditional methods. The machines that benefit the most from the task model are the heterogeneous ones. Machines with more common HPC architectures, such as the one in the {{{m(grace)}}} machine, also show some improvements. The task model is a powerful mechanism that can be easily expanded to different CPU architectures and multiple hardware accelerators.
 
-For future work, the aim is to investigate CPU-GPU mixed computation, using the task model to its full extent by computing the main RTM kernel on both CPU and GPU. The next step would be to add support for distributed execution using StarPU's MPI backend to compete directly with existing CUDA+MPI implementations of the /fletcher/ algorithm. 
+Future work includes investigating the cost of the block-sized writes at large volume sizes, for instance by replacing the ~mmap~-based writes with direct I/O, co-executing the propagation tasks on CPUs and GPUs within the same task graph, and using StarPU-MPI to distribute the blocks of a single shot across nodes, enabling a comparison with existing CUDA+MPI implementations of Fletcher.
 
 ** Acknowledgments
 :PROPERTIES:
