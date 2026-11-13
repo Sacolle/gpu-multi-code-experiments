@@ -812,7 +812,7 @@ This section presents the results of the experiments described in Section [[sec:
   fb_bind_big_res <- cross_join(machines, read_csv('./pdp/fletcher-base-exp-big.csv')) |>
     mutate(
       # the runs without IO were saved with 0 in the file name
-      TimeToWrite = if_else(WithIO == 0, 1, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
+      TimeToWrite = if_else(WithIO == 0, 10000, as.numeric(as.character(OutputTime)) / as.numeric(as.character(TimeStep))),
       FILE = paste0(base_dir,"/fletcher-base-pdp-exp-bind-big/", Machine ,"/stdout-", Schedulers, "-", TimeToWrite, "-", Blocks, ".out")) |>
     parse_files(FILE, function(lines){
        msamples <-  lines |> str_subset("MSamples/s") |> str_extract("\\d+.\\d+") |> as.numeric()
