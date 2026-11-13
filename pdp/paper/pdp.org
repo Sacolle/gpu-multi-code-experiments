@@ -631,7 +631,7 @@ The experiments were run on PCAD's infrastructure, which is the high-performance
 #+latex: \noindent
 *Design of Experiments*.
 #+latex: %
-Two experiments were designed to understand the performance of the implemented task-based solution (/start-fletcher/) against the reference implementation (/fletcher-base/). They were used to validate assumptions about /star-fletcher/'s performance, as detailed below.
+Two experiments were designed to understand the performance of the implemented task-based solution (/star-fletcher/) against the reference implementation (/fletcher-base/). They were used to validate assumptions about /star-fletcher/'s performance, as detailed below.
 #+latex: %
 The first experiment aimed to identify the best configurations for each program and to determine whether the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both MSamples/s and Computed Time, expecting improvement in/star-fletcher/ for both metrics.
 For that, a volume size was fixed that would computationally stress all machines. A volume of $384^3$ points was chosen for all machines except grace, which had a volume of $700^3$ points. Both programs were run for 20 iterations. For /star-fletcher/, the block order varied across experiments. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding were varied between executions, changing from /static/ and /dynamic/ scheduling and /free/ moving and /bind/ to core threads. Lastly, it checked each program with different numbers of steps taken to save the volume, to verify the stress the I/O has on the applications.
