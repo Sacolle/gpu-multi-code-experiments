@@ -1305,7 +1305,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
 #+latex: \bigskip
 
 #+latex: \noindent
-*Scalabilty of the /star-fletcher/ application.*
+*Scalability of the /star-fletcher/ application.*
 #+latex: %
 The second experiment resulted in Figure [[fig:scalability]]. It shows the application’s scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: /star-fletcher/, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, computed as in Figure [[fig:msamples]].
 
