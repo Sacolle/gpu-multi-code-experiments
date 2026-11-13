@@ -621,7 +621,7 @@ The experiments were run on PCAD's infrastructure, which is the high-performance
 | draco   | 2 x Intel(R) Xeon(R) E5-2640 v2  |      32 |    16 | 2.0 GHz   |
 | poti    | Intel(R) Core(TM) i7-14700KF     |      28 |    20 | 3.4 GHz   |
 | cei     | 2 x Intel(R) Xeon(R) Silver 4116 |      48 |    24 | 2.1 GHz   |
-| grace   | 2 x Grace A02                    |     144 |   144 | 3.4 GHz   |
+| grace   | 2 x NVIDIA Grace CPU A02         |     144 |   144 | 3.4 GHz   |
 | tupi    | Intel(R) Core(TM) i9-14900KF     |      32 |    24 | 3.2 GHz   |
 | lunaris | AMD Threadripper PRO 5965WX      |      48 |    24 | 3.8 GHz   |
 
