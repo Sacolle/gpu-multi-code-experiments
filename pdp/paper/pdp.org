@@ -1976,8 +1976,6 @@ Tangle this file with C-c C-v t
       	author = {Qu, L. and Ltaief, H. and Keyes, D.},
       	month = sep,
       	year = {2021},
-      	note = {ISSN: 2214-4609
-      Issue: 1},
       	keywords = {Tiling},
       	pages = {1--5},
       	annote = {É uma continuação dos papers de Tiling que eu li, seguindo a pesquisa de Multicore Wavefront Diamond-tiling Temporal Blocking technique (MWD-TB) (eu li?), a implementação desta em RTM ( esse eu li ).
