@@ -1686,10 +1686,9 @@ Tangle this file with C-c C-v t
 @article{garcia2018visual,
   title={A visual performance analysis framework for task-based parallel applications running on hybrid clusters},
   author={Garcia Pinto, Vin{\'\i}cius and Mello Schnorr, Lucas and Stanisic, Luka and Legrand, Arnaud and Thibault, Samuel and Danjean, Vincent},
-  journal={Concurrency and Computation: Practice and Experience},
+  journal={Concurrency and Comp.: Pract. and Exp.},
   volume={30},
   number={18},
-  pages={e4472},
   doi={10.1002/cpe.4472},
   year={2018},
   publisher={Wiley Online Library}
@@ -1879,10 +1878,8 @@ Tangle this file with C-c C-v t
       	urldate = {2026-02-04},
       	booktitle = {2019 {IEEE} {International} {Conference} on {Cluster} {Computing} ({CLUSTER})},
       	author = {AlOnazi, A. and Ltaief, H. and Keyes, D. and Said, I. and Thibault, S.},
-      	month = sep,
       	year = {2019},
       	keywords = {Computational modeling, Kernel, Task analysis, Reverse Time Migration, RTM, Asynchronous Executions, Graphics processing units, Hardware, Out-Of-Core Algorithms, Overlapping I/O with Computation, Runtime, STARPU OOC, Task-Based Programming Model, STARPU},
-      	pages = {1--11},
       	annote = {Tenho ele impresso.
       Esse é a referência base quando se trata de RTM e StarPU.
       },
@@ -1898,12 +1895,10 @@ Tangle this file with C-c C-v t
       	abstract = {Geostatistical modeling, one of the prime motivating applications for exascale computing, is a technique for predicting desired quantities from geographically distributed data, based on statistical models and optimization of parameters. Spatial data are assumed to possess properties of stationarity or non-stationarity via a kernel fitted to a covariance matrix. A primary workhorse of stationary spatial statistics is Gaussian maximum log-likelihood estimation (MLE), whose central data structure is a dense, symmetric positive definite covariance matrix of the dimension of the number of correlated observations. Two essential operations in MLE are the application of the inverse and evaluation of the determinant of the covariance matrix. These can be rendered through the Cholesky decomposition and triangular solution. In this contribution, we reduce the precision of weakly correlated locations to single- or half- precision based on distance. We thus exploit mathematical structure to migrate MLE to a three-precision approximation that takes advantage of contemporary architectures offering BLAS3-like operations in a single instruction that are extremely fast for reduced precision. We illustrate application-expected accuracy worthy of double-precision from a majority half-precision computation, in a context where uniform single-precision is by itself insufficient. In tackling the complexity and imbalance caused by the mixing of three precisions, we deploy the PaRSEC runtime system. PaRSEC delivers on-demand casting of precisions while orchestrating tasks and data movement in a multi-GPU distributed-memory environment within a tile-based Cholesky factorization. Application-expected accuracy is maintained while achieving up to 1.59X1.59X by mixing FP64/FP32 operations on 1536 nodes of HAWK or 4096 nodes of Shaheen II, and up to 2.64X2.64X by mixing FP64/FP32/FP16 operations on 128 nodes of Summit, relative to FP64-only operations. This translates into up to 4.5, 4.7, and 9.1 (mixed) PFlop/s sustained performance, respectively, demonstrating a synergistic combination of exascale architecture, dynamic runtime software, and algorithmic adaptation applied to challenging environmental problems.},
       	number = {4},
       	urldate = {2026-02-04},
-      	journal = {IEEE Transactions on Parallel and Distributed Systems},
+      	journal = {IEEE Trans. on Parallel and Distributed Systems},
       	author = {Abdulah, Sameh and Cao, Qinglei and Pei, Yu and Bosilca, George and Dongarra, Jack and Genton, Marc G. and Keyes, David E. and Ltaief, Hatem and Sun, Ying},
-      	month = apr,
       	year = {2022},
       	keywords = {Computational modeling, Task analysis, Runtime, Climate/weather prediction, Covariance matrices, Data models, dynamic runtime systems, geospatial statistics, high performance computing, Maximum likelihood estimation, multiple precisions, Predictive models, user-productivity},
-      	pages = {964--976},
       	annote = {Anotações(10/02/2026, 13:28:26)
       “. PaRSEC delivers on-demand casting of precisions” (Abdulah et al., 2022, p. 964) Como?Será que o Starpu faz isso também.Se faz, faria sentido adicionar a pesquisa?“PaRSEC, extending the approach in [4] to accelerate the Cholesky factorization by mixing FP64 double-precision (DP), FP32 single-precision (SP) and FP16 half-precision (HP) to take advantage of the tensor cores of modern GPUs, e.g., NVIDIA V100s” (Abdulah et al., 2022, p. 965) uso ParSEC na fatorização de Cholskey“Precision adaptation inveighs against predictable load-balancing, which therefore requires reliance on a dynamic runtime system to schedule computationally rich tasks of tile-sized granularity and data exchanges. The nimble runtime system PaRSEC is leveraged to deal with the complexity of the proposed mixed-precision algorithm, tackle the introduced imbalance, and limit the memory usage on distributed-memory systems equipped with multiple GPU” (Abdulah et al., 2022, p. 965) esse sistema misto precisa de load balancing e com isso usa o PaRSEC.“xploit heterogeneity” (Abdulah et al., 2022, p. 965) usam CPU também?(Abdulah et al., 2022, p. 965) cap 5 e 6 respone o PaRSEC“existing works on both mixed-precision” (Abdulah et al., 2022, p. 965)“In particular, we extend the mixed twoprecision arithmetic approach [4] initially based on StarPU to PaRSEC instead with mixed three-precision computations” (Abdulah et al., 2022, p. 966) see [4]“The precision conversion becomes now a runtime decision made by PaRSEC as opposed to a user decision with StarPU in [4]” (Abdulah et al., 2022, p. 966)“From a performance standpoint, algorithms described in PTG have been shown capable of delivering a significant percentage of the hardware peak performance on many hybrid distributed-memory machines for several scientific fields [44], [45], [46], [47], [48].” (Abdulah et al., 2022, p. 967)“We embed the support of multiple precisions into PaRSEC by incorporating the datatype information of the task operands into the data-flow. To our knowledge, this is the first time a runtime system provides a precision-agnostic mechanism to seamlessly handle workloads with variable precisions.” (Abdulah et al., 2022, p. 969)
       },
@@ -1976,9 +1971,7 @@ Tangle this file with C-c C-v t
       	abstract = {Summary During the forward and backward modeling in Reverse Time Migration (RTM), stencil computations constitute one of the main computationally intensive components. Their classic implementation based on Spatial Blocking (SB) is subject to performance limitation on modern multicore architectures due to several reasons, including non-uniform memory access, memory bandwidth starvation, load imbalance, and limited data locality. The Multicore Wavefront Diamond-tiling Temporal Blocking technique (MWD-TB) introduced in (Malas, PhD thesis 2015, Malas et al., SIAM SciCo 2015, Malas et al., ACM Trans 2017) aims at reducing the memory bandwidth requirement of stencil computations by increasing cache reuse within successive time steps. The authors in (Akbudak et al. IJHPCA 2020) integrate the MWD-TB technique into the modeling phase and the authors in (Qu et al., KAUST Tech Report 2020) eventually embed it into the full RTM using in-memory I/O operations snapshotting for the imaging condition and illustrate with the Salt3D dataset. In this paper, we further enable Out-Of-Core (OOC) I/O snapshotting operations on the Lustre parallel file system using the buffering strategy from MLBS (Alturkestani et al., EuroPar 2020). We present preliminary results using the Marmoussi 3D dataset.},
       	language = {en},
       	urldate = {2026-02-04},
-      	publisher = {European Association of Geoscientists \& Engineers},
       	author = {Qu, L. and Ltaief, H. and Keyes, D.},
-      	month = sep,
       	year = {2021},
       	keywords = {Tiling},
       	pages = {1--5},
@@ -1997,12 +1990,10 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {2},
       	urldate = {2026-02-04},
-      	journal = {The International Journal of High Performance Computing Applications},
+      	journal = {The Intl. J. of High Performance Computing Applic.},
       	author = {Qu, Long and Abdelkhalak, Rached and Ltaief, Hatem and Said, Issam and Keyes, David},
-      	month = mar,
       	year = {2023},
       	keywords = {Tiling, Relevant},
-      	pages = {132--150},
       	annote = {Anotações(24/02/2026, 14:22:38)
       “integrate asynchronous the Multicore Wavefront Diamond (MWD) tiling technique from GIRIH (Girih)” (Qu et al., 2023, p. 133) What is the MWD“the traditional Spatial Blocking (SB) technique (Datta et al., 2009) in the context of pure stencil computation (Malas et al., 2015)” (Qu et al., 2023, p. 133) What is the SB technique“using the SEG Salt3D synthetic dataset.” (Qu et al., 2023, p. 133)(Qu et al., 2023, p. 133) reler essa parte porque tem muito material interessante no Realted Work.O fletcher modelado atual é, aparentemente, feito com SB. interessante ver do que se trata o MWD e a borda que ele comenta (ABC)“5.2. Diamond tiling” (Qu et al., 2023, p. 136)“the diamond tiling is performed in 2D with spatial dimension Y and temporal dimension t.” (Qu et al., 2023, p. 137)(Qu et al., 2023, p. 137) Pode-se imaginar a técnica de \_Diamond Tilling\_ como uma forma limitada do sistema de flecha.Na flecha, as \$t - n\$ iterações anteriores são salvas, dado o tamanho \$n\$ da flecha. No sistema de diamantes, a onda é processada em formato triangular com o intuito de reusar o cache mais. Mas fundamentalmente, apenas os buffers \$t\$ e \$t - 1\$ são salvos. Cada diamante é então uma segmentação espacial/temporal por thread em que um bloco \$B\_\{i, j, k\}\$ no volume total pode pertencer a \$[t.. t - 3]\$. Mas independe do \$t\$ do bloco, o sistema só usa dois buffers para salvar eles, Essa explicação da onda diamante não ficou muito boa, porém é suficiente para quando for escrever a fundamentação eu tenha base para referenciar e relembrar.“both stencil schemes necessitate two arrays, denoted as Pcur and Pprv, for saving the current t and previous t 1 time steps, since the acoustic wave equatio” (Qu et al., 2023, p. 137)“Once a diamond tile processing is completed, these two arrays host portions of the latest two-time steps following the pattern of the diamond tile, as shown in Figure 5(b).” (Qu et al., 2023, p. 137)“5.4. Multicore wavefront parallelism” (Qu et al., 2023, p. 137) Não entendi“Algorithm 1. The modeling phase based on SB” (Qu et al., 2023, p. 138) separate into blocks for computation. Ele separa apenas no x, y, fazendo mais pilares da direção z.“Algorithm 2. The modeling phase based on MWD” (Qu et al., 2023, p. 138) tendi não(Qu et al., 2023, p. 139) Na imagem, podemos imagianr que, se os meus tres antecendentes foram computados, eu já posso ser computado.  x   {\textless}- bloco a ser computado+++ {\textless}- antecedentesisso naturalemente gera o diamante, ou melhor a flecha. Porém o esquema de salvar esses valores tem dependências mais fortes, usando apenas dois buffers. Além das dificuldades agora apontadas no IO.“Therefore, the number of time steps between two consecutive snapshots needs to be a multiple of the selected height of the diamond tile in order to maintain the RTM integrity.” (Qu et al., 2023, p. 140) Problema de salvar a front do diamante é que talvez o momento de samplear não bata com o fim do diamante, precisando escolher o valor para que isso aconteça.“Moreover, we plan to port the MWD RTM on GPU hardware accelerators. In particular, we will take advantage of the new Magnum I/O feature, which permits to bypass the CPU and to directly write onto fast storage media.” (Qu et al., 2023, p. 148) Não foi feito em GPU
       },
@@ -2022,9 +2013,8 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {4},
       	urldate = {2026-02-04},
-      	journal = {The International Journal of High Performance Computing Applications},
+      	journal = {The Intl. J. of High Performance Computing Applic.},
       	author = {Akbudak, Kadir and Ltaief, Hatem and Etienne, Vincent and Abdelkhalak, Rached and Tonellot, Thierry and Keyes, David},
-      	month = jul,
       	year = {2020},
       	keywords = {Tiling, See Related Work},
       	pages = {377--393},
@@ -2088,11 +2078,10 @@ Tangle this file with C-c C-v t
       	doi = {10.1109/TPDS.2017.2766064},
       	abstract = {The emergence of accelerators as standard computing resources on supercomputers and the subsequent architectural complexity increase revived the need for high-level parallel programming paradigms. Sequential task-based programming model has been shown to efficiently meet this challenge on a single multicore node possibly enhanced with accelerators, which motivated its support in the OpenMP 4.0 standard. In this paper, we show that this paradigm can also be employed to achieve high performance on modern supercomputers composed of multiple such nodes, with extremely limited changes in the user code. To prove this claim, we have extended the StarPU runtime system with an advanced inter-node data management layer that supports this model by posting communications automatically. We illustrate our discussion with the task-based tile Cholesky algorithm that we implemented on top of this new runtime system layer. We show that it allows for very high productivity while achieving a performance competitive with both the pure Message Passing Interface (MPI)-based ScaLAPACK Cholesky reference implementation and the DPLASMA Cholesky code, which implements another (non sequential) task-based programming paradigm.},
       	urldate = {2026-02-04},
-      	journal = {IEEE Transactions on Parallel and Distributed Systems},
+      	journal = {IEEE Trans. on Parallel and Distributed Systems},
       	author = {Agullo, Emmanuel and Aumage, Olivier and Faverge, Mathieu and Furmento, Nathalie and Pruvost, Florent and Sergent, Marc and Thibault, Samuel Paul},
       	year = {2017},
       	keywords = {Runtime, Programming, runtime system, task-based programming, Algorithm design and analysis, Cholesky factorization, distributed computing, GPU, heterogeneous computing, Libraries, multicore, Productivity, sequential task flow, Supercomputers, STARPU},
-      	pages = {1--1},
       	annote = {Anotações(10/02/2026, 12:37:36)
       (Agullo et al., 2017, p. 1) Artigo dizendo. Dá pra usar StarPU em sistema multi-nodo.
       “have extended the StarPU runtime system with an advanced inter-node data management layer” (Agullo et al., 2017, p. 1) Is it available?
@@ -2128,12 +2117,10 @@ Tangle this file with C-c C-v t
       	doi = {10.1016/j.jocs.2017.03.008},
       	abstract = {FLUSEPA (registered trademark in France No. 134009261) is an advanced simulation tool which performs a large panel of aerodynamic studies. It is the unstructured finite-volume solver developed by Airbus Safran Launchers company to calculate compressible, multidimensional, unsteady, viscous and reactive flows around bodies in relative motion. The time integration in FLUSEPA is done using an explicit temporal adaptive method. The current production version of the code is based on MPI and OpenMP. This implementation leads to important synchronizations that must be reduced. To tackle this problem, we present the study of a task-based parallelization of the aerodynamic solver of FLUSEPA using the runtime system StarPU and combining up to three levels of parallelism. We validate our solution by the simulation (using a finite-volume mesh with 80 million cells) of a take-off blast wave propagation for Ariane 5 launcher.},
       	urldate = {2026-02-10},
-      	journal = {Journal of Computational Science},
+      	journal = {J. of Comp. Science},
       	author = {Couteyen Carpaye, Jean Marie and Roman, Jean and Brenner, Pierre},
-      	month = sep,
       	year = {2018},
       	keywords = {Aerospace industry, Computational fluid dynamics, High performance computing, Runtime system, Task-based parallelism, STARPU},
-      	pages = {439--454},
       	annote = {Anotações(11/02/2026, 14:24:03)
       (Couteyen Carpaye et al., 2018, p. 439) Using StarPU to do aerodynamic sims
       “A preliminary version of this work appeared in [10].” (Couteyen Carpaye et al., 2018, p. 440)
@@ -2179,12 +2166,10 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {20},
       	urldate = {2026-02-10},
-      	journal = {Concurrency and Computation: Practice and Experience},
+      	journal = {Concurrency and Comp.: Prac. and Exp.},
       	author = {Leandro Nesi, Lucas and da Silva Serpa, Matheus and Mello Schnorr, Lucas and Navaux, Philippe Olivier Alexandre},
       	year = {2020},
-      	note = {\_eprint: https://onlinelibrary.wiley.com/doi/pdf/10.1002/cpe.5772},
       	keywords = {computational fluid dynamics, performance analysis, task-based programming paradigm},
-      	pages = {e5772},
       	file = {Full Text PDF:/home/colle/Zotero/storage/2NFMSQKT/Leandro Nesi et al. - 2020 - Task-based parallel strategies for computational fluid dynamic application in heterogeneous CPUGPU.pdf:application/pdf;Snapshot:/home/colle/Zotero/storage/DIPQTJKQ/cpe.html:text/html},
       }
 
@@ -2198,7 +2183,6 @@ Tangle this file with C-c C-v t
       	month = nov,
       	year = {2022},
       	keywords = {Computational modeling, Runtime, Supercomputers, Benchmark testing, Conferences, Dynamic Runtime Systems, Heuristic algorithms, High Performance Computing, Linear algebra, Numerical Linear Algebra},
-      	pages = {1--8},
       	annote = {Tenho esse paper impresso. Ele é relevante para citar que existem melhoras para fazer nos sistemas, mas não é diretamente relevante para a nossa aplicação.
       },
       	file = {Full Text PDF:/home/colle/Zotero/storage/4SBN8BKT/Pei et al. - 2022 - Sequential Task Flow Runtime Model Improvements and Limitations.pdf:application/pdf},
