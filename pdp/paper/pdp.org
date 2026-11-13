@@ -1112,7 +1112,6 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
 
   anon_pdf("msamples", 3.5, 4.6, msamples_plot(sf_res, fb_res))
   msamples_plot(sf_res, fb_res)
-
 #+END_SRC
 
 #+CAPTION: Plot of \textit{star-fletcher} and \textit{fletcher-base} performance over their respective configurations, using MSamples/s as the dependent variable.
@@ -1267,6 +1266,8 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
       #facet_wrap(IO ~ Machine, scales = "free_y", ncol = n_distinct(sf_stats$Machine)) +
       # no facet_grid o free_y só libera o eixo Y por linha (aqui, por nível de IO), então as máquinas da
       # mesma linha dividiam o eixo; o facet_grid2 com independent = "y" dá um eixo Y para cada painel
+      # every panel starts at y = 0, so that the gaps are not visually exaggerated
+      expand_limits(y = 0) +
       ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y", labeller = labeller(Machine = mach_label)) +
       # facetted_pos_scales(y = y_scales) + 
       geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
