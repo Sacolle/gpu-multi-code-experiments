@@ -1480,7 +1480,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
      scalability_plot("ExecTime", "Compute Time (s)", "Compute Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
-#+CAPTION: Scalabilty of \textit{star-fletcher} and \textit{fletcher-base} as the core count of each CPU increases.
+#+CAPTION: Scalability of \textit{star-fletcher} and \textit{fletcher-base} as the number of cores increases.
 #+NAME: fig:scalability
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/scalability.pdf]]
