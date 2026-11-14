@@ -192,7 +192,7 @@ the same multi-track EasyChair installation as the main conference.
 ** Abstract                                                         :ignore:
 
 #+begin_abstract
-Fletcher's pseudo-acoustic equations model wave propagation in Tilted Transverse Isotropic (TTI) media and are widely used in Reverse Time Migration (RTM), a seismic imaging method of the oil and gas industry whose forward phase is compute- and I/O-intensive. This paper presents Star-Fletcher, an implementation of the forward phase of Fletcher's modeling using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, Star-Fletcher enables overlap of computation and I/O, eliminating global synchronization points between iterations. This paper bases its analysis on the OpenMP base version, fletcher-base, and characterizes its performance across OpenMP configurations. Experiments on six CPU machines show that, without I/O, Star-Fletcher surpasses the best OpenMP configuration on three machines, by up to 51%, and matches it or stays slightly below it on the other three, while being up to 63% faster than the default static schedule on hybrid machines with performance and efficiency cores. Overlapping writes with computation reduces the I/O overhead on most machines, but on the machine with the largest volume, frequent writes make Star-Fletcher slower than the baseline.
+Fletcher's pseudo-acoustic equations model wave propagation in Tilted Transverse Isotropic (TTI) media and are widely used in Reverse Time Migration (RTM), a seismic imaging method of the oil and gas industry whose forward phase is compute- and I/O-intensive. This paper presents /star-fletcher/, an implementation of the forward phase of Fletcher's modeling using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, /star-fletcher/ overlaps computation and I/O and eliminates global synchronization points between iterations. We compare it against the OpenMP baseline, /fletcher-base/, across OpenMP configurations. Experiments on six CPU machines show that, without I/O, /star-fletcher/ surpasses the best OpenMP configuration on three machines, by up to 51%, and matches it or stays slightly below it on the other three, while being up to 63% faster than the default static schedule on hybrid machines with performance and efficiency cores. Overlapping writes with computation reduces the I/O overhead on most machines, but on the machine with the largest volume, frequent writes make /star-fletcher/ slower than the baseline.
 #+end_abstract
 
 ** Introduction
@@ -281,13 +281,13 @@ Reverse Time Migration (RTM) is a key seismic imaging method in the oil and gas 
 Within a node, each shot is typically parallelized with a fork-join model, as in /fletcher-base/ cite:fletcher_base, an OpenMP implementation of the Fletcher forward phase. At every time step, the grid points are split among threads in a parallel loop, all threads meet at a barrier, and, every $k$ steps, the volume is written to disk before the next step begins. This design has three limitations on current nodes. First, (a) a static split of the points assumes uniform cores and memory, which no longer holds on nodes with non-uniform memory access or with mixed performance and efficiency cores (P-cores and E-cores). Second, (b) the global barrier at the end of each time step makes every thread wait for the slowest one. Third, (c) the I/O is synchronous: the write happens after a barrier and stalls the computation.
 
 # P3 - Toward a task-based solution
-The task-based programming model addresses these limitations. In the Sequential Task Flow (STF) model cite:agullo_achieving_2017, the program submits tasks sequentially and specifies how each task accesses its data (read, write, or both). The runtime infers the read-after-write, write-after-read, and write-after-write task dependencies (Directed Acyclic Graph -- DAG), and dynamically maps ready tasks to the available workers. Dynamic scheduling balances work among heterogeneous cores (a), dependencies between tasks replace the global barrier (b), and I/O becomes tasks that run along with computation (c). Task-based runtimes such as StarPU cite:starpu-paper and PaRSEC cite:bosilca_parsec_2013 have been adopted in dense linear algebra cite:agullo_achieving_2017,abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and RTM cite:boillot_task-based_2014,alonazi_asynchronous_2019.
+The task-based programming model addresses these limitations. In the Sequential Task Flow (STF) model cite:agullo_achieving_2017, the program submits tasks sequentially and specifies how each task accesses its data (read, write, or both). The runtime infers the read-after-write, write-after-read, and write-after-write task dependencies, which form a Directed Acyclic Graph (DAG), and dynamically maps ready tasks to the available workers. Dynamic scheduling balances work among heterogeneous cores (a), dependencies between tasks replace the global barrier (b), and I/O becomes tasks that run along with computation (c). Task-based runtimes such as StarPU cite:starpu-paper and PaRSEC cite:bosilca_parsec_2013 have been adopted in dense linear algebra cite:agullo_achieving_2017,abdulah_accelerating_2022, Computational Fluid Dynamics (CFD) cite:couteyen_carpaye_design_2018,leandro_nesi_task-based_2020, and RTM cite:boillot_task-based_2014,alonazi_asynchronous_2019.
 
 # P4 - Related work and comparison
-Related work on task-based RTM is scarce. Boillot et al. cite:boillot_task-based_2014 ported an MPI-parallel RTM application to the PaRSEC runtime cite:bosilca_parsec_2013, where dependencies are declared explicitly rather than inferred by an STF runtime, and refined the MPI mesh partition into finer tasks, but I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 used the STF interface of StarPU to run one shot per GPU, evaluated with tasks spanning the whole domain of a shot and with snapshot writes and reads as tasks, so that out-of-core transfers, disk I/O, and prefetching overlap with computation. Other works investigate the overlap of I/O and computation in the Fletcher RTM cite:kunas_enhancing_2025, or exploit temporal data reuse and asynchrony in the propagation kernel cite:qu_exploiting_2023. None of them combines a decomposition of the propagation domain into block tasks with dependencies across time steps, snapshot writes as tasks of that same graph, and heterogeneous CPU nodes running Fletcher's TTI equations.
+Boillot et al. cite:boillot_task-based_2014 ported an MPI-parallel RTM application to the PaRSEC runtime cite:bosilca_parsec_2013, where dependencies are declared explicitly rather than inferred by an STF runtime, and refined the MPI mesh partition into finer tasks, but I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 used the STF interface of StarPU to run one shot per GPU, evaluated with tasks spanning the whole domain of a shot and with snapshot writes and reads as tasks, so that out-of-core transfers, disk I/O, and prefetching overlap with computation. Other works investigate the overlap of I/O and computation in the Fletcher RTM cite:kunas_enhancing_2025, or exploit temporal data reuse and asynchrony in the propagation kernel cite:qu_exploiting_2023. None of them combines a decomposition of the propagation domain into block tasks with dependencies across time steps, snapshot writes as tasks of that same graph, and heterogeneous CPU nodes running Fletcher's TTI equations.
 
 # P5 - Star-Fletcher and contributions
-This paper presents /star-fletcher/, an STF implementation of the Fletcher forward phase on top of StarPU. It reuses the numerical kernel of /fletcher-base/ but segments the volume into cubic blocks, submits, for each time step, one propagation task per block and, every $k$ steps, one write task per block. The contributions of this paper are:
+This paper presents /star-fletcher/, an STF implementation of the Fletcher forward phase on top of StarPU. It reuses the numerical kernel of /fletcher-base/ but segments the volume into cubic blocks and submits, for each time step, one propagation task per block and, every $k$ steps, one write task per block. The contributions of this paper are:
 
 1. The elimination of the global synchronization between time steps through per-block dependencies, which lets the StarPU scheduler overlap tasks from different iterations (limitation b).
 2. The overlap of computation with I/O, by weaving block write tasks between the propagation tasks (limitation c).
@@ -299,7 +299,7 @@ This paper presents /star-fletcher/, an STF implementation of the Fletcher forwa
 Results show that /star-fletcher/ surpasses the best /fletcher-base/ configuration on three machines, by up to 51% MSamples/s on {{{m(lunaris)}}}, matches it on {{{m(cei)}}}, and stays slightly below it on {{{m(poti)}}} and {{{m(draco)}}}. The best /fletcher-base/ configuration is always the dynamic OpenMP schedule. Compared to the default static schedule, /star-fletcher/ is up to 63% faster on the hybrid machines {{{m(tupi)}}} and {{{m(poti)}}}, where E-cores slow down the static split. Execution traces show up to seven iterations running simultaneously, confirming the overlap enabled by removing the global barrier. On the machines with the $384^3$ volume, overlapping writes with computation reduces the overhead of saving the volume at every step on all machines but {{{m(draco)}}}, for instance from 27% to 9% on {{{m(lunaris)}}}. The exception is {{{m(grace)}}}, with a volume about 6.6 times larger, where frequent writes make /star-fletcher/ slower than /fletcher-base/ even when using all cores.
 
 # P7 - Paper structure
-This paper is structured as follows. Section [[sec:relatedwork]] discusses related work on task-based RTM, on I/O in RTM, and on asynchronous stencil computations. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Section [[sec:conclusion]] presents this paper's conclusions.
+This paper is structured as follows. Section [[sec:relatedwork]] discusses related work on task-based RTM, on I/O in RTM, and on asynchronous stencil computations. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results and explains, when possible, their causes. Section [[sec:conclusion]] presents this paper's conclusions.
 
 *** Previous text                                         :noexport:ignore:
 Reverse Time Migration (RTM) is an important algorithm for the oil and gas industry. With it, geophone-recorded data can be analyzed to detect subsurface oil and gas deposits. When dealing with a Tilted Transverse Isotropic (TTI) medium, the Fletcher algorithm cite:fletcher_reverse_2009 is used, which is more suitable for multiple types of recorded media. It works by propagating a wave field forward in time, recording it, and then integrating the recording back in time to generate a partial image. This process is repeated many times, each called a /shot/, to generate the final visualization. There are no dependencies between /shots/, so the common approach to apply parallelism in RTM applications is to use MPI to distribute each shot to each node and within each node speed up computation using /threads/ or hardware accelerators.
@@ -329,7 +329,7 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 Task-based RTM implementations are scarce. Boillot et al. cite:boillot_task-based_2014 turned the elastic wave propagation kernel of an industrial MPI-based RTM code, a discontinuous Galerkin solver on tetrahedral meshes, into a task-based code executed by the PaRSEC runtime cite:bosilca_parsec_2013, with dependencies declared explicitly in a parameterized task graph. Their tasks come from a two-level partitioning that refines the MPI mesh partition, and their preliminary results were competitive with the original MPI code on a homogeneous multicore node and more efficient on a ccNUMA node and on an Intel Xeon Phi accelerator. I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 proposed TB-RTM, which submits RTM tasks through the STF interface of StarPU on distributed-memory systems with multiple GPUs. Snapshot writes and reads are tasks as well. TB-RTM uses StarPU's out-of-core support to prefetch the solution data across GPU memory, main memory, and fast storage, overlapping data movement with computation and scaling up to 500 GPUs. TB-RTM solves the isotropic acoustic wave equation, with the stencils running on the GPUs while the CPU workers manage data and I/O. Although it supports subdomain tasks, its evaluation maps each shot to a single GPU, with tasks spanning the entire domain. Neither work targets CPU nodes with mixed P-cores and E-cores.
 
 # Theme 2 - IO in RTM
-The I/O required by the imaging condition is a recognized bottleneck in RTM, and several works try to hide it. Alturkestani et al. cite:alturkestani_maximizing_2020 introduced a multilayer buffer system that spreads snapshots across the storage hierarchy, from the parallel file system to burst buffers, main memory, and GPU memory, performing I/O asynchronously and achieving a 1.4$\times$ speedup on 2048 nodes of Summit. Qu et al. cite:qu_toward_2021 combined that buffering with temporal blocking to perform out-of-core snapshotting on a Lustre file system. Closest to our application, Künas et al. cite:kunas_enhancing_2025 investigated the Fletcher RTM, where synchronous I/O pauses computation to save checkpoints, and explored overlapping with computation by saving checkpoints asynchronously. These approaches add an explicit I/O layer alongside the solver, while in our work the writes are tasks of the same graph as the computation, scheduled by the runtime.
+The I/O required by the imaging condition is a recognized bottleneck in RTM, and several works try to hide it. Alturkestani et al. cite:alturkestani_maximizing_2020 introduced a multilayer buffer system that spreads snapshots across the storage hierarchy, from the parallel file system to burst buffers, main memory, and GPU memory, performing I/O asynchronously and achieving a 1.4$\times$ speedup on 2048 nodes of Summit. Qu et al. cite:qu_toward_2021 combined that buffering with temporal blocking to perform out-of-core snapshotting on a Lustre file system. Closest to our application, Künas et al. cite:kunas_enhancing_2025 investigated the Fletcher RTM, where synchronous I/O pauses computation to save snapshots, and explored overlapping with computation by saving snapshots asynchronously. These approaches add an explicit I/O layer alongside the solver, while in our work the writes are tasks of the same graph as the computation, scheduled by the runtime.
 
 # Theme 3 - asynchrony in the stencil itself
 Another line of work removes the synchronization between time steps inside the stencil computation. Akbudak et al. cite:akbudak_asynchronous_2020 integrated the absorbing boundary conditions into the asynchronous Multicore Wavefront Diamond temporal blocking (MWD-TB), and Qu et al. cite:qu_exploiting_2023 brought MWD-TB to the whole RTM workflow, achieving up to 70% speedup over spatial blocking on shared-memory systems. These works rely on carefully designed tiling schedules for homogeneous multicores. Task-based runtimes obtain a similar effect without a hand-made schedule: in FLUSEPA, an unstructured finite-volume CFD solver with explicit adaptive time stepping, Couteyen Carpaye et al. cite:couteyen_carpaye_design_2018 used StarPU to reduce the synchronizations that the temporal levels impose on its MPI and OpenMP version, and Nesi et al. cite:leandro_nesi_task-based_2020 studied task-based decompositions of a CFD stencil on heterogeneous CPU/GPU resources. The granularity of the tasks remains a key parameter of such decompositions, since STF fixes task sizes at submission time cite:furmento_optimizing_2025.
@@ -348,7 +348,7 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletc
 | AlOnazi cite:alonazi_asynchronous_2019         | StarPU (STF)    | tasks, out-of-core         | acoustic isotropic |
 | Alturkestani cite:alturkestani_maximizing_2020 | MPI+X (MLBS)    | multilayer async           | --                 |
 | Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | in-memory                  | acoustic isotropic |
-| Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async checkpoints          | Fletcher TTI       |
+| Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async snapshots            | Fletcher TTI       |
 | /star-fletcher/                                | StarPU (STF)    | tasks in the DAG           | Fletcher TTI       |
 
 ** Methods and Materials
@@ -356,7 +356,7 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletc
 
 *** Introduction                                                   :ignore:
 
-This paper's methods and materials are divided into sections that talk about Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, /star-fletcher/ (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
+This paper's methods and materials cover Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, /star-fletcher/ (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
 
 *** Fletcher's Equations
 <<sec:fletchereq>>
@@ -376,7 +376,7 @@ Fletcher's equations are used to simulate wave propagation over time in various 
 \end{equation}
 #+END_EXPORT
 
-To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a stencil of radius 4 (9 points along each axis) with second and cross derivatives can be used. Figure [[fig:stencil]] shows this stencil. The green cube is the point being computed, the orange arms hold the points of the second derivatives, and the purple quadrants hold the points of the cross derivatives. The equations are also discretized in time, so to compute a point $p(x, y, z, t + 1)$ in this numerical implementation, it needs its neighboring points at $t$ and its value at $t - 1$.
+To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for each point on a discrete grid, a stencil of radius 4 (9 points along each axis) with second and cross derivatives can be used. Figure [[fig:stencil]] shows this stencil. The green cube is the point being computed, the orange arms hold the points of the second derivatives, and the purple quadrants hold the points of the cross derivatives. The equations are also discretized in time, so computing a point $p(x, y, z, t + 1)$ requires its neighboring points at $t$ and its value at $t - 1$.
 
 #+BEGIN_SRC python :async yes :results output silent :exports none
   import os
@@ -488,7 +488,7 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
 *** Fletcher-base description
 <<sec:fletcherbase>>
 
-The /fletcher-base/ implements the forward propagation of Fletcher's equations. It advances a wave through a volume $V$ for $t$ time steps and saves the wavefield to a file every $k$ steps. Algorithm \ref{alg:fletcher-base} summarizes the computation. $C$ holds the current time step and $P$ the previous one. Because $P$ is no longer needed after it is read, it is overwritten in place with the next time step. $F$ is the discretized operator of Section [[sec:fletchereq]] applied to $C$ at each grid point. Each time step is an OpenMP parallel loop over the grid points, followed by an implicit barrier that synchronizes all threads. Every $k$ steps, the newly computed volume is written to disk before the computation proceeds, so no computation happens during the write. The two volumes then swap roles through a pointer exchange, and the next step starts.
+/fletcher-base/ implements the forward propagation of Fletcher's equations. It advances a wave through a volume $V$ for $t$ time steps and saves the wavefield to a file every $k$ steps. Algorithm \ref{alg:fletcher-base} summarizes the computation. $C$ holds the current time step and $P$ the previous one. Because $P$ is no longer needed after it is read, it is overwritten in place with the next time step. $F$ is the discretized operator of Section [[sec:fletchereq]] applied to $C$ at each grid point. Each time step is an OpenMP parallel loop over the grid points, followed by an implicit barrier that synchronizes all threads. Every $k$ steps, the newly computed volume is written to disk before the computation proceeds, so no computation happens during the write. The two volumes then swap roles through a pointer exchange, and the next step starts.
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
@@ -510,12 +510,12 @@ The /fletcher-base/ implements the forward propagation of Fletcher's equations. 
 
 Serpa et al. cite:fletcher_base provide four versions of /fletcher-base/: baseline, Der1Der1, Der1Der1LM, and Der1Der1HM. The last three optimize the numerical kernel by computing the cross derivatives as first derivatives of first derivatives, reusing intermediate results. Such kernel-level optimizations are outside the scope of this paper, which studies how the parallel runtime shapes application design and performance. Hence, we compare /star-fletcher/ against the baseline version, which shares its numerical kernel. Although /fletcher-base/ supports both CPUs and GPUs, we only consider its CPU (OpenMP) implementation. To broaden the comparison, we modified it to allow the OpenMP loop scheduling policy to be chosen at runtime.
 
-*** The /Star-Fletcher/ Task-Based Implementation
+*** The /star-fletcher/ Task-Based Implementation
 <<sec:fletcherstar>>
 
 The /star-fletcher/ program is our task-based implementation of the forward propagation of Fletcher's equations. It reuses the numerical kernel of the /fletcher-base/ baseline but parallelizes it with the STF model of the StarPU runtime cite:starpu-paper. StarPU's default scheduler (lws) manages the data of dependent tasks. This model opens a design space for distributing and scheduling the computation: /star-fletcher/ removes the global synchronization points of /fletcher-base/ and overlaps I/O with computation.
 
-The /star-fletcher/ uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. If memory holds the task descriptors, a block's task becomes ready as soon as its dependencies are satisfied.
+/star-fletcher/ uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. A block's task then becomes ready as soon as its dependencies are satisfied.
 
 The task-based model and inferred per-block dependencies
 allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. Instead of alternating between two whole-volume buffers, each block is an independent unit. Algorithm \ref{alg:star-fletcher} shows the dependencies: computing a block at $t+1$ requires the block and its neighbors at $t$, through $F$, and the block itself at $t-1$. Figure [[fig:neighborhood]] shows this neighborhood, which mirrors the stencil of Figure [[fig:stencil]]. On the border of the center block, the second derivatives require the face neighbors, and the cross derivatives also require the edge neighbors. Corner neighbors are not required. As a result, execution never stops to swap pointers at a barrier or to write the volume, so consecutive time steps overlap and I/O is asynchronous. The output file is memory-mapped with ~mmap~, and each save task writes its block directly into its position in the file, producing output identical to that of /fletcher-base/. This execution pattern resembles time-tiling optimizations and could enable future gains from cache reuse cite:akbudak_asynchronous_2020,qu_exploiting_2023.
@@ -530,11 +530,11 @@ allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. I
             \ForAll{$B \in \text{Blocks}$} \Comment{Submit tasks.}
                 \State $task("propagate", B_{t + 1}, B_{t}, B_{t - 1})$ 
                 \If{$t \bmod k = 0$} 
-                    \State $task("save", B_{t + 1})$ \Comment{Save to Disk.}
+                    \State $task("save", B_{t + 1})$ \Comment{Save to disk.}
                 \EndIf
             \EndFor
         \EndFor
-        \State $WaitForAllTasks()$ \Comment{Waits all tasks to finish.}
+        \State $WaitForAllTasks()$ \Comment{Wait for all tasks to finish.}
     \end{algorithmic}
 \end{algorithm}
 #+END_EXPORT
@@ -612,12 +612,12 @@ allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. I
 *** Experimental Methodology for Performance Evaluation
 <<sec:methodology>>
 
-Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s), the industry standard, and Computed Time (s). MSamples/s measures the efficiency of the computing kernel, counting only the time the kernel is computing and dividing the total number of computed points by it. /Fletcher-base/ measures this by timing the computational section of the loop, lines 2, 3, and 4 of Algorithm \ref{alg:fletcher-base}. Its Computed Time is the measured time of the external for loop.
-Due to the STF model, /Star-fletcher/ can’t easily split the two cases, given the weaving of computation and I/O. Its Computed Time runs from the start of the external for loop until after the ~WaitForAllTasks()~ at the end, lines 1 and 9 of Algorithm \ref{alg:star-fletcher}. To measure Msamples, we divide the total computed points by the Computed Time when I/O is disabled. Therefore, the Msamples measurement of /star-fletcher/ can only be used to compare to /fletcher-base/ when no I/O occurs. Since this time also includes task submission and the runtime overheads, which the /fletcher-base/ measurement excludes, the comparison is conservative for /star-fletcher/.
+Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s), the industry standard, and Computed Time (s). MSamples/s measures the efficiency of the computing kernel, counting only the time the kernel is computing and dividing the total number of computed points by it. /fletcher-base/ measures this by timing the computational section of the loop, lines 2--4 of Algorithm \ref{alg:fletcher-base}. Its Computed Time is the measured time of the outer ~for~ loop.
+Due to the STF model, /star-fletcher/ cannot easily split the two cases, given the weaving of computation and I/O. Its Computed Time runs from the start of the outer ~for~ loop until after the ~WaitForAllTasks()~ at the end, lines 1 and 9 of Algorithm \ref{alg:star-fletcher}. To measure MSamples/s, we divide the total computed points by the Computed Time when I/O is disabled. Therefore, the MSamples/s measurement of /star-fletcher/ can only be used to compare to /fletcher-base/ when no I/O occurs. Since this time also includes task submission and the runtime overheads, which the /fletcher-base/ measurement excludes, the comparison favors /fletcher-base/.
 
 #+latex: \noindent
 *Experimental Hardware Platform*.
-The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is the high-performance park of the @@latex:\censor{Institute of Informatics at UFRGS}@@. The machines used are described in Table [[tab:hardware]]. The machines {{{m(cei)}}} and {{{m(draco)}}} have dual-socket 2 homogeneous Intel x86_64 architectures, with 2 threads per core. The machine {{{m(lunaris)}}} is similar, but uses only one AMD x86_64 processor. The machines {{{m(tupi)}}} and {{{m(poti)}}} have their CPU cores divided between P-cores (both 8) and E-cores (16 and 12, respectively). The {{{m(grace)}}} machine is different: an /aarch-64/ architecture with core-to-thread correspondence, the most powerful machine overall available for experiments. The cores on all machines were configured with the Governor /performance/.
+The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is the high-performance computing facility of the @@latex:\censor{Institute of Informatics at UFRGS}@@. The machines used are described in Table [[tab:hardware]]. The machines {{{m(cei)}}} and {{{m(draco)}}} are homogeneous dual-socket Intel x86_64 machines, with 2 threads per core. The machine {{{m(lunaris)}}} is similar, but uses only one AMD x86_64 processor. The machines {{{m(tupi)}}} and {{{m(poti)}}} have their CPU cores divided between P-cores (both 8) and E-cores (16 and 12, respectively). The {{{m(grace)}}} machine is different: an AArch64 architecture with core-to-thread correspondence, the most powerful machine overall available for experiments. The cores on all machines were set to the /performance/ governor.
 
 #+CAPTION: HW specs. of the partitions with Threads (T) and Cores (C).
 #+NAME: tab:hardware
@@ -632,15 +632,15 @@ The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is t
 | {{{m(lunaris)}}} | AMD Threadripper PRO 5965WX      |  48 |  24 | 3.8GHz |
 
 #+latex: \noindent
-*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and /star-fletcher/. The /fletcher-base/ was compiled with GCC 12.4.0 and /star-fletcher/ with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all available publicly on the authors’ GitHub[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::star-fletcher - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
+*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and /star-fletcher/. /fletcher-base/ was compiled with GCC 12.4.0 and /star-fletcher/ with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all available publicly on the authors’ GitHub[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::star-fletcher - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
 
 #+latex: \noindent
 *Design of Experiments*.
 #+latex: %
 Two experiments were designed to understand the performance of the implemented task-based solution (/star-fletcher/) against the reference implementation (/fletcher-base/). They were used to validate assumptions about /star-fletcher/'s performance, as detailed below.
-For both experiments, traces were taken to understand the observed data. The starvz cite:garcia2018visual visualization library was used to visualize them, as it is better suited to illustrate the reasons behind the performance gains and losses.
+For both experiments, traces were taken to understand the observed data. The StarVZ cite:garcia2018visual visualization library was used to visualize them, as it is better suited to illustrate the reasons behind the performance gains and losses.
 
-1. Identify Best Configuration. The first experiment aimed to identify the best configurations for each program and to determine whether the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both MSamples/s and Computed Time, expecting improvement in /star-fletcher/ for both metrics. We adopt a fixed volume size that can place computational stress on all machines. A volume of $384^3$ points was chosen for all machines except {{{m(grace)}}}, which had a volume of $720^3$ points. Both programs were run for 20 time steps (50 on {{{m(grace)}}}). For /star-fletcher/, the block order varied across experiments. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding were varied between executions, changing from /static/ and /dynamic/ scheduling and /free/ moving and /bind/ to core threads. Lastly, it checked each program with different numbers of steps taken to save the volume, to verify the stress the I/O has on the applications.
+1. Identify Best Configuration. The first experiment aimed to identify the best configurations for each program and to determine whether the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both MSamples/s and Computed Time, expecting improvement in /star-fletcher/ for both metrics. We adopt a fixed volume size that can place computational stress on all machines. A volume of $384^3$ points was chosen for all machines except {{{m(grace)}}}, which had a volume of $720^3$ points. Both programs were run for 20 time steps (50 on {{{m(grace)}}}). For /star-fletcher/, the block order varied across experiments. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding were varied between executions, alternating /static/ and /dynamic/ scheduling and /free/ and core-/bound/ threads. Lastly, it checked each program with different numbers of steps taken to save the volume, to verify the stress the I/O has on the applications.
 2. Scalability. The second experiment used the best block order of /star-fletcher/ and bound threads for /fletcher-base/ and observed how performance changed with the additional of cores while using the same total volume (strong scaling). We have also added an extra data point for machines with simultaneous multi-threading (SMT), so those machines could use all available computational resources. It observed cases with no I/O and those where the volume was saved at every step. This experiment aimed to demonstrate that /star-fletcher/ used the available computational resources more effectively than /fletcher-base/.
 
 ** Results
@@ -677,7 +677,7 @@ For the rest,
   
 *** Introduction                                                   :ignore:
 
-This section presents the results of the experiments described in Section [[sec:methodology]] on the machines of Table [[tab:hardware]]. We first present the first experiment, comparing the best configurations of both programs in MSamples/s and in compute time, with and without I/O. We then present the second experiment, on scalability, and discuss its main trends. Finally, we use execution traces to show the effect of the design decisions of /star-fletcher/.
+This section presents the results of the experiments described in Section [[sec:methodology]] on the machines of Table [[tab:hardware]]. We first present the first experiment, comparing the best configurations of both programs in MSamples/s and in computed time, with and without I/O. We then present the second experiment, on scalability, and discuss its main trends. Finally, we use execution traces to show the effect of the design decisions of /star-fletcher/.
 #+latex: %
 # Taken together, these results supported the hypothesis proposed in # Section [[sec:methodology]]. 
 
@@ -936,7 +936,7 @@ This section presents the results of the experiments described in Section [[sec:
 #+latex: \noindent
 *Performance Overview of the best configuration.*
 #+latex: %
-The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of performance across all machines using the industry metric MSamples/s. The X-axis represents the block order for the /star-fletcher/ application, and the Y-axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions, which vary the scheduler from static to dynamic and proc bind from bind to free. Each plot represents one machine, and they are organized by similarity. The top row contains the heterogeneous machines, the middle row contains the two dual-socket homogeneous machines, and the bottom row contains the {{{m(Grace)}}} and {{{m(Lunaris)}}} machines, which do not fall into the groups above. We use 10 repetitions for each experimental configuration to account for performance variability. We checked the normality of each configuration with Shapiro-Wilk tests with a Bonferroni correction, and almost all configurations passed. Hence, the vertical lines on the points and the bands around the horizontal lines show the 95% confidence interval of the mean, based on Student's t-distribution.
+The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of performance across all machines using the industry metric MSamples/s. The X-axis represents the block order for the /star-fletcher/ application, and the Y-axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions, which vary the scheduler from static to dynamic and proc bind from bind to free. Each plot represents one machine, and they are organized by similarity. The top row contains the heterogeneous machines, the middle row contains the two dual-socket homogeneous machines, and the bottom row contains the {{{m(grace)}}} and {{{m(lunaris)}}} machines, which do not fall into the groups above. We use 10 replications for each experimental configuration to account for performance variability. We checked the normality of each configuration with Shapiro-Wilk tests with a Bonferroni correction, and almost all configurations passed. Hence, the error bars on the points and the bands around the horizontal lines show the 95% confidence interval of the mean, based on Student's t-distribution.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
 
@@ -1075,8 +1075,8 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
                   linewidth = 0.5, linewidth = 0.4) +
       geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
                           ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
-      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
-      scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+      geom_point(aes(shape = "star-fletcher results"), alpha = 0.8, size = 1.2) +
+      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16)) +
       #scale_x_continuous(breaks = x_breaks) +
       facet_wrap(~ Machine, scales = "free_y", ncol = 2, labeller = as_labeller(mach_label)) +
       labs(x = "Block Order", y = "MSamples/s",
@@ -1161,7 +1161,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
       coord_cartesian(ylim = c(-10, 100)) +
       labs(
     	x = "Machine",
-    	y = "Msamples/s Difference"
+    	y = "MSamples/s Difference"
       ) +
       theme_bw(base_size = 7) +
       theme(
@@ -1268,8 +1268,8 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
       expand_limits(y = 0) +
       ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y", labeller = labeller(Machine = mach_label)) +
       # facetted_pos_scales(y = y_scales) + 
-      geom_point(aes(shape = "Star-fletcher results"), alpha = 0.8, size = 1.2) +
-      scale_shape_manual(name = NULL, values = c("Star-fletcher results" = 16)) +
+      geom_point(aes(shape = "star-fletcher results"), alpha = 0.8, size = 1.2) +
+      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16)) +
       labs(x = "Block Order", y = y_label,
            fill = NULL, color = NULL,
            linetype = NULL) +
@@ -1308,7 +1308,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
 #+latex: \noindent
 *Scalability of the /star-fletcher/ application.*
 #+latex: %
-Figure [[fig:scalability]] depicts the applications’s scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: /star-fletcher/, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores, unlike the best /fletcher-base/ configuration of the first experiment. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
+Figure [[fig:scalability]] depicts the applications’ scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: /star-fletcher/, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores, unlike the best /fletcher-base/ configuration of the first experiment. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
 The figure shows that /star-fletcher/ is faster than both /fletcher-base/ versions on all machines for almost all core counts. The gap narrows when simultaneous multi-threading (SMT) is used. As expected, on heterogeneous machines, using E-cores significantly slowed the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the /star-fletcher/ implementation. The machine {{{m(lunaris)}}} showed the largest gaps, independent of the number of cores used.
 The one exception to all these trends is the machine {{{m(grace)}}}. In it, /star-fletcher/ is superior for lower core counts, but as they increase, the difference is reduced to the point that, when using I/O, it is worse than both /fletcher-base/ versions. This I/O gap was already highlighted in Figure [[fig:exec_time]].
 
@@ -1494,9 +1494,9 @@ The one exception to all these trends is the machine {{{m(grace)}}}. In it, /sta
 #+latex: %
 The improvements of /star-fletcher/ over /fletcher-base/ are consistent with iteration overlap and the overlap of I/O with computation. Figure [[fig:overlap]] has three panels, each showing one of the {{{m(lunaris)}}} executions. The first and second panels are k-iteration plots cite:garcia2018visual of the best /star-fletcher/ execution and the best /fletcher-base/ execution on that machine. The X-axis is the computed time, and the Y-axis is the iteration count, ranging from 1 to 20.
 #+latex: %(FIX THE STAR-FLECTHER ONE THAT STARTS AT 0 WITH NOTHING AT 1).
-Each computational unit is represented as a square, with its location and size representing the start time and duration, respectively. The color distinguishes between computational and I/O executions. The last panel shows the number of active iterations at a given time, colored by the program.
+Each computational unit is represented as a rectangle, with its location and size representing the start time and duration, respectively. The color distinguishes between computational and I/O executions. The last panel shows the number of active iterations at a given time, colored by the program.
 #+latex: %
-It shows that /star-fletcher/ may overlap as many as 7 iterations at a time. With I/O at every step, it ends in less than half the time of this /fletcher-base/ run. Another factor is that in the /star-fletcher/ application, the I/O is masked between the computation, while in the /fletcher-base/ case it always happens after the computation has finished, blocking the computation unnecessarily.
+It shows that /star-fletcher/ may overlap as many as seven iterations at a time. With I/O at every step, it ends in less than half the time of this /fletcher-base/ run. Another factor is that in the /star-fletcher/ application, the I/O is interleaved with the computation, while in the /fletcher-base/ case it always happens after the computation has finished, blocking the computation unnecessarily.
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 3
   library(starvz)
@@ -1684,7 +1684,7 @@ Tangle this file with C-c C-v t
 @article{garcia2018visual,
   title={A visual performance analysis framework for task-based parallel applications running on hybrid clusters},
   author={Garcia Pinto, Vin{\'\i}cius and Mello Schnorr, Lucas and Stanisic, Luka and Legrand, Arnaud and Thibault, Samuel and Danjean, Vincent},
-  journal={Concurrency and Comp.: Pract. and Exp.},
+  journal={Concurrency Computat.: Pract. Exper.},
   volume={30},
   number={18},
   doi={10.1002/cpe.4472},
@@ -1712,7 +1712,6 @@ Tangle this file with C-c C-v t
           title={Visualizing More Performance Data Than What Fits on Your Screen},
           author={Schnorr, Lucas M and Legrand, Arnaud},
           booktitle={Tools for High Performance Computing 2012},
-          pages={149--162},
           year={2013},
           publisher={Springer}
         }
@@ -1725,12 +1724,11 @@ Tangle this file with C-c C-v t
       	editor="Sips, Henk
       	and Epema, Dick
       	and Lin, Hai-Xiang",
-      	title="StarPU: A Unified Platform for Task Scheduling on Heterogeneous Multicore Architectures",
+      	title="{StarPU}: A Unified Platform for Task Scheduling on Heterogeneous Multicore Architectures",
       	booktitle="Euro-Par 2009 Parallel Processing",
       	year="2009",
       	publisher="Springer Berlin Heidelberg",
       	address="Berlin, Heidelberg",
-      	pages="863--874",
       	abstract="In the field of HPC, the current hardware trend is to design multiprocessor architectures that feature heterogeneous technologies such as specialized coprocessors (e.g. Cell/BE SPUs) or data-parallel accelerators (e.g. GPGPUs).",
       	isbn="978-3-642-03869-3", 
       	series="Lecture Notes in Computer Science",
@@ -1759,7 +1757,6 @@ Tangle this file with C-c C-v t
       	year="2019",
       	publisher="Springer International Publishing",
       	address="Cham",
-      	pages="31--44",
       	abstract="The development of parallel solutions over contemporary heterogeneous supercomputers is complex and challenging, especially for coding, performance analysis, and behavioral characterization. The task-based programming model is a possible alternative to adequately reduce the burden on the programmer. Such model consists of dividing the application into tasks with dependencies through a directed acyclic graph (DAG), and subject the DAG to a runtime scheduler that will map tasks to resources. In this paper, we present the design, development, and performance analysis of a task-based heterogeneous (CPU and GPU) application of a Computational Fluid Dynamics (CFD) problem that simulates the flow of an incompressible Newtonian fluid with constant viscosity. We implement our solution based on the StarPU runtime and use the StarVZ toolkit to conduct a comprehensive performance analysis. Results indicate that our solution provides a 6.5{\$}{\$}{\backslash}times {\$}{\$}{\texttimes}speedup compared to the serial version on the target machine using 7 CPU workers and a 60{\$}{\$}{\backslash}times {\$}{\$}{\texttimes}speedup using 5 CPU and 2 GPU workers.",
       	isbn="978-3-030-15996-2",
       	annote = {Esse é o trabalho do mestrando do schnorr sobre StarPU.
@@ -1778,11 +1775,10 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {6},
       	urldate = {2025-10-16},
-      	journal = {GEOPHYSICS},
+      	journal = {Geophysics},
       	author = {Fletcher, Robin P. and Du, Xiang and Fowler, Paul J.},
       	month = nov,
       	year = {2009},
-      	pages = {WCA179--WCA187},
       	annote = {Literalmente o Paper do Fletcher.
 
       Ele descreve o programa que estamos implementando.
@@ -1818,7 +1814,6 @@ Tangle this file with C-c C-v t
       	editor = {Malawski, Maciej and Rzadca, Krzysztof},
       	year = {2020},
       	keywords = {Asynchronous I/O operations, Heterogeneous systems, Hierarchical storage media, Multilayer Buffer System, Reverse Time Migration},
-      	pages = {263--278},
       	annote = {Esse paper explica como a modificação da técnica de multi layer buffer system (MLBS) para incluir GPUs potencializou a execução da aplicação. Isso inclui técnicas de prefetching e mascaramento de transmissões.
 
       Ele é útil pois dá alguns números da dominância do IO no RTM, assim como explica o porquê disso.
@@ -1841,7 +1836,6 @@ Tangle this file with C-c C-v t
       	editor = {Guerrero, Ginés and San Martín, Jaime and Meneses, Esteban and Barrios Hernández, Carlos Jaime and Osthoff, Carla and Monsalve Diaz, Jose M.},
       	year = {2025},
       	keywords = {Compute and I/O overlap, HPC, I/O, RTM, Seismic Simulation},
-      	pages = {68--82},
       	annote = {Anotações(13/02/2026, 16:47:39)
       (Künas et al., 2025, p. 2) Acidentalemente implementamos uma interface optimizada de IO.Com o modelo de flecha, a geração do I/O não trava nenhum recurso, podendo ser computada completamente de forma assíncrona.No momento em que o bloco está disponível para ser salvo até o momento que este é escrito em disco, não há modificações no bloco. Ele apenas será usado como leitura para as exatas duas iterações seguintes e depois liberado automaticamente pelo StarPU. Dessa forma a ação de escrita nunca bloqueia a execução do programa. Pode ocorrer uma possível desaceleração caso uma tarefa de processamento não consiga um core, pois este está ocupado com escrita. Mas como a escrita é um tempo significativamente menor que o processamento do bloco, isso não deve ser significativo.Otimizando IO por engano.“[4] focuses on optimizing Reverse Time Migration (RTM) for seismic imaging, a computationally intensive process widely used in the oil and gas industry. The authors developed a task-based framework, TB-RTM, which leverages the STARPU dynamic runtime system to effectively manage and schedule tasks across heterogeneous GPU-based systems.” (Künas et al., 2025, p. 3) Tá aqui“Their findings reveal optimal configurations that maximize I/O performance, providing valuable insights for developing efficient asynchronous I/O aggregation schemes” (Künas et al., 2025, p. 3) StarPU determina isso dinamicamente
       },
@@ -1860,7 +1854,6 @@ Tangle this file with C-c C-v t
       	month = may,
       	year = {2023},
       	keywords = {Reverse Time Migration, Data integrity, Earth, Geology, Image coding, Lossy Compression, Memory management, Performance, Performance evaluation, Seismic Imaging, Stacking},
-      	pages = {651--661},
       	annote = {Anotações(04/03/2026, 16:09:45)
       “The traditional solution transfers the vast amount of data to peripheral devices and loads them back to memory whenever needed, which may cause a substantial burden to I/O and storage space.” (Huang et al., 2023, p. 651)“In order to get the best overall RTM analysis performance, we develop a novel hybrid lossy compression method (called HyZ” (Huang et al., 2023, p. 651)“e evaluate several state-ofthe-art error-controlled lossy compression algorithms” (Huang et al., 2023, p. 651)“improves the overall performance for RTM by 6.29∼6.60× but also obtains fairly good qualities for both RTM single snapshots and the final stacking image” (Huang et al., 2023, p. 651)
       },
@@ -1874,7 +1867,7 @@ Tangle this file with C-c C-v t
       	doi = {10.1109/CLUSTER.2019.8891054},
       	abstract = {We propose a new framework for deploying Reverse Time Migration (RTM) simulations on distributed-memory systems equipped with multiple GPUs. Our software, TB-RTM, infrastructure engine relies on the StarPU dynamic runtime system to orchestrate the asynchronous scheduling of RTM computational tasks on the underlying resources. Besides dealing with the challenging hardware heterogeneity, TB-RTM supports tasks with different workload characteristics, which stress disparate components of the hardware system. RTM is challenging in that it operates intensively at both ends of the memory hierarchy, with compute kernels running at the highest level of the memory system, possibly in GPU main memory, while I/O kernels are saving solution data to fast storage. We consider how to span the wide performance gap between the two extreme ends of the memory system, i.e., GPU memory and fast storage, on which large-scale RTM simulations routinely execute. To maximize hardware occupancy while maintaining high memory bandwidth throughout the memory subsystem, our framework presents the new-of-core (OOC) feature from StarPU to prefetch data solutions in and out not only from/to the GPU/CPU main memory but also from/to the fast storage system. The OOC technique may trigger opportunities for overlapping expensive data movement with computations. TB-RTM framework addresses this challenging problem of heterogeneity with a systematic approach that is oblivious to the targeted hardware architectures. Our resulting RTM framework can effectively be deployed on massively parallel GPU-based systems, while delivering performance scalability up to 500 GPUs.},
       	urldate = {2026-02-04},
-      	booktitle = {2019 {IEEE} {International} {Conference} on {Cluster} {Computing} ({CLUSTER})},
+      	booktitle = {2019 {IEEE} Int. Conf. on {Cluster} {Computing} ({CLUSTER})},
       	author = {AlOnazi, A. and Ltaief, H. and Keyes, D. and Said, I. and Thibault, S.},
       	year = {2019},
       	keywords = {Computational modeling, Kernel, Task analysis, Reverse Time Migration, RTM, Asynchronous Executions, Graphics processing units, Hardware, Out-Of-Core Algorithms, Overlapping I/O with Computation, Runtime, STARPU OOC, Task-Based Programming Model, STARPU},
@@ -1893,7 +1886,7 @@ Tangle this file with C-c C-v t
       	abstract = {Geostatistical modeling, one of the prime motivating applications for exascale computing, is a technique for predicting desired quantities from geographically distributed data, based on statistical models and optimization of parameters. Spatial data are assumed to possess properties of stationarity or non-stationarity via a kernel fitted to a covariance matrix. A primary workhorse of stationary spatial statistics is Gaussian maximum log-likelihood estimation (MLE), whose central data structure is a dense, symmetric positive definite covariance matrix of the dimension of the number of correlated observations. Two essential operations in MLE are the application of the inverse and evaluation of the determinant of the covariance matrix. These can be rendered through the Cholesky decomposition and triangular solution. In this contribution, we reduce the precision of weakly correlated locations to single- or half- precision based on distance. We thus exploit mathematical structure to migrate MLE to a three-precision approximation that takes advantage of contemporary architectures offering BLAS3-like operations in a single instruction that are extremely fast for reduced precision. We illustrate application-expected accuracy worthy of double-precision from a majority half-precision computation, in a context where uniform single-precision is by itself insufficient. In tackling the complexity and imbalance caused by the mixing of three precisions, we deploy the PaRSEC runtime system. PaRSEC delivers on-demand casting of precisions while orchestrating tasks and data movement in a multi-GPU distributed-memory environment within a tile-based Cholesky factorization. Application-expected accuracy is maintained while achieving up to 1.59X1.59X by mixing FP64/FP32 operations on 1536 nodes of HAWK or 4096 nodes of Shaheen II, and up to 2.64X2.64X by mixing FP64/FP32/FP16 operations on 128 nodes of Summit, relative to FP64-only operations. This translates into up to 4.5, 4.7, and 9.1 (mixed) PFlop/s sustained performance, respectively, demonstrating a synergistic combination of exascale architecture, dynamic runtime software, and algorithmic adaptation applied to challenging environmental problems.},
       	number = {4},
       	urldate = {2026-02-04},
-      	journal = {IEEE Trans. on Parallel and Distributed Systems},
+      	journal = {IEEE Trans. Parallel Distrib. Syst.},
       	author = {Abdulah, Sameh and Cao, Qinglei and Pei, Yu and Bosilca, George and Dongarra, Jack and Genton, Marc G. and Keyes, David E. and Ltaief, Hatem and Sun, Ying},
       	year = {2022},
       	keywords = {Computational modeling, Task analysis, Runtime, Climate/weather prediction, Covariance matrices, Data models, dynamic runtime systems, geospatial statistics, high performance computing, Maximum likelihood estimation, multiple precisions, Predictive models, user-productivity},
@@ -1920,7 +1913,6 @@ Tangle this file with C-c C-v t
       	author = {Grosser, Tobias and Cohen, Albert and Holewinski, Justin and Sadayappan, P. and Verdoolaege, Sven},
       	month = oct,
       	year = {2018},
-      	pages = {66--75},
       	annote = {Anotações(24/02/2026, 17:14:20)
       (Grosser et al., 2018, p. 66) Esse artigo é sobre o sistema de tilling em GPUS. Isso já é diferente do sistema de diamantes para RTM que era CPU-only“Stencil computations involve the repeated updating of values associated with points on a multi-dimensional grid, using only the values at a set of neighboring points.” (Grosser et al., 2018, p. 66)“parallel wavefronts” (Grosser et al., 2018, p. 66) o q é parallel wavefront“nfortunately this inhibits inter-tile parallelism” (Grosser et al., 2018, p. 66)“Other approaches such” (Grosser et al., 2018, p. 66)(Grosser et al., 2018, p. 66) Quais são esses outros métodos de tilling?“diamond tiling [2] have been proposed to address the loss of concurrency when time-tiling stencil computations.” (Grosser et al., 2018, p. 66)“approaches have some limitations” (Grosser et al., 2018, p. 66)“in the context of GPU” (Grosser et al., 2018, p. 66)“We choose a hybrid tiling scheme that combines hexagonal tiling on the outer dimension with classical tiling on all remaining ones” (Grosser et al., 2018, p. 67)“Our hexagonal tiling approach is closely related to diamond tiling” (Grosser et al., 2018, p. 67)“First, diamond tiles always have a narrow peak” (Grosser et al., 2018, p. 67)(Grosser et al., 2018, p. 68) A partir desse ponto eu paro de entender a implementação. Parece que se escapa do domínio da aplicação.O Paper parece relevante no aspecto que demonstra que a segmentação em diamante não é única no quesito propagação do tempo.“the automatic parallelization of iterative stencil computations on GPUs” (Grosser et al., 2018, p. 74) Acho que a palavra chave é automatic. Com o uso do StarPU não há automatização e a segmentação é manual.Poderia-se gerar pesquisa em fazer STF como ferramenta na segmentação automática, mas isso depende da interpretação que o sistema de flecha tem nesse contexto de tilling.
       },
@@ -1945,7 +1937,6 @@ Tangle this file with C-c C-v t
       	author = {Vitter, Jeffrey Scott},
       	month = jun,
       	year = {2001},
-      	pages = {209--271},
       	annote = {Em que contexto esse artigo foi obtido. Ele analiza estado da arte em 2001. Se for no contexto de algoritmos OOC (out-of-core), deve haver uma fonte mais recente.
       },
       	file = {PDF:/home/colle/Zotero/storage/8ETDRVZ4/Vitter - 2001 - External memory algorithms and data structures dealing with massive data.pdf:application/pdf},
@@ -1972,7 +1963,6 @@ Tangle this file with C-c C-v t
       	author = {Qu, L. and Ltaief, H. and Keyes, D.},
       	year = {2021},
       	keywords = {Tiling},
-      	pages = {1--5},
       	annote = {É uma continuação dos papers de Tiling que eu li, seguindo a pesquisa de Multicore Wavefront Diamond-tiling Temporal Blocking technique (MWD-TB) (eu li?), a implementação desta em RTM ( esse eu li ).
       A contribuição é implementação de Out of Core (OOC) I/O no Lustre PFS usando a técnica de MLBS (esse eu li também). 
       },
@@ -1988,7 +1978,7 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {2},
       	urldate = {2026-02-04},
-      	journal = {The Intl. J. of High Performance Computing Applic.},
+      	journal = {Int. J. High Perform. Comput. Appl.},
       	author = {Qu, Long and Abdelkhalak, Rached and Ltaief, Hatem and Said, Issam and Keyes, David},
       	year = {2023},
       	keywords = {Tiling, Relevant},
@@ -2011,11 +2001,10 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {4},
       	urldate = {2026-02-04},
-      	journal = {The Intl. J. of High Performance Computing Applic.},
+      	journal = {Int. J. High Perform. Comput. Appl.},
       	author = {Akbudak, Kadir and Ltaief, Hatem and Etienne, Vincent and Abdelkhalak, Rached and Tonellot, Thierry and Keyes, David},
       	year = {2020},
       	keywords = {Tiling, See Related Work},
-      	pages = {377--393},
       	annote = {Anotações(11/02/2026, 09:27:06)
       (Akbudak et al., 2020, p. 377) Esse q ele referência inclui o fletcher“cking (MWD-TB) approach (Malas et al., 2015, 2017).” (Akbudak et al., 2020, p. 378) Tenho estes artigos salvos?“We assess the numerical robustness by checking the numerical accuracy as well as the absorbed energy within the domain solution” (Akbudak et al., 2020, p. 378) How?“More thorough related work can be found at Malas et al. (2017) and Yuan et al. (2017)” (Akbudak et al., 2020, p. 379)(Akbudak et al., 2020, p. 380) sem segmentação espacial.Apenas single node.
       },
@@ -2032,12 +2021,11 @@ Tangle this file with C-c C-v t
       	doi = {10.1109/HPCC.2014.205},
       	abstract = {The level of hardware complexity of current supercomputers is forcing the High Performance Computing (HPC) community to reconsider parallel programming paradigms and standards. The high-level of hardware abstraction provided by task-based paradigms make them excellent candidates for writing portable codes that can consistently deliver high performance across a wide range of platforms. While this paradigm has proved efficient for achieving such goals for dense and sparse linear solvers, it is yet to be demonstrated that industrial parallel codes relying on the classical Message Passing Interface (MPI) standard and that accumulate dozens of years of expertise (and countless lines of code) may be revisited to turn them into efficient task-based programs. In this paper, we study the applicability of task-based programming in the case of a Reverse Time Migration (RTM) application for Seismic Imaging. The initial MPI-based application is turned into a task-based code executed on top of the PaRSEC runtime system. Preliminary results show that the approach is competitive with (and even potentially superior to) the original MPI code on an homogenous multicore node and can exploit much more efficiently complex hardware such as a cache coherent Non Uniform Memory Access (ccNUMA) node or an Intel Xeon Phi accelerator.},
       	urldate = {2026-02-04},
-      	booktitle = {2014 {IEEE} {Intl} {Conf} on {High} {Performance} {Computing} and {Communications}, 2014 {IEEE} 6th {Intl} {Symp} on {Cyberspace} {Safety} and {Security}, 2014 {IEEE} 11th {Intl} {Conf} on {Embedded} {Software} and {Syst} ({HPCC},{CSS},{ICESS})},
+      	booktitle = {Proc. {IEEE} Int. Conf. on {High} {Performance} {Computing} and {Communications} ({HPCC})},
       	author = {Boillot, Lionel and Bosilca, George and Agullo, Emmanuel and Calandra, Henri},
       	month = aug,
       	year = {2014},
       	keywords = {Computer architecture, Hardware, Runtime, ccNUMA nodes, elastic wave propagation, Intel Xeon Phi co-processors, Programming, Propagation, runtime system, task-based programming, Tensile stress},
-      	pages = {1259--1266},
       	annote = {Não li inteiro.
 
       Paper de 2014. RTM com PaRSEC. 
@@ -2056,12 +2044,11 @@ Tangle this file with C-c C-v t
       	abstract = {New high-performance computing system designs with steeply escalating processor and core counts, burgeoning heterogeneity and accelerators, and increasingly unpredictable memory access times call for one or more dramatically new programming paradigms. These new approaches must react and adapt quickly to unexpected contentions and delays, and they must provide the execution environment with sufficient intelligence and flexibility to rearrange the execution to improve resource utilization. The authors present an approach based on task parallelism that reveals the application's parallelism by expressing its algorithm as a task flow. This strategy allows the algorithm to be decoupled from the data distribution and the underlying hardware, since the algorithm is entirely expressed as flows of data. This kind of layering provides a clear separation of concerns among architecture, algorithm, and data distribution. Developers benefit from this separation because they can focus solely on the algorithmic level without the constraints involved with programming for current and future hardware trends.},
       	number = {6},
       	urldate = {2026-02-04},
-      	journal = {Computing in Science \& Engineering},
+      	journal = {Comput. Sci. Eng.},
       	author = {Bosilca, George and Bouteiller, Aurelien and Danalis, Anthony and Faverge, Mathieu and Herault, Thomas and Dongarra, Jack J.},
       	month = nov,
       	year = {2013},
       	keywords = {Computational modeling, Computer architecture, Scalability, HPC, Runtime, Programming, Adaptation models, Biological system modeling, distributed programming, high-performance computing, Parallel processing, programming paradigms, scheduling and task partitioning, scientific computing},
-      	pages = {36--45},
       	annote = {Não li todo.
       Paper sobre STF e o PaRSEC.
       Posso citar ao referenciar outros runtimes. Mais isso eu devo copiar de algum outro artigo.
@@ -2076,7 +2063,7 @@ Tangle this file with C-c C-v t
       	doi = {10.1109/TPDS.2017.2766064},
       	abstract = {The emergence of accelerators as standard computing resources on supercomputers and the subsequent architectural complexity increase revived the need for high-level parallel programming paradigms. Sequential task-based programming model has been shown to efficiently meet this challenge on a single multicore node possibly enhanced with accelerators, which motivated its support in the OpenMP 4.0 standard. In this paper, we show that this paradigm can also be employed to achieve high performance on modern supercomputers composed of multiple such nodes, with extremely limited changes in the user code. To prove this claim, we have extended the StarPU runtime system with an advanced inter-node data management layer that supports this model by posting communications automatically. We illustrate our discussion with the task-based tile Cholesky algorithm that we implemented on top of this new runtime system layer. We show that it allows for very high productivity while achieving a performance competitive with both the pure Message Passing Interface (MPI)-based ScaLAPACK Cholesky reference implementation and the DPLASMA Cholesky code, which implements another (non sequential) task-based programming paradigm.},
       	urldate = {2026-02-04},
-      	journal = {IEEE Trans. on Parallel and Distributed Systems},
+      	journal = {IEEE Trans. Parallel Distrib. Syst.},
       	author = {Agullo, Emmanuel and Aumage, Olivier and Faverge, Mathieu and Furmento, Nathalie and Pruvost, Florent and Sergent, Marc and Thibault, Samuel Paul},
       	year = {2017},
       	keywords = {Runtime, Programming, runtime system, task-based programming, Algorithm design and analysis, Cholesky factorization, distributed computing, GPU, heterogeneous computing, Libraries, multicore, Productivity, sequential task flow, Supercomputers, STARPU},
@@ -2115,7 +2102,7 @@ Tangle this file with C-c C-v t
       	doi = {10.1016/j.jocs.2017.03.008},
       	abstract = {FLUSEPA (registered trademark in France No. 134009261) is an advanced simulation tool which performs a large panel of aerodynamic studies. It is the unstructured finite-volume solver developed by Airbus Safran Launchers company to calculate compressible, multidimensional, unsteady, viscous and reactive flows around bodies in relative motion. The time integration in FLUSEPA is done using an explicit temporal adaptive method. The current production version of the code is based on MPI and OpenMP. This implementation leads to important synchronizations that must be reduced. To tackle this problem, we present the study of a task-based parallelization of the aerodynamic solver of FLUSEPA using the runtime system StarPU and combining up to three levels of parallelism. We validate our solution by the simulation (using a finite-volume mesh with 80 million cells) of a take-off blast wave propagation for Ariane 5 launcher.},
       	urldate = {2026-02-10},
-      	journal = {J. of Comp. Science},
+      	journal = {J. Comput. Sci.},
       	author = {Couteyen Carpaye, Jean Marie and Roman, Jean and Brenner, Pierre},
       	year = {2018},
       	keywords = {Aerospace industry, Computational fluid dynamics, High performance computing, Runtime system, Task-based parallelism, STARPU},
@@ -2136,12 +2123,11 @@ Tangle this file with C-c C-v t
       	doi = {10.1016/j.jpdc.2025.105157},
       	abstract = {Task-based programming models are currently an ample trend to leverage heterogeneous parallel systems in a productive way (OpenACC, Kokkos, Legion, OmpSs, PaRSEC, StarPU, XKaapi, ...). Among these models, the Sequential Task Flow (STF) model is widely embraced (PaRSEC's DTD, OmpSs, StarPU) since it allows to express task graphs naturally through a sequential-looking submission of tasks, and tasks dependencies are inferred automatically. However, STF is limited to task graphs with task sizes that are fixed at submission, posing a challenge in determining the optimal task granularity. Notably, in heterogeneous systems, the optimal task size varies across different processing units, so a single task size would not fit all units. StarPU's recursive tasks allow graphs with several task granularities by turning some tasks into sub-graphs dynamically at runtime. The decision to transform these tasks into sub-graphs is decided by a StarPU component called the Splitter. After deciding to transform some tasks, classical scheduling approaches are used, making this component generic, and orthogonal to the scheduler. In this paper, we propose a new policy for the Splitter, which is designed for heterogeneous platforms, that relies on linear programming aimed at minimizing execution time and maximizing resource utilization. This results in a dynamic well-balanced set comprising both small tasks to fill multiple CPU cores, and large tasks for efficient execution on accelerators like GPU devices. We then present an experimental evaluation showing that just-in-time adaptations of the task graph lead to improved performance across various dense linear algebra algorithms.},
       	urldate = {2026-02-10},
-      	journal = {Journal of Parallel and Distributed Computing},
+      	journal = {J. Parallel Distrib. Comput.},
       	author = {Furmento, Nathalie and Guermouche, Abdou and Lucas, Gwenolé and Morin, Thomas and Thibault, Samuel and Wacrenier, Pierre-André},
       	month = nov,
       	year = {2025},
       	keywords = {Runtime system, Accelerator, Granularity, Multicore, STF, Task-based programming},
-      	pages = {105157},
       	annote = {Anotações(04/03/2026, 13:58:30)
       “StarPU’s recursive tasks allow graphs with several task granularities by turning some tasks into sub-graphs dynamically at runtime” (Furmento et al., 2025, p. 1)“n this paper, we propose a new policy for the Splitter, which is designed for heterogeneous platforms, that relies on linear programming aimed at minimizing execution time and maximizing resource utilization.” (Furmento et al., 2025, p. 1)
       },
@@ -2164,7 +2150,7 @@ Tangle this file with C-c C-v t
       	language = {en},
       	number = {20},
       	urldate = {2026-02-10},
-      	journal = {Concurrency and Comp.: Prac. and Exp.},
+      	journal = {Concurrency Computat.: Pract. Exper.},
       	author = {Leandro Nesi, Lucas and da Silva Serpa, Matheus and Mello Schnorr, Lucas and Navaux, Philippe Olivier Alexandre},
       	year = {2020},
       	keywords = {computational fluid dynamics, performance analysis, task-based programming paradigm},
@@ -2199,7 +2185,6 @@ Tangle this file with C-c C-v t
       	month = jun,
       	year = {2007},
       	keywords = {Tiling},
-      	pages = {235--244},
       	annote = {Anotações(02/03/2026, 10:53:07)
       (Krishnamoorthy et al., 2007, p. 235) Novamente um paper que me confunde bastante com a suas explicações. Mas ele existe no mesmo espaço que o outro paper que automatizava a compilação das iterações em relação ao tempo.Ele é mais uma fundamentação do sistema de flecha.“However, loop skewing is typically required in order to tile stencil codes along the time dimension, resulting in load imbalance in pipelined parallel execution of the tiles.” (Krishnamoorthy et al., 2007, p. 235)“Loop tiling is the key transformation to enable parallelization and data-locality optimization of stencil code” (Krishnamoorthy et al., 2007, p. 235)“However, there are inter-tile dependences in the horizontal direction, inhibiting concurrent execution of tiles by different processors. However, if the vertical tile size is reduced to one (i.e., tiling is eliminated along the time dimension), all tiles along the spatial dimension (adjoining the x-axis) can be executed concurrently. Thus there is a trade-off between achieving good data reuse and load balancing of parallel execution.” (Krishnamoorthy et al., 2007, p. 236)“Instead of the standard tiling described above, consider the tiling shown in Figure 5. Starting with the tiles formed by the same hyperplanes, an additional triangular region is added to the left of the tile, overlapping with the points at the right end of the neighboring tile. With this tiling, the iteration points processed by the tiles are no longer disjoint. Some of the iterations are executed redundantly by two neighboring tiles. This results in an increase in the computation cost. But doing so eliminates the dependence between tiles along the horizontal direction. All processors can start executing in parallel, eliminating the initial processor idling that results with the pipelined parallel execution of tiles in Figure 4.” (Krishnamoorthy et al., 2007, p. 236) Isso remete bastante ao halo usado, em que há repetição de algumas computações para evitar a dependência de dados.No caso do Halo ele serve mais para diminuir a banda necessária para as comunicações, mas pode ser visto assim também.
       },
@@ -2212,10 +2197,9 @@ Tangle this file with C-c C-v t
     author = {Serpa, Matheus and Pavan, Pablo and Cruz, Eduardo and Machado, Rodrigo and Panetta, Jairo and Azambuja, Antonio Carlos and Carissimi, Alexandre and Navaux, Philippe},
     year = {2021},
     number = {18},
-    pages = {e6212},
     title = {Energy efficiency and portability of oil and gas simulations on multicore and graphics processing unit architectures},
     volume = {33},
-    journal = {Concurrency and Computation: Practice and Experience},
+    journal = {Concurrency Computat.: Pract. Exper.},
     doi = {10.1002/cpe.6212}
     }
     @inproceedings{sscad_perf_model,
@@ -2226,19 +2210,17 @@ Tangle this file with C-c C-v t
    year = {2025},
    keywords = {},
    issn = {0000-0000},
-   pages = {398--409},
    publisher = {SBC},
    address = {Porto Alegre, RS, Brasil},
    doi = {10.5753/sscad.2025.16739},
   }
     @article{dongarra,
   author={Bosilca, George and Bouteiller, Aurelien and Danalis, Anthony and Faverge, Mathieu and Herault, Thomas and Dongarra, Jack J.},
-  journal={Computing in Science \& Engineering}, 
+  journal={Comput. Sci. Eng.}, 
   title={PaRSEC: Exploiting Heterogeneity to Enhance Scalability}, 
   year={2013},
   volume={15},
   number={6},
-  pages={36-45},
   keywords={Programming;Computer architecture;Runtime;Computational modeling;Parallel processing;Biological system modeling;Adaptation models;Scalability;Programming;Computer architecture;Runtime;Computational modeling;Parallel processing;Biological system modeling;Adaptation models;Scalability;scientific computing;high-performance computing;HPC;scheduling and task partitioning;distributed programming;programming paradigms},
   doi={10.1109/MCSE.2013.98}
   }
@@ -2249,7 +2231,6 @@ Tangle this file with C-c C-v t
   journal={Acm transactions on mathematical software (toms)},
   volume={43},
   number={2},
-  pages={1--22},
   year={2016},
   publisher={ACM New York, NY, USA}
 }
