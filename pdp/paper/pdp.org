@@ -347,7 +347,7 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletc
 | Boillot cite:boillot_task-based_2014           | PaRSEC (PTG)    | not discussed              | elastic (DG)       |
 | AlOnazi cite:alonazi_asynchronous_2019         | StarPU (STF)    | tasks, out-of-core         | acoustic isotropic |
 | Alturkestani cite:alturkestani_maximizing_2020 | MPI+X (MLBS)    | multilayer async           | --                 |
-| Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | --                         | acoustic isotropic |
+| Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | in-memory                  | acoustic isotropic |
 | Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async checkpoints          | Fletcher TTI       |
 | /star-fletcher/                                | StarPU (STF)    | tasks in the DAG           | Fletcher TTI       |
 
