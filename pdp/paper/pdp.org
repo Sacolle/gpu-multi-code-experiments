@@ -328,7 +328,7 @@ This paper is structured as follows. Section [[sec:methodsandmaterials]] covers 
 <<sec:relatedwork>>
 
 # Theme 1 - task-based RTM
-Task-based RTM implementations are scarce. Boillot et al. cite:boillot_task-based_2014 turned the elastic wave propagation kernel of an industrial MPI-based RTM code, a discontinuous Galerkin solver on tetrahedral meshes, into a task-based code executed by the PaRSEC runtime cite:bosilca_parsec_2013, with dependencies declared explicitly in a parameterized task graph. Their tasks come from a two-level partitioning that refines the MPI mesh partition, and their preliminary results were competitive with the original MPI code on a homogeneous multicore node and more efficient on a ccNUMA node and on an Intel Xeon Phi accelerator. I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 proposed TB-RTM, which submits RTM tasks through the STF interface of StarPU on distributed-memory systems with multiple GPUs. Snapshot writes and reads are tasks as well. TB-RTM uses StarPU's out-of-core support to prefetch the solution data across GPU memory, main memory, and fast storage, overlapping data movement with computation and scaling up to 500 GPUs. TB-RTM solves the isotropic acoustic wave equation, with the stencils running on the GPUs while the CPU workers manage data and I/O. Although it supports subdomain tasks, its evaluation maps each shot to a single GPU, with tasks spanning the entire domain. Neither work targets CPU nodes with mixed P-cores and E-cores.
+Task-based RTM implementations are scarce. Boillot et al. cite:boillot_task-based_2014 turned the elastic wave propagation kernel of an industrial MPI-based RTM code, a discontinuous Galerkin solver on tetrahedral meshes, into a task-based code executed by the PaRSEC runtime cite:bosilca_parsec_2013, with dependencies declared explicitly in a parameterized task graph. Their tasks come from a two-level partitioning that refines the MPI mesh partition, and their preliminary results were competitive with the original MPI code on a homogeneous multicore node and more efficient on a ccNUMA node and on an Intel Xeon Phi accelerator. I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 proposed TB-RTM, which submits RTM tasks through the STF interface zof StarPU on distributed-memory systems with multiple GPUs. Snapshot writes and reads are tasks as well. TB-RTM uses StarPU's out-of-core support to prefetch the solution data across GPU memory, main memory, and fast storage, overlapping data movement with computation and scaling up to 500 GPUs. TB-RTM solves the isotropic acoustic wave equation, with the stencils running on the GPUs while the CPU workers manage data and I/O. Although it supports subdomain tasks, its evaluation maps each shot to a single GPU, with tasks spanning the entire domain. Neither work targets CPU nodes with mixed P-cores and E-cores.
 
 # Theme 2 - IO in RTM
 The I/O required by the imaging condition is a recognized bottleneck in RTM, and several works try to hide it. Alturkestani et al. cite:alturkestani_maximizing_2020 introduced a multilayer buffer system that spreads snapshots across the storage hierarchy, from the parallel file system to burst buffers, main memory, and GPU memory, performing I/O asynchronously and achieving a 1.4$\times$ speedup on 2048 nodes of Summit. Qu et al. cite:qu_toward_2021 combined that buffering with temporal blocking to perform out-of-core snapshotting on a Lustre file system. Closest to our application, Künas et al. cite:kunas_enhancing_2025 investigated the Fletcher RTM, where synchronous I/O pauses computation to save snapshots, and explored overlapping with computation by saving snapshots asynchronously. These approaches add an explicit I/O layer alongside the solver, while in our work the writes are tasks of the same graph as the computation, scheduled by the runtime.
@@ -344,14 +344,14 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], {{{sf}}} ap
 #+CAPTION: Comparison with related RTM approaches.
 #+NAME: tab:relatedwork
 #+ATTR_LATEX: :environment tabularx :width \linewidth :align @{}l *{3}{>{\raggedright\arraybackslash}X}@{} :booktabs t :font \scriptsize\setlength{\tabcolsep}{3pt}
-| Work                                           | Runtime         | Snapshot I/O               | Equation           |
-|------------------------------------------------+-----------------+----------------------------+--------------------|
-| Boillot cite:boillot_task-based_2014           | PaRSEC (PTG)    | not discussed              | elastic (DG)       |
-| AlOnazi cite:alonazi_asynchronous_2019         | StarPU (STF)    | tasks, out-of-core         | acoustic isotropic |
-| Alturkestani cite:alturkestani_maximizing_2020 | MPI+X (MLBS)    | multilayer async           | --                 |
-| Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | in-memory                  | acoustic isotropic |
-| Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async snapshots            | Fletcher TTI       |
-| {{{sf}}}                                | StarPU (STF)    | tasks in the DAG           | Fletcher TTI       |
+| Work                                           | Runtime         | Snapshot I/O       | Equation           |
+|------------------------------------------------+-----------------+--------------------+--------------------|
+| Boillot cite:boillot_task-based_2014           | PaRSEC (PTG)    | not discussed      | elastic (DG)       |
+| AlOnazi cite:alonazi_asynchronous_2019         | StarPU (STF)    | tasks, out-of-core | acoustic isotropic |
+| Alturkestani cite:alturkestani_maximizing_2020 | MPI+X (MLBS)    | multilayer async   | --                 |
+| Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | in-memory          | acoustic isotropic |
+| Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async snapshots    | Fletcher TTI       |
+| {{{sf}}}                                       | StarPU (STF)    | tasks in the DAG   | Fletcher TTI       |
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
@@ -517,10 +517,10 @@ Serpa et al. cite:fletcher_base provide four versions of /fletcher-base/: baseli
 
 The {{{sf}}} program is our task-based implementation of the forward propagation of Fletcher's equations. It reuses the numerical kernel of the /fletcher-base/ baseline but parallelizes it with the STF model of the StarPU runtime cite:starpu-paper. StarPU's default scheduler (lws) manages the data of dependent tasks. This model opens a design space for distributing and scheduling the computation: {{{sf}}} removes the global synchronization points of /fletcher-base/ and overlaps I/O with computation.
 
-{{{sf}}} uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. A block's task then becomes ready as soon as its dependencies are satisfied.
-
 The task-based model and inferred per-block dependencies
-allow {{{sf}}} to remove the global synchronization of /fletcher-base/. Instead of alternating between two whole-volume buffers, each block is an independent unit. Algorithm \ref{alg:star-fletcher} shows the dependencies: computing a block at $t+1$ requires the block and its neighbors at $t$, $\mathcal{N}(B)_{t}$, through $F$, and the block itself at $t-1$. Figure [[fig:neighborhood]] shows this neighborhood, which mirrors the stencil of Figure [[fig:stencil]]. On the border of the center block, the second derivatives require the face neighbors, and the cross derivatives also require the edge neighbors. Corner neighbors are not required. As a result, execution never stops at a barrier or to write the volume, so consecutive time steps overlap and I/O is asynchronous. The output file is memory-mapped with ~mmap~, and each write task writes its block directly into its position in the file, producing output identical to that of /fletcher-base/. This execution pattern resembles time-tiling optimizations and could enable future gains from cache reuse cite:akbudak_asynchronous_2020,qu_exploiting_2023.
+allow {{{sf}}} to remove the global synchronization of /fletcher-base/. Instead of alternating between two whole-volume buffers, each block is an independent unit. Algorithm \ref{alg:star-fletcher} shows the dependencies: computing a block at $t+1$ requires the block and its neighbors at $t$, $\mathcal{N}(B)_{t}$, through $F$, and the block itself at $t-1$. Figure [[fig:neighborhood]] shows this neighborhood, which mirrors the stencil of Figure [[fig:stencil]]. On the border of the center block, the second derivatives require the face neighbors, and the cross derivatives also require the edge neighbors. Corner neighbors are not required. As a result, execution never stops at a barrier or to write the volume, so consecutive time steps overlap and I/O is asynchronous. The output file is memory-mapped with ~mmap~, and each write task writes its block directly into its position in the file, producing output identical to that of /fletcher-base/. 
+
+{{{sf}}} uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. A block's task then becomes ready as soon as its dependencies are satisfied.
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
@@ -624,8 +624,8 @@ The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is t
 #+CAPTION: HW specs. of the partitions with Threads (T) and Cores (C).
 #+NAME: tab:hardware
 #+ATTR_LATEX:  :environment tabularx :width \linewidth :align l X r r l :booktabs t
-| Machine | Processor                        |  T. |  C. | Freq.  |
-|---------+----------------------------------+-----+-----+--------|
+| Machine          | Processor                        |  T. |  C. | Freq.  |
+|------------------+----------------------------------+-----+-----+--------|
 | {{{m(draco)}}}   | 2 x Intel(R) Xeon(R) E5-2640 v2  |  32 |  16 | 2.0GHz |
 | {{{m(poti)}}}    | Intel(R) Core(TM) i7-14700KF     |  28 |  20 | 3.4GHz |
 | {{{m(cei)}}}     | 2 x Intel(R) Xeon(R) Silver 4116 |  48 |  24 | 2.1GHz |
@@ -634,7 +634,7 @@ The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is t
 | {{{m(lunaris)}}} | AMD Threadripper PRO 5965WX      |  48 |  24 | 3.8GHz |
 
 #+latex: \noindent
-*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and {{{sf}}}. /fletcher-base/ was compiled with GCC 12.4.0 and {{{sf}}} with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all @@latex:\blackout{available publicly on the authors' GitHub}@@[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::{{{sf}}} - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
+*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and {{{sf}}}. /fletcher-base/ was compiled with GCC 12.4.0 and {{{sf}}} with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all @@latex:\blackout{available publicly on the authors' GitHub}@@[fn::\textit{fletcher-base} - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::{{{sf}}} - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
 
 #+latex: \noindent
 *Design of Experiments*.
@@ -1200,7 +1200,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
 
 *** Exec Time Plot                                                :ignore:
 
-Figure [[fig:exec_time]] shows the second metric, computed time. It enables the analysis of how I/O affects the computed times. For clarity, the figure shows one machine per group and only the free-thread configuration of /fletcher-base/, as it was the best on all machines except {{{m(grace)}}}, where bound threads were faster without I/O. In the figure, the X-axis represents the block order, and the Y-axis represents the computed time in seconds. It is faceted horizontally by machine and vertically by the amount of I/O.
+Figure [[fig:exec_time]] shows the second metric, computed time. It enables the analysis of how I/O affects the computed times. For clarity, the figure shows one machine per group and only the /dynamic/ /free/-thread configuration of /fletcher-base/, as it was overall the best configuration. In the figure, the X-axis represents the block order, and the Y-axis represents the computed time in seconds. It is faceted horizontally by machine and vertically by the amount of I/O.
 #+latex: %
 The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amount of I/O increases, the performance gap between the {{{sf}}} and /fletcher-base/ versions grows in favor of {{{sf}}}. Across the five machines with the $384^3$ volume, saving every step increases the computed time of the best /fletcher-base/ configuration by up to 27%, against at most 17% for {{{sf}}} with its best block order. The {{{m(draco)}}} is the only machine where the overhead of {{{sf}}} is higher. The {{{m(grace)}}} machine, with a volume about 6.6 times larger ($720^3$ against $384^3$ points), shows the opposite trend: {{{sf}}} is faster without I/O (23.9 s against 30.2 s with free threads and 26.7 s with bound threads), on par when saving every 5 steps (41.8 s against 39.6 s), and slower when saving every step (117 s against 88.4 s). We suspect that the many block-sized writes through the ~mmap~-ed file become costly at this size.
   
@@ -1315,7 +1315,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
 #+latex: \noindent
 *Scalability of the {{{sf}}} application.*
 #+latex: %
-Figure [[fig:scalability]] depicts the applications’ scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: {{{sf}}}, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores, unlike the best /fletcher-base/ configuration of the first experiment. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
+Figure [[fig:scalability]] depicts the applications’ scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: {{{sf}}}, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores as to make the core increase more well behaved. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
 The figure shows that {{{sf}}} is faster than both /fletcher-base/ versions on all machines for almost all core counts. The gap narrows when simultaneous multi-threading (SMT) is used. As expected, on heterogeneous machines, using E-cores significantly slowed the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the {{{sf}}} implementation. The machine {{{m(lunaris)}}} showed the largest gaps, independent of the number of cores used.
 The one exception to all these trends is the machine {{{m(grace)}}}. There, {{{sf}}} is faster at low core counts, but the gap shrinks as cores increase until, with I/O, it is slower than both /fletcher-base/ versions. This I/O gap was already highlighted in Figure [[fig:exec_time]].
 
@@ -1544,7 +1544,10 @@ It shows that {{{sf}}} may overlap as many as seven iterations at a time. With I
     # com as mesmas cores dos gráficos de barras
     sf$Application <- sf$Application |>
       filter(Value != "wave_insertion") |>
-      mutate(Value = if_else(Value == "write_block", "IO", "Compute"))
+      mutate(
+        Value = if_else(Value == "write_block", "IO", "Compute"),
+        Iteration = if_else(Iteration < 1L, 1L, Iteration)
+      )
     sf$Colors <- tibble(Value = c("Compute", "IO"), Color = c("#377eb8", "#e41a1c"))
 
     fb <- sf
@@ -1590,7 +1593,7 @@ It shows that {{{sf}}} may overlap as many as seven iterations at a time. With I
       p +
         facet_grid(rows = vars(Program)) +
         time_axis +
-        scale_y_reverse(breaks = c(0, 10, 20)) +
+        scale_y_reverse(breaks = c(1, 10, 20)) +
         labs(y = "Iteration") +
         no_x_axis
     }
