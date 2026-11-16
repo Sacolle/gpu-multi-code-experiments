@@ -20,6 +20,8 @@
 #+LATEX_HEADER: %\StopCensoring
 #+LATEX_HEADER: \setlength{\abovecaptionskip}{0pt}
 #+MACRO: m @@latex:\mach{$1}@@
+#+MACRO: sf @@latex:\textit{\sfname{}}@@
+#+LATEX_HEADER: \DeclareRobustCommand{\sfname}{\ifcensor task-fletcher\else star-fletcher\fi}
 #+LATEX_HEADER: \makeatletter\let\orig@includegraphics\includegraphics\renewcommand{\includegraphics}[2][]{\ifcensor\filename@parse{#2}\IfFileExists{\filename@area\filename@base-anon.\filename@ext}{\orig@includegraphics[#1]{\filename@area\filename@base-anon.\filename@ext}}{\orig@includegraphics[#1]{#2}}\else\orig@includegraphics[#1]{#2}\fi}\makeatother
 #+LATEX_HEADER: \makeatletter\newcommand{\mach}[1]{\ifcensor\@nameuse{anon@#1}\else #1\fi}\makeatother
 #+LATEX_HEADER: \makeatletter\@namedef{anon@draco}{M1}\@namedef{anon@poti}{M2}\@namedef{anon@cei}{M3}\@namedef{anon@grace}{M4}\@namedef{anon@Grace}{M4}\@namedef{anon@tupi}{M5}\@namedef{anon@lunaris}{M6}\@namedef{anon@Lunaris}{M6}\makeatother
@@ -192,7 +194,7 @@ the same multi-track EasyChair installation as the main conference.
 ** Abstract                                                         :ignore:
 
 #+begin_abstract
-Fletcher's pseudo-acoustic equations model wave propagation in Tilted Transverse Isotropic (TTI) media and are widely used in Reverse Time Migration (RTM), a seismic imaging method of the oil and gas industry whose forward phase is compute- and I/O-intensive. This paper presents /star-fletcher/, an implementation of the RTM forward phase with Fletcher's equations using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, /star-fletcher/ overlaps computation and I/O and eliminates global synchronization points between iterations. We compare it against the OpenMP baseline, /fletcher-base/, across OpenMP configurations. Experiments on six CPU machines show that, without I/O, /star-fletcher/ surpasses the best OpenMP configuration on three machines by up to 51%, and matches it or stays slightly below it on the other three, while being up to 63% faster than the default static schedule on hybrid machines with performance and efficiency cores. Overlapping writes with computation reduces the I/O overhead on most machines, but on the machine with the largest volume, frequent writes make /star-fletcher/ slower than the baseline.
+Fletcher's pseudo-acoustic equations model wave propagation in Tilted Transverse Isotropic (TTI) media and are widely used in Reverse Time Migration (RTM), a seismic imaging method of the oil and gas industry whose forward phase is compute- and I/O-intensive. This paper presents {{{sf}}}, an implementation of the RTM forward phase with Fletcher's equations using the Sequential Task Flow (STF) paradigm, implemented with StarPU. By segmenting the computational domain into blocks and scheduling them as dependent tasks, {{{sf}}} overlaps computation and I/O and eliminates global synchronization points between iterations. We compare it against the OpenMP baseline, /fletcher-base/, across OpenMP configurations. Experiments on six CPU machines show that, without I/O, {{{sf}}} surpasses the best OpenMP configuration on three machines by up to 51%, and matches it or stays slightly below it on the other three, while being up to 63% faster than the default static schedule on hybrid machines with performance and efficiency cores. Overlapping writes with computation reduces the I/O overhead on most machines, but on the machine with the largest volume, frequent writes make {{{sf}}} slower than the baseline.
 #+end_abstract
 
 ** Introduction
@@ -287,16 +289,16 @@ The task-based programming model addresses these limitations. In the Sequential 
 Boillot et al. cite:boillot_task-based_2014 ported an MPI-parallel RTM application to the PaRSEC runtime cite:bosilca_parsec_2013, where dependencies are declared explicitly rather than inferred by an STF runtime, and refined the MPI mesh partition into finer tasks, but I/O was not discussed. AlOnazi et al. cite:alonazi_asynchronous_2019 used the STF interface of StarPU to run one shot per GPU, with tasks spanning the whole domain and snapshot writes and reads as tasks, so that out-of-core transfers, disk I/O, and prefetching overlap with computation. Other works investigate the overlap of I/O and computation in the Fletcher RTM cite:kunas_enhancing_2025, or exploit temporal data reuse and asynchrony in the propagation kernel cite:qu_exploiting_2023. None of them combines a decomposition of the propagation domain into block tasks with dependencies across time steps, snapshot writes as tasks of that same graph, and heterogeneous CPU nodes running Fletcher's TTI equations.
 
 # P5 - Star-Fletcher and contributions
-This paper presents /star-fletcher/, an STF implementation of the Fletcher forward phase on top of StarPU. It reuses the numerical kernel of /fletcher-base/ but segments the volume into cubic blocks and, for each time step, submits one propagation task per block and, every $k$ steps, one write task per block. The contributions of this paper are:
+This paper presents {{{sf}}}, an STF implementation of the Fletcher forward phase on top of StarPU. It reuses the numerical kernel of /fletcher-base/ but segments the volume into cubic blocks and, for each time step, submits one propagation task per block and, every $k$ steps, one write task per block. The contributions of this paper are:
 
 1. The elimination of global synchronization between time steps through per-block dependencies, which lets the StarPU scheduler overlap tasks from different iterations (limitation b).
 2. The overlap of computation with I/O by weaving block write tasks between the propagation tasks (limitation c).
-3. A performance evaluation on six machines covering four kinds of CPU architectures (hybrid P-core and E-core, dual-socket Intel, single-socket AMD, and ARM), comparing /star-fletcher/ against static and dynamic OpenMP configurations of /fletcher-base/ with MSamples/s and execution time (limitation a).
+3. A performance evaluation on six machines covering four kinds of CPU architectures (hybrid P-core and E-core, dual-socket Intel, single-socket AMD, and ARM), comparing {{{sf}}} against static and dynamic OpenMP configurations of /fletcher-base/ with MSamples/s and execution time (limitation a).
 
 # P6 - Main results
 # Numbers computed from pdp/results (no-IO MSamples/s, best configuration per machine; IO = output every step, ExecTime).
 # TODO grace: its results are not in this local copy; Fig. msamples_cmp suggests about +10%, confirm.
-Results show that /star-fletcher/ surpasses the best /fletcher-base/ configuration on three machines, by up to 51% MSamples/s on {{{m(lunaris)}}}, matches it on {{{m(cei)}}}, and stays slightly below it on {{{m(poti)}}} and {{{m(draco)}}}. The best /fletcher-base/ configuration is always the dynamic OpenMP schedule. Compared to the default static schedule, /star-fletcher/ is up to 63% faster on the hybrid machines {{{m(tupi)}}} and {{{m(poti)}}}, where E-cores slow down the static split. Execution traces show up to seven in-flight iterations, confirming the overlap enabled by removing the global barrier. On machines with the $384^3$ volume, overlapping writes with computation reduces the overhead of saving the volume at every step across all machines but {{{m(draco)}}}, for instance from 27% to 9% on {{{m(lunaris)}}}. The exception is {{{m(grace)}}}, with a volume about 6.6 times larger, where frequent writes make /star-fletcher/ slower than /fletcher-base/ even when using all cores.
+Results show that {{{sf}}} surpasses the best /fletcher-base/ configuration on three machines, by up to 51% MSamples/s on {{{m(lunaris)}}}, matches it on {{{m(cei)}}}, and stays slightly below it on {{{m(poti)}}} and {{{m(draco)}}}. The best /fletcher-base/ configuration is always the dynamic OpenMP schedule. Compared to the default static schedule, {{{sf}}} is up to 63% faster on the hybrid machines {{{m(tupi)}}} and {{{m(poti)}}}, where E-cores slow down the static split. Execution traces show up to seven in-flight iterations, confirming the overlap enabled by removing the global barrier. On machines with the $384^3$ volume, overlapping writes with computation reduces the overhead of saving the volume at every step across all machines but {{{m(draco)}}}, for instance from 27% to 9% on {{{m(lunaris)}}}. The exception is {{{m(grace)}}}, with a volume about 6.6 times larger, where frequent writes make {{{sf}}} slower than /fletcher-base/ even when using all cores.
 
 # P7 - Paper structure
 This paper is structured as follows. Section [[sec:relatedwork]] discusses related work on task-based RTM, on I/O in RTM, and on asynchronous stencil computations. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results and explains, when possible, their causes. Section [[sec:conclusion]] presents this paper's conclusions.
@@ -311,14 +313,14 @@ This common parallelization approach will not work when nodes' architectures bec
 
 Modern research focuses on overlapping computation with I/O operations cite:alonazi_asynchronous_2019,kunas_enhancing_2025 . In that aspect, AlOnazi's work uses STF to orchestrate data transfer between GPUs, leveraging load-balancing capabilities to balance per-node, multi-GPU RTM computation.
 
-Considering these characteristics, this paper presents /star-fletcher/, an implementation of the /fletcher/ algorithm using the StarPU runtime under the Sequential Task Flow (STF) paradigm. It improves on a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the computational domain into blocks and scheduling them as dependent tasks. The contributions of this paper are:
+Considering these characteristics, this paper presents {{{sf}}}, an implementation of the /fletcher/ algorithm using the StarPU runtime under the Sequential Task Flow (STF) paradigm. It improves on a base implementation that uses OpenMP, called /fletcher-base/ cite:fletcher_base, by segmenting the computational domain into blocks and scheduling them as dependent tasks. The contributions of this paper are:
 
 1. The elimination of global synchronization points between iteration steps by adopting a per-block task dependency model, which allows the StarPU scheduler to seamlessly overlap the execution of tasks from different iterations, keeping workers busy and avoiding synchronization bottlenecks.
 2. The natural overlap of computation with asynchronous IO, made possible by the task-based design: write tasks are woven between block computations at fine granularity, so IO does not stall computation, yielding additional computed time gains on machines where computation already improves over the baseline.
 3. A comprehensive performance evaluation on six machines, covering four kinds of CPU architectures, including hybrid P-core/E-core systems, homogeneous ARM machine, dual-socket x86 servers, single socket x86 AMD server, using MSamples/s and computed time as metrics.
 +4. A controlled investigation of the sources of the observed speedups through additional experiments that isolate only P-cores and replace OpenMP's default static scheduling with dynamic scheduling in /fletcher-base/, disentangling the contributions of architectural heterogeneity, iteration overlap, and asynchronous IO.+
 
-+Results show that /star-fletcher/ outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid P-core/E-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating P-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of /star-fletcher/, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.+
++Results show that {{{sf}}} outperforms /fletcher-base/ on most machines and configurations, with the most significant gains on hybrid P-core/E-core machines (tupi and poti), where StarPU's scheduler exploits architectural heterogeneity more effectively than OpenMP's static partitioning. The grace machine, despite being homogeneous, also surpasses the baseline at favorable block orders, likely due to iteration overlap preventing slow workers from bottlenecking execution. The draco machine shows near-parity between the two implementations. IO overlap provides measurable additional gains on machines that already benefit from the task-based model. Isolating P-cores and enabling OpenMP dynamic scheduling reduce but do not eliminate the advantage of {{{sf}}}, confirming that iteration overlap and asynchronous IO contribute independently to the observed speedups.+
 
 This paper is structured as follows. Section [[sec:methodsandmaterials]] covers the program's modeling, design, and implementation, and finally the research methodology. Section [[sec:results]] presents the results obtained, postulating, or showing when possible, why each result ended up the way it did. Section [[sec:conclusion]] presents this paper's conclusions.
 
@@ -335,7 +337,7 @@ The I/O required by the imaging condition is a recognized bottleneck in RTM, and
 Another line of work removes the synchronization between time steps inside the stencil computation. Akbudak et al. cite:akbudak_asynchronous_2020 integrated the absorbing boundary conditions into the asynchronous Multicore Wavefront Diamond temporal blocking (MWD-TB), and Qu et al. cite:qu_exploiting_2023 brought MWD-TB to the whole RTM workflow, achieving up to 70% speedup over spatial blocking on shared-memory systems. These works rely on carefully designed tiling schedules for homogeneous multicores. Task-based runtimes obtain a similar effect without a hand-made schedule: in FLUSEPA, an unstructured finite-volume CFD solver with explicit adaptive time stepping, Couteyen Carpaye et al. cite:couteyen_carpaye_design_2018 used StarPU to reduce the synchronizations that the temporal levels impose on its MPI and OpenMP version, and Nesi et al. cite:leandro_nesi_task-based_2020 studied task-based decompositions of a CFD stencil on heterogeneous CPU/GPU resources. The granularity of the tasks remains a key parameter of such decompositions, since STF fixes task sizes at submission time cite:furmento_optimizing_2025.
 
 # Positioning
-In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletcher/ applies the STF model directly to the propagation domain: the volume is decomposed into block tasks whose dependencies span consecutive time steps. Unlike TB-RTM, which also handles snapshots as tasks but was evaluated with tasks spanning an entire shot, the write of each block can proceed while other blocks are still being computed. This removes the global barrier and overlaps I/O with computation, with no tiling schedule and no separate I/O layer. Moreover, we target the forward phase of Fletcher's TTI propagation on heterogeneous CPU nodes, with mixed P-cores and E-cores, and evaluate the block order as the task granularity on six machines.
+In contrast to these works, summarized in Table [[tab:relatedwork]], {{{sf}}} applies the STF model directly to the propagation domain: the volume is decomposed into block tasks whose dependencies span consecutive time steps. Unlike TB-RTM, which also handles snapshots as tasks but was evaluated with tasks spanning an entire shot, the write of each block can proceed while other blocks are still being computed. This removes the global barrier and overlaps I/O with computation, with no tiling schedule and no separate I/O layer. Moreover, we target the forward phase of Fletcher's TTI propagation on heterogeneous CPU nodes, with mixed P-cores and E-cores, and evaluate the block order as the task granularity on six machines.
 
 # Cells with "--": not verified against the full text (Alturkestani, Qu'23); fill in before submission.
 # Runtime of Alturkestani (MPI+X: multi-node on Summit with GPUs) and Qu'23 (OpenMP: MWD-TB is a shared-memory multicore technique) inferred, not read in the full text.
@@ -349,14 +351,14 @@ In contrast to these works, summarized in Table [[tab:relatedwork]], /star-fletc
 | Alturkestani cite:alturkestani_maximizing_2020 | MPI+X (MLBS)    | multilayer async           | --                 |
 | Qu cite:qu_exploiting_2023                     | OpenMP (MWD-TB) | in-memory                  | acoustic isotropic |
 | Künas cite:kunas_enhancing_2025                | OpenMP / CUDA   | async snapshots            | Fletcher TTI       |
-| /star-fletcher/                                | StarPU (STF)    | tasks in the DAG           | Fletcher TTI       |
+| {{{sf}}}                                | StarPU (STF)    | tasks in the DAG           | Fletcher TTI       |
 
 ** Methods and Materials
 <<sec:methodsandmaterials>>
 
 *** Introduction                                                   :ignore:
 
-This paper's methods and materials cover Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, /star-fletcher/ (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
+This paper's methods and materials cover Fletcher's equations (Section [[sec:fletchereq]]), the baseline program, /fletcher-base/ (Section [[sec:fletcherbase]]), this paper's program, {{{sf}}} (Section [[sec:fletcherstar]]), and lastly, this work's experimental hardware and software configuration, and design of experiments (Section [[sec:methodology]]).
 
 *** Fletcher's Equations
 <<sec:fletchereq>>
@@ -508,21 +510,21 @@ To implement Equations \ref{eq:equacao1} and \ref{eq:equacao2} numerically, for 
 \end{algorithm}
 #+END_EXPORT
 
-Serpa et al. cite:fletcher_base provide four versions of /fletcher-base/: baseline, Der1Der1, Der1Der1LM, and Der1Der1HM. The last three optimize the numerical kernel by computing the cross derivatives as first derivatives of first derivatives, reusing intermediate results. Such kernel-level optimizations are outside the scope of this paper, which studies how the parallel runtime shapes application design and performance. Hence, we compare /star-fletcher/ against the baseline version, which shares its numerical kernel. Although /fletcher-base/ supports both CPUs and GPUs, we only consider its CPU (OpenMP) implementation. To broaden the comparison, we modified it to allow the OpenMP loop scheduling policy to be chosen at runtime.
+Serpa et al. cite:fletcher_base provide four versions of /fletcher-base/: baseline, Der1Der1, Der1Der1LM, and Der1Der1HM. The last three optimize the numerical kernel by computing the cross derivatives as first derivatives of first derivatives, reusing intermediate results. Such kernel-level optimizations are outside the scope of this paper, which studies how the parallel runtime shapes application design and performance. Hence, we compare {{{sf}}} against the baseline version, which shares its numerical kernel. Although /fletcher-base/ supports both CPUs and GPUs, we only consider its CPU (OpenMP) implementation. To broaden the comparison, we modified it to allow the OpenMP loop scheduling policy to be chosen at runtime.
 
-*** The /star-fletcher/ Task-Based Implementation
+*** The {{{sf}}} Task-Based Implementation
 <<sec:fletcherstar>>
 
-The /star-fletcher/ program is our task-based implementation of the forward propagation of Fletcher's equations. It reuses the numerical kernel of the /fletcher-base/ baseline but parallelizes it with the STF model of the StarPU runtime cite:starpu-paper. StarPU's default scheduler (lws) manages the data of dependent tasks. This model opens a design space for distributing and scheduling the computation: /star-fletcher/ removes the global synchronization points of /fletcher-base/ and overlaps I/O with computation.
+The {{{sf}}} program is our task-based implementation of the forward propagation of Fletcher's equations. It reuses the numerical kernel of the /fletcher-base/ baseline but parallelizes it with the STF model of the StarPU runtime cite:starpu-paper. StarPU's default scheduler (lws) manages the data of dependent tasks. This model opens a design space for distributing and scheduling the computation: {{{sf}}} removes the global synchronization points of /fletcher-base/ and overlaps I/O with computation.
 
-/star-fletcher/ uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. A block's task then becomes ready as soon as its dependencies are satisfied.
+{{{sf}}} uses the STF model as its primary parallelism mechanism. The volume is decomposed into cubic blocks whose side, the block order, sets the task granularity. For example, a volume of side 200 split into blocks of order 20 yields $(200/20)^3 = 1000$ tasks per time step. Too many tasks overload the runtime, while too few starve the workers, so each combination of volume size and machine has a best block order. StarPU's memory management lets the application submit all tasks up front. Data are allocated only when the task that first writes them runs, and freed once no remaining task needs them. A block's task then becomes ready as soon as its dependencies are satisfied.
 
 The task-based model and inferred per-block dependencies
-allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. Instead of alternating between two whole-volume buffers, each block is an independent unit. Algorithm \ref{alg:star-fletcher} shows the dependencies: computing a block at $t+1$ requires the block and its neighbors at $t$, $\mathcal{N}(B)_{t}$, through $F$, and the block itself at $t-1$. Figure [[fig:neighborhood]] shows this neighborhood, which mirrors the stencil of Figure [[fig:stencil]]. On the border of the center block, the second derivatives require the face neighbors, and the cross derivatives also require the edge neighbors. Corner neighbors are not required. As a result, execution never stops at a barrier or to write the volume, so consecutive time steps overlap and I/O is asynchronous. The output file is memory-mapped with ~mmap~, and each write task writes its block directly into its position in the file, producing output identical to that of /fletcher-base/. This execution pattern resembles time-tiling optimizations and could enable future gains from cache reuse cite:akbudak_asynchronous_2020,qu_exploiting_2023.
+allow {{{sf}}} to remove the global synchronization of /fletcher-base/. Instead of alternating between two whole-volume buffers, each block is an independent unit. Algorithm \ref{alg:star-fletcher} shows the dependencies: computing a block at $t+1$ requires the block and its neighbors at $t$, $\mathcal{N}(B)_{t}$, through $F$, and the block itself at $t-1$. Figure [[fig:neighborhood]] shows this neighborhood, which mirrors the stencil of Figure [[fig:stencil]]. On the border of the center block, the second derivatives require the face neighbors, and the cross derivatives also require the edge neighbors. Corner neighbors are not required. As a result, execution never stops at a barrier or to write the volume, so consecutive time steps overlap and I/O is asynchronous. The output file is memory-mapped with ~mmap~, and each write task writes its block directly into its position in the file, producing output identical to that of /fletcher-base/. This execution pattern resembles time-tiling optimizations and could enable future gains from cache reuse cite:akbudak_asynchronous_2020,qu_exploiting_2023.
 
 #+BEGIN_EXPORT latex
 \begin{algorithm}[!htb]
-    \caption{Task submission in \textit{star-fletcher} (StarPU STF).}
+    \caption{Task submission in \textit{\sfname{}} (StarPU STF).}
     \label{alg:star-fletcher}
     \begin{algorithmic}[1]
         %\State $\text{Blocks} \gets \text{segment(V)}$ \Comment{}
@@ -604,7 +606,7 @@ allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. I
   return path
 #+END_SRC
 
-#+CAPTION: Neighborhood of a block in /star-fletcher/. The task updating the center block (green) to step $t+1$ reads the 6 face neighbors (orange), needed by the second derivatives, and the 12 edge neighbors (purple), needed by the cross derivatives, at step $t$.
+#+CAPTION: Neighborhood of a block in {{{sf}}}. The task updating the center block (green) to step $t+1$ reads the 6 face neighbors (orange), needed by the second derivatives, and the 12 edge neighbors (purple), needed by the cross derivatives, at step $t$.
 #+NAME: fig:neighborhood
 #+ATTR_LATEX: :placement [!htb] :width .6\linewidth
 [[file:figures/neighbors.png]]
@@ -613,7 +615,7 @@ allow /star-fletcher/ to remove the global synchronization of /fletcher-base/. I
 <<sec:methodology>>
 
 Two metrics were used to compare the two applications: Mega Samples per second (MSamples/s), the industry standard, and Computed Time (s). MSamples/s measures the efficiency of the computing kernel, dividing the number of computed points by the kernel time only. /fletcher-base/ measures this by timing the computational section of the loop, lines 2--4 of Algorithm \ref{alg:fletcher-base}. Its Computed Time is the measured time of the outer ~for~ loop.
-Due to the STF model, /star-fletcher/ cannot easily split the two cases, given the weaving of computation and I/O. Its Computed Time runs from the start of the outer ~for~ loop until after the ~WaitForAllTasks()~ at the end, lines 1 and 9 of Algorithm \ref{alg:star-fletcher}. To measure MSamples/s, we divide the total computed points by the Computed Time when I/O is disabled. Therefore, the MSamples/s measurement of /star-fletcher/ is comparable to that of /fletcher-base/ only without I/O. Since this time also includes task submission and the runtime overheads, which the /fletcher-base/ measurement excludes, the comparison favors /fletcher-base/.
+Due to the STF model, {{{sf}}} cannot easily split the two cases, given the weaving of computation and I/O. Its Computed Time runs from the start of the outer ~for~ loop until after the ~WaitForAllTasks()~ at the end, lines 1 and 9 of Algorithm \ref{alg:star-fletcher}. To measure MSamples/s, we divide the total computed points by the Computed Time when I/O is disabled. Therefore, the MSamples/s measurement of {{{sf}}} is comparable to that of /fletcher-base/ only without I/O. Since this time also includes task submission and the runtime overheads, which the /fletcher-base/ measurement excludes, the comparison favors /fletcher-base/.
 
 #+latex: \noindent
 *Experimental Hardware Platform*.
@@ -632,16 +634,16 @@ The experiments were run on @@latex:\censor{PCAD}@@'s infrastructure, which is t
 | {{{m(lunaris)}}} | AMD Threadripper PRO 5965WX      |  48 |  24 | 3.8GHz |
 
 #+latex: \noindent
-*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and /star-fletcher/. /fletcher-base/ was compiled with GCC 12.4.0 and /star-fletcher/ with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all available publicly on the authors’ GitHub[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::star-fletcher - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
+*Software*. As per Sections [[sec:fletcherbase]] and [[sec:fletcherstar]], the programs used were /fletcher-base/ and {{{sf}}}. /fletcher-base/ was compiled with GCC 12.4.0 and {{{sf}}} with GCC 13.4.0, the version required by its CUDA build, which shares the same toolchain. Both share the same numerical kernel source and are compiled with only ~-O3~, without architecture-specific flags, which limits code generation for both to the baseline vector instructions of each architecture (SSE2 on x86-64 and Advanced SIMD on AArch64). All of these configurations were tracked using the Nix package manager. The software used and the experiments are all @@latex:\blackout{available publicly on the authors' GitHub}@@[fn::fletcher-base - @@latex:\censorbox{\url{https://github.com/Sacolle/fletcher-base}}@@] [fn::{{{sf}}} - @@latex:\censorbox{\url{https://github.com/Sacolle/star-fletcher}}@@] [fn::Companion - @@latex:\censorbox{\url{https://github.com/Sacolle/gpu-multi-code-experiments/}}@@].
 
 #+latex: \noindent
 *Design of Experiments*.
 #+latex: %
-Two experiments were designed to understand the performance of the implemented task-based solution (/star-fletcher/) against the reference implementation (/fletcher-base/). They were used to validate assumptions about /star-fletcher/'s performance, as detailed below.
+Two experiments were designed to understand the performance of the implemented task-based solution ({{{sf}}}) against the reference implementation (/fletcher-base/). They were used to validate assumptions about {{{sf}}}'s performance, as detailed below.
 For both experiments, traces were collected to understand the observed data. The StarVZ cite:garcia2018visual visualization library was used to visualize them, as it is better suited to illustrate the reasons behind the performance gains and losses.
 
-1. Identify Best Configuration. The first experiment aimed to identify the best configurations for each program and to determine whether the best /star-fletcher/ configuration outperformed the best /fletcher-base/ configuration. It measured both MSamples/s and Computed Time, expecting improvement in /star-fletcher/ for both metrics. We adopt a fixed volume size that can place computational stress on all machines. A volume of $384^3$ points was chosen for all machines except {{{m(grace)}}}, which had a volume of $720^3$ points. Both programs were run for 20 time steps (50 on {{{m(grace)}}}). For /star-fletcher/, the block order varied across experiments. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding were varied between executions, alternating /static/ and /dynamic/ scheduling and /free/ and core-/bound/ threads. Lastly, it varied the save interval $k$ to measure the I/O cost.
-2. Scalability. The second experiment used the best block order of /star-fletcher/ and bound threads for /fletcher-base/ and observed how performance changed with the additional of cores while using the same total volume (strong scaling). We have also added an extra data point for machines with simultaneous multi-threading (SMT), so those machines could use all available computational resources. It observed cases with no I/O and those where the volume was saved at every step. This experiment aimed to demonstrate that /star-fletcher/ used the available computational resources more effectively than /fletcher-base/.
+1. Identify Best Configuration. The first experiment aimed to identify the best configurations for each program and to determine whether the best {{{sf}}} configuration outperformed the best /fletcher-base/ configuration. It measured both MSamples/s and Computed Time, expecting improvement in {{{sf}}} for both metrics. We adopt a fixed volume size that can place computational stress on all machines. A volume of $384^3$ points was chosen for all machines except {{{m(grace)}}}, which had a volume of $720^3$ points. Both programs were run for 20 time steps (50 on {{{m(grace)}}}). For {{{sf}}}, the block order varied across experiments. With a higher block order, fewer tasks are submitted per iteration, with each task requiring more computational resources to complete. For /fletcher-base/, the scheduler and thread binding were varied between executions, alternating /static/ and /dynamic/ scheduling and /free/ and core-/bound/ threads. Lastly, it varied the save interval $k$ to measure the I/O cost.
+2. Scalability. The second experiment used the best block order of {{{sf}}} and bound threads for /fletcher-base/ and observed how performance changed with the additional of cores while using the same total volume (strong scaling). We have also added an extra data point for machines with simultaneous multi-threading (SMT), so those machines could use all available computational resources. It observed cases with no I/O and those where the volume was saved at every step. This experiment aimed to demonstrate that {{{sf}}} used the available computational resources more effectively than /fletcher-base/.
 
 ** Results
 <<sec:results>>
@@ -677,7 +679,7 @@ For the rest,
   
 *** Introduction                                                   :ignore:
 
-This section presents the results of the experiments described in Section [[sec:methodology]] on the machines of Table [[tab:hardware]]. We first present the first experiment, comparing the best configurations of both programs in MSamples/s and in computed time, with and without I/O. We then present the second experiment, on scalability, and discuss its main trends. Finally, we use execution traces to show the effect of the design decisions of /star-fletcher/.
+This section presents the results of the experiments described in Section [[sec:methodology]] on the machines of Table [[tab:hardware]]. We first present the first experiment, comparing the best configurations of both programs in MSamples/s and in computed time, with and without I/O. We then present the second experiment, on scalability, and discuss its main trends. Finally, we use execution traces to show the effect of the design decisions of {{{sf}}}.
 #+latex: %
 # Taken together, these results supported the hypothesis proposed in # Section [[sec:methodology]]. 
 
@@ -700,6 +702,11 @@ This section presents the results of the experiments described in Section [[sec:
   mach_label <- function(m) {
     m <- as.character(m)
     if (isTRUE(getOption("anon"))) unname(ifelse(m %in% names(anon_map), anon_map[m], m)) else m
+  }
+  # o nome do programa também é anonimizado nas figuras (o mesmo que \sfname no LaTeX)
+  prog_label <- function(x) {
+    x <- as.character(x)
+    if (isTRUE(getOption("anon"))) str_replace_all(x, "star-fletcher", "task-fletcher") else x
   }
   anon_pdf <- function(name, width, height, expr) {
     old <- options(anon = TRUE)
@@ -936,7 +943,7 @@ This section presents the results of the experiments described in Section [[sec:
 #+latex: \noindent
 *Performance Overview of the best configuration.*
 #+latex: %
-The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of performance across all machines using the industry metric MSamples/s. The X-axis represents the block order for the /star-fletcher/ application, and the Y-axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions (static/dynamic scheduling, bound/free threads). Each plot represents one machine, and they are organized by similarity. The top row contains the heterogeneous machines, the middle row contains the two dual-socket homogeneous machines, and the bottom row contains the {{{m(grace)}}} and {{{m(lunaris)}}} machines, which do not fall into the groups above. We use 10 replications for each experimental configuration to account for performance variability. We checked the normality of each configuration with Shapiro-Wilk tests with a Bonferroni correction, and almost all configurations passed. Hence, the error bars on the points and the bands around the horizontal lines show the 95% confidence interval of the mean, based on Student's t-distribution.
+The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cmp_msamples]], and [[fig:exec_time]]. Figure [[fig:msamples]] presents an overview of performance across all machines using the industry metric MSamples/s. The X-axis represents the block order for the {{{sf}}} application, and the Y-axis represents the MSamples/s. The four horizontal lines on each plot represent the four configurations of /fletcher-base/ executions (static/dynamic scheduling, bound/free threads). Each plot represents one machine, and they are organized by similarity. The top row contains the heterogeneous machines, the middle row contains the two dual-socket homogeneous machines, and the bottom row contains the {{{m(grace)}}} and {{{m(lunaris)}}} machines, which do not fall into the groups above. We use 10 replications for each experimental configuration to account for performance variability. We checked the normality of each configuration with Shapiro-Wilk tests with a Bonferroni correction, and almost all configurations passed. Hence, the error bars on the points and the bands around the horizontal lines show the 95% confidence interval of the mean, based on Student's t-distribution.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples.pdf" :exports none :width 3.5 :height 4.6
 
@@ -1076,7 +1083,7 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
       geom_errorbar(aes(ymin = Msamples_mean - Msamples_error,
                           ymax = Msamples_mean + Msamples_error), width = 0.5, linewidth = 0.4) +
       geom_point(aes(shape = "star-fletcher results"), alpha = 0.8, size = 1.2) +
-      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16)) +
+      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16), labels = prog_label) +
       #scale_x_continuous(breaks = x_breaks) +
       facet_wrap(~ Machine, scales = "free_y", ncol = 2, labeller = as_labeller(mach_label)) +
       labs(x = "Block Order", y = "MSamples/s",
@@ -1112,14 +1119,14 @@ The results of the first experiment appear in Figures [[fig:msamples]], [[fig:cm
   msamples_plot(sf_res, fb_res)
 #+END_SRC
 
-#+CAPTION: Plot of \textit{star-fletcher} and \textit{fletcher-base} performance over their respective configurations, using MSamples/s as the dependent variable.
+#+CAPTION: Plot of {{{sf}}} and \textit{fletcher-base} performance over their respective configurations, using MSamples/s as the dependent variable.
 #+NAME: fig:msamples
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/msamples.pdf]]
 
 
-Figure [[fig:msamples]] shows that for the machines {{{m(tupi)}}}, {{{m(lunaris)}}}, and {{{m(grace)}}}, there is at least one configuration where /star-fletcher/ is better than any configuration of /fletcher-base/. For {{{m(cei)}}}, {{{m(draco)}}}, and {{{m(poti)}}}, the performance either matched or was slightly below the best configuration for /fletcher-base/. Figure [[fig:cmp_msamples]] shows the difference between the best configuration of each program on each machine. It shows that gains are larger in magnitude than losses: relative to the mean of the best /fletcher-base/ configuration, /star-fletcher/ is faster by up to 51% on {{{m(lunaris)}}}, on par on {{{m(cei)}}}, and at most 8.4% slower on {{{m(draco)}}}.
-Another interesting point is that for /fletcher-base/, all the best executions used dynamic scheduling with unbound threads, except {{{m(grace)}}}, which used dynamic scheduling with bound threads. Against the default static schedule with unbound threads, /star-fletcher/ is about 63% faster on the hybrid machines {{{m(tupi)}}} and {{{m(poti)}}}, where the static split of the points ignores the slower E-cores.
+Figure [[fig:msamples]] shows that for the machines {{{m(tupi)}}}, {{{m(lunaris)}}}, and {{{m(grace)}}}, there is at least one configuration where {{{sf}}} is better than any configuration of /fletcher-base/. For {{{m(cei)}}}, {{{m(draco)}}}, and {{{m(poti)}}}, the performance either matched or was slightly below the best configuration for /fletcher-base/. Figure [[fig:cmp_msamples]] shows the difference between the best configuration of each program on each machine. It shows that gains are larger in magnitude than losses: relative to the mean of the best /fletcher-base/ configuration, {{{sf}}} is faster by up to 51% on {{{m(lunaris)}}}, on par on {{{m(cei)}}}, and at most 8.4% slower on {{{m(draco)}}}.
+Another interesting point is that for /fletcher-base/, all the best executions used dynamic scheduling with unbound threads, except {{{m(grace)}}}, which used dynamic scheduling with bound threads. Against the default static schedule with unbound threads, {{{sf}}} is about 63% faster on the hybrid machines {{{m(tupi)}}} and {{{m(poti)}}}, where the static split of the points ignores the slower E-cores.
 
 #+BEGIN_SRC R :async yes :session *R* :results graphics file silent :file "pdp/paper/figures/msamples_cmp.pdf" :exports none :width 2.45 :height 1.5
 
@@ -1186,7 +1193,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
 
 #+END_SRC
 
-#+CAPTION: Absolute MSamples/s difference without I/O between the best \textit{star-fletcher} and the best \textit{fletcher-base} configuration on each machine, over all pairs of their runs. Positive values mean \textit{star-fletcher} is faster.
+#+CAPTION: Absolute MSamples/s difference without I/O between the best {{{sf}}} and the best \textit{fletcher-base} configuration on each machine, over all pairs of their runs. Positive values mean {{{sf}}} is faster.
 #+NAME: fig:cmp_msamples
 #+ATTR_LATEX: :placement [!htb] :width .7\linewidth
 [[file:figures/msamples_cmp.pdf]]
@@ -1195,7 +1202,7 @@ Another interesting point is that for /fletcher-base/, all the best executions u
 
 Figure [[fig:exec_time]] shows the second metric, computed time. It enables the analysis of how I/O affects the computed times. For clarity, the figure shows one machine per group and only the free-thread configuration of /fletcher-base/, as it was the best on all machines except {{{m(grace)}}}, where bound threads were faster without I/O. In the figure, the X-axis represents the block order, and the Y-axis represents the computed time in seconds. It is faceted horizontally by machine and vertically by the amount of I/O.
 #+latex: %
-The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amount of I/O increases, the performance gap between the /star-fletcher/ and /fletcher-base/ versions grows in favor of /star-fletcher/. Across the five machines with the $384^3$ volume, saving every step increases the computed time of the best /fletcher-base/ configuration by up to 27%, against at most 17% for /star-fletcher/ with its best block order. The {{{m(draco)}}} is the only machine where the overhead of /star-fletcher/ is higher. The {{{m(grace)}}} machine, with a volume about 6.6 times larger ($720^3$ against $384^3$ points), shows the opposite trend: /star-fletcher/ is faster without I/O (23.9 s against 30.2 s with free threads and 26.7 s with bound threads), on par when saving every 5 steps (41.8 s against 39.6 s), and slower when saving every step (117 s against 88.4 s). We suspect that the many block-sized writes through the ~mmap~-ed file become costly at this size.
+The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amount of I/O increases, the performance gap between the {{{sf}}} and /fletcher-base/ versions grows in favor of {{{sf}}}. Across the five machines with the $384^3$ volume, saving every step increases the computed time of the best /fletcher-base/ configuration by up to 27%, against at most 17% for {{{sf}}} with its best block order. The {{{m(draco)}}} is the only machine where the overhead of {{{sf}}} is higher. The {{{m(grace)}}} machine, with a volume about 6.6 times larger ($720^3$ against $384^3$ points), shows the opposite trend: {{{sf}}} is faster without I/O (23.9 s against 30.2 s with free threads and 26.7 s with bound threads), on par when saving every 5 steps (41.8 s against 39.6 s), and slower when saving every step (117 s against 88.4 s). We suspect that the many block-sized writes through the ~mmap~-ed file become costly at this size.
   
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/exec_time.pdf" :exports none :width 3.5 :height 3.8
   # Ordem do bloco (eixo X) contra MSamples/s ou tempo de execução, escolhido no `metric` ("Msamples"
@@ -1269,7 +1276,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
       ggh4x::facet_grid2(IO ~ Machine, scales = "free_y", independent = "y", labeller = labeller(Machine = mach_label)) +
       # facetted_pos_scales(y = y_scales) + 
       geom_point(aes(shape = "star-fletcher results"), alpha = 0.8, size = 1.2) +
-      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16)) +
+      scale_shape_manual(name = NULL, values = c("star-fletcher results" = 16), labels = prog_label) +
       labs(x = "Block Order", y = y_label,
            fill = NULL, color = NULL,
            linetype = NULL) +
@@ -1296,7 +1303,7 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
   order_plot(fl(sf_res), fl(fb_res), "ExecTime", "Computed Time (s)", "Computed Time vs. Block Order")
 #+END_SRC
 
-#+CAPTION: Computed time (lower is better) on {{{m(cei)}}}, {{{m(tupi)}}}, and {{{m(grace)}}} as a function of the \textit{star-fletcher} block order (points), with the \textit{fletcher-base} free-thread configurations as horizontal lines. 
+#+CAPTION: Computed time (lower is better) on {{{m(cei)}}}, {{{m(tupi)}}}, and {{{m(grace)}}} as a function of the {{{sf}}} block order (points), with the \textit{fletcher-base} free-thread configurations as horizontal lines. 
 #+NAME: fig:exec_time
 #+ATTR_LATEX: :placement [!htb] :width \linewidth
 [[file:figures/exec_time.pdf]]
@@ -1306,11 +1313,11 @@ The plot shows that for the {{{m(tupi)}}} and {{{m(cei)}}} machines, as the amou
 #+latex: \smallskip
 
 #+latex: \noindent
-*Scalability of the /star-fletcher/ application.*
+*Scalability of the {{{sf}}} application.*
 #+latex: %
-Figure [[fig:scalability]] depicts the applications’ scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: /star-fletcher/, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores, unlike the best /fletcher-base/ configuration of the first experiment. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
-The figure shows that /star-fletcher/ is faster than both /fletcher-base/ versions on all machines for almost all core counts. The gap narrows when simultaneous multi-threading (SMT) is used. As expected, on heterogeneous machines, using E-cores significantly slowed the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the /star-fletcher/ implementation. The machine {{{m(lunaris)}}} showed the largest gaps, independent of the number of cores used.
-The one exception to all these trends is the machine {{{m(grace)}}}. There, /star-fletcher/ is faster at low core counts, but the gap shrinks as cores increase until, with I/O, it is slower than both /fletcher-base/ versions. This I/O gap was already highlighted in Figure [[fig:exec_time]].
+Figure [[fig:scalability]] depicts the applications’ scalability as the number of cores increases. The X-axis is the number of cores used to execute the application, and the Y-axis is the computed time. It is faceted horizontally by machine and vertically by the amount of I/O used, with only two cases: no I/O and I/O at every step. It shows three versions: {{{sf}}}, using its best block order for the size, and /fletcher-base/ with /dynamic/ and /static/ scheduling, with the threads bound to the cores, unlike the best /fletcher-base/ configuration of the first experiment. Each point is the mean of 5 replications, and the error bars show the 95% confidence interval of the mean, as before.
+The figure shows that {{{sf}}} is faster than both /fletcher-base/ versions on all machines for almost all core counts. The gap narrows when simultaneous multi-threading (SMT) is used. As expected, on heterogeneous machines, using E-cores significantly slowed the static execution of /fletcher-base/. Although the dynamic version handled the disparity well, it did not surpass the {{{sf}}} implementation. The machine {{{m(lunaris)}}} showed the largest gaps, independent of the number of cores used.
+The one exception to all these trends is the machine {{{m(grace)}}}. There, {{{sf}}} is faster at low core counts, but the gap shrinks as cores increase until, with I/O, it is slower than both /fletcher-base/ versions. This I/O gap was already highlighted in Figure [[fig:exec_time]].
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/scalability.pdf" :exports none :width 7.16 :height 3
    # Um gráfico por máquina, para que cada uma tenha os seus valores no eixo X (o ponto com SMT
@@ -1430,7 +1437,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. There, /sta
            breaks = ticks$X,
            labels = ticks$Label
          ) +
-         scale_color_manual(values = program_colors, limits = names(program_colors)) +
+         scale_color_manual(values = program_colors, limits = names(program_colors), labels = prog_label) +
          facet_grid(
            (if(unique(d$IO) |> length() == 1) ~ Machine else IO ~ Machine),
            scales = "free_y",
@@ -1480,7 +1487,7 @@ The one exception to all these trends is the machine {{{m(grace)}}}. There, /sta
      scalability_plot("ExecTime", "Computed Time (s)", "Computed Time vs. Number of Cores", zoom = zoom) #log_y = TRUE, log_x = TRUE
 #+END_SRC
 
-#+CAPTION: Computed time (lower is better) as the number of cores increases, without (top) and with I/O (bottom), for \textit{star-fletcher} with its best block order and \textit{fletcher-base} with static and dynamic scheduling. Dashed lines mark where E-cores start being used and the inset zooms into 128 to 144 cores on {{{m(grace)}}}.
+#+CAPTION: Computed time (lower is better) as the number of cores increases, without (top) and with I/O (bottom), for {{{sf}}} with its best block order and \textit{fletcher-base} with static and dynamic scheduling. Dashed lines mark where E-cores start being used and the inset zooms into 128 to 144 cores on {{{m(grace)}}}.
 #+NAME: fig:scalability
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/scalability.pdf]]
@@ -1492,11 +1499,11 @@ The one exception to all these trends is the machine {{{m(grace)}}}. There, /sta
 #+latex: \noindent
 *Elimination of Global Synchronization enabling Computational Overlap.*
 #+latex: %
-The improvements of /star-fletcher/ over /fletcher-base/ are consistent with iteration overlap and the overlap of I/O with computation. Figure [[fig:overlap]] has three panels, each from an execution on {{{m(lunaris)}}}. The first and second panels are k-iteration plots cite:garcia2018visual of /star-fletcher/ and /fletcher-base/ on that machine. The X-axis is the computed time, and the Y-axis is the iteration, ranging from 1 to 20.
+The improvements of {{{sf}}} over /fletcher-base/ are consistent with iteration overlap and the overlap of I/O with computation. Figure [[fig:overlap]] has three panels, each from an execution on {{{m(lunaris)}}}. The first and second panels are k-iteration plots cite:garcia2018visual of {{{sf}}} and /fletcher-base/ on that machine. The X-axis is the computed time, and the Y-axis is the iteration, ranging from 1 to 20.
 #+latex: %(FIX THE STAR-FLECTHER ONE THAT STARTS AT 0 WITH NOTHING AT 1).
 Each computational unit is represented as a rectangle, with its location and size representing the start time and duration, respectively. The color distinguishes between computational and I/O executions. The last panel shows the number of active iterations at a given time, colored by the program.
 #+latex: %
-It shows that /star-fletcher/ may overlap as many as seven iterations at a time. With I/O at every step, it ends in less than half the time of this /fletcher-base/ run. Another factor is that in the /star-fletcher/ application, the I/O is interleaved with the computation, while in the /fletcher-base/ case it always happens after the computation has finished, blocking the computation unnecessarily.
+It shows that {{{sf}}} may overlap as many as seven iterations at a time. With I/O at every step, it ends in less than half the time of this /fletcher-base/ run. Another factor is that in the {{{sf}}} application, the I/O is interleaved with the computation, while in the /fletcher-base/ case it always happens after the computation has finished, blocking the computation unnecessarily.
 
 #+BEGIN_SRC R :session *R* :async yes :results graphics file silent :file "pdp/paper/figures/overlap.pdf" :exports none :width 7.16 :height 3
   library(starvz)
@@ -1592,13 +1599,13 @@ It shows that /star-fletcher/ may overlap as many as seven iterations at a time.
     overlap_plot <- overlap_plot +
       time_axis +
       scale_color_manual(values = c(sf = "#1b9e77", fb = "#d95f02"),
-                         labels = c(sf = "star-fletcher", fb = "fletcher-base (dynamic)")) +
+                         labels = c(sf = prog_label("star-fletcher"), fb = "fletcher-base (dynamic)")) +
       labs(x = "Time [s]", y = "Active\niterations") +
       theme_bw(base_size = size) +
       theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1),
             panel.grid.minor = element_blank(), axis.title.x = element_text(size = size, margin = margin(t = 1)))
 
-    (panel(sf, "star-fletcher") +
+    (panel(sf, prog_label("star-fletcher")) +
        theme(legend.position = "inside", legend.position.inside = c(0.99, 0.95), legend.justification = c(1, 1))
     ) /
       (panel(fb, "fletcher-base\n(dynamic)") + guides(fill = "none")) / overlap_plot +
@@ -1649,10 +1656,11 @@ It shows that /star-fletcher/ may overlap as many as seven iterations at a time.
     select(Iteration, Phase, Start, End, Duration) |>
     arrange(Iteration, Phase)
 
+  anon_pdf("overlap", 7.16, 3, kiteration_compare(lunaris_sf, lunaris_fb, title = NULL))
   kiteration_compare(lunaris_sf, lunaris_fb, title = NULL)
 #+END_SRC
 
-#+CAPTION: Execution of both programs on {{{m(lunaris)}}} with 24 cores, saving the volume at every step. Top: k-iteration plot of \textit{star-fletcher} with its best block order (48). Rectangles are tasks, colored as computation or I/O. Middle: the same view for \textit{fletcher-base} with dynamic scheduling, with one rectangle for the computation and one for the I/O of each iteration. Bottom: number of iterations active at each instant for each program.
+#+CAPTION: Execution of both programs on {{{m(lunaris)}}} with 24 cores, saving the volume at every step. Top: k-iteration plot of {{{sf}}} with its best block order (48). Rectangles are tasks, colored as computation or I/O. Middle: the same view for \textit{fletcher-base} with dynamic scheduling, with one rectangle for the computation and one for the I/O of each iteration. Bottom: number of iterations active at each instant for each program.
 #+NAME: fig:overlap
 #+ATTR_LATEX: :float multicolumn :placement [!htb] :width \textwidth
 [[file:figures/overlap.pdf]]
@@ -1660,7 +1668,7 @@ It shows that /star-fletcher/ may overlap as many as seven iterations at a time.
 ** Conclusion
 <<sec:conclusion>>
 
-This paper presented /star-fletcher/, an STF implementation of the forward phase of Fletcher's TTI modeling on top of StarPU. It segments the volume into blocks, replaces the global barrier of each time step of the OpenMP fork-join /fletcher-base/ with per-block dependencies, and issues snapshot writes as tasks of the same graph. On six CPU machines, /star-fletcher/ surpasses the best /fletcher-base/ configuration on three machines, by up to 51% MSamples/s, matches it on {{{m(cei)}}}, and stays slightly below it on {{{m(poti)}}} and {{{m(draco)}}}. Against the default static OpenMP schedule, the gains reach 63% on the hybrid P-core/E-core machines. The dynamic schedule recovers most of this gap and was the best /fletcher-base/ configuration on every machine. Execution traces show up to seven iterations in flight, and overlapping writes with computation reduces the I/O overhead on four of the five machines with the smaller volume. These gains require choosing the block order for each machine and problem size. The main limitation is I/O at scale: on {{{m(grace)}}}, with a volume about 6.6 times larger, /star-fletcher/ is faster without I/O but becomes slower than /fletcher-base/ when the volume is saved frequently (117 s against 88.4 s when saving every step).
+This paper presented {{{sf}}}, an STF implementation of the forward phase of Fletcher's TTI modeling on top of StarPU. It segments the volume into blocks, replaces the global barrier of each time step of the OpenMP fork-join /fletcher-base/ with per-block dependencies, and issues snapshot writes as tasks of the same graph. On six CPU machines, {{{sf}}} surpasses the best /fletcher-base/ configuration on three machines, by up to 51% MSamples/s, matches it on {{{m(cei)}}}, and stays slightly below it on {{{m(poti)}}} and {{{m(draco)}}}. Against the default static OpenMP schedule, the gains reach 63% on the hybrid P-core/E-core machines. The dynamic schedule recovers most of this gap and was the best /fletcher-base/ configuration on every machine. Execution traces show up to seven iterations in flight, and overlapping writes with computation reduces the I/O overhead on four of the five machines with the smaller volume. These gains require choosing the block order for each machine and problem size. The main limitation is I/O at scale: on {{{m(grace)}}}, with a volume about 6.6 times larger, {{{sf}}} is faster without I/O but becomes slower than /fletcher-base/ when the volume is saved frequently (117 s against 88.4 s when saving every step).
 
 Future work includes investigating the cost of the block-sized writes at large volume sizes, for instance by replacing the ~mmap~-based writes with direct I/O, co-executing the propagation tasks on CPUs and GPUs within the same task graph, and using StarPU-MPI to distribute the blocks of a single shot across nodes, enabling a comparison with existing MPI+CUDA implementations of Fletcher.
 
