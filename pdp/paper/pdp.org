@@ -289,8 +289,8 @@ Boillot et al. cite:boillot_task-based_2014 ported an MPI-parallel RTM applicati
 # P5 - Star-Fletcher and contributions
 This paper presents /star-fletcher/, an STF implementation of the Fletcher forward phase on top of StarPU. It reuses the numerical kernel of /fletcher-base/ but segments the volume into cubic blocks and, for each time step, submits one propagation task per block and, every $k$ steps, one write task per block. The contributions of this paper are:
 
-1. The elimination of the global synchronization between time steps through per-block dependencies, which lets the StarPU scheduler overlap tasks from different iterations (limitation b).
-2. The overlap of computation with I/O, by weaving block write tasks between the propagation tasks (limitation c).
+1. The elimination of global synchronization between time steps through per-block dependencies, which lets the StarPU scheduler overlap tasks from different iterations (limitation b).
+2. The overlap of computation with I/O by weaving block write tasks between the propagation tasks (limitation c).
 3. A performance evaluation on six machines covering four kinds of CPU architectures (hybrid P-core and E-core, dual-socket Intel, single-socket AMD, and ARM), comparing /star-fletcher/ against static and dynamic OpenMP configurations of /fletcher-base/ with MSamples/s and execution time (limitation a).
 
 # P6 - Main results
