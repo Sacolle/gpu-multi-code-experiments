@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # -*- mode: org -*-
 
-#+TITLE: Implementation and Evaluation of a Task-Based Fletcher Forward Modeling for RTM on Multiple CPU Architectures
+#+TITLE: Task-Based Fletcher Forward Modeling for RTM: Removing Global Barriers and Overlapping I/O on CPUs
 #+AUTHOR: Anonymous
 
 #+STARTUP: overview indent
